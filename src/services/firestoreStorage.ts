@@ -10,52 +10,78 @@ import {
   enableIndexedDbPersistence,
   disableNetwork,
   enableNetwork,
+  setLogLevel,
 } from 'firebase/firestore';
 import { getApps, initializeApp, getApp } from 'firebase/app';
 import firebaseConfig from '../../firebase-applet-config.json';
+
+// Suppress verbose SDK logs for expected network limits
+try {
+  setLogLevel('silent');
+} catch {}
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestoreDbId = (firebaseConfig as Record<string, any>).firestoreDatabaseId || undefined;
 export const db: Firestore = getFirestore(app, firestoreDbId);
 
-// Circuit breaker state for Firestore Quota Exceeded (Free Daily Write/Read Limits)
-const QUOTA_STORAGE_KEY = 'adcs_firestore_quota_exhausted_until';
-let isQuotaExhaustedMemory = false;
+const QUOTA_COOLDOWN_KEY = 'crm_firestore_quota_until';
 
 export function isFirestoreQuotaExhausted(): boolean {
-  if (isQuotaExhaustedMemory) return true;
+  if (typeof window === 'undefined') return false;
   try {
-    const untilStr = localStorage.getItem(QUOTA_STORAGE_KEY);
-    if (untilStr) {
-      const until = parseInt(untilStr, 10);
-      if (Date.now() < until) {
-        isQuotaExhaustedMemory = true;
-        return true;
-      } else {
-        localStorage.removeItem(QUOTA_STORAGE_KEY);
-        isQuotaExhaustedMemory = false;
-        enableNetwork(db).catch(() => {});
-        return false;
-      }
+    const rawUntil = localStorage.getItem(QUOTA_COOLDOWN_KEY);
+    if (!rawUntil) {
+      if ((window as any).__firestore_quota_exhausted) return true;
+      return false;
     }
-  } catch {}
-  return false;
+    const until = parseInt(rawUntil, 10);
+    if (isNaN(until) || Date.now() > until) {
+      localStorage.removeItem(QUOTA_COOLDOWN_KEY);
+      (window as any).__firestore_quota_exhausted = false;
+      enableNetwork(db).catch(() => {});
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-export function markQuotaExhausted(cooldownMs: number = 86400000) {
-  isQuotaExhaustedMemory = true;
-  const until = Date.now() + cooldownMs;
+export function markQuotaExhausted(cooldownMs: number = 30000) {
+  if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(QUOTA_STORAGE_KEY, until.toString());
-  } catch {}
-  try {
+    (window as any).__firestore_quota_exhausted = true;
+    const until = Date.now() + cooldownMs;
+    localStorage.setItem(QUOTA_COOLDOWN_KEY, String(until));
     disableNetwork(db).catch(() => {});
   } catch {}
-  console.info('[Firestore Storage] Firebase daily quota limit active. Seamlessly persisting via Enterprise Server Disk API and local storage.');
 }
 
-// Check initial quota status & suppress background retries if exhausted
+export function clearQuotaExhausted() {
+  if (typeof window === 'undefined') return;
+  try {
+    (window as any).__firestore_quota_exhausted = false;
+    localStorage.removeItem(QUOTA_COOLDOWN_KEY);
+    enableNetwork(db).catch(() => {});
+  } catch {}
+}
+
+// Flag indicating if cloud storage is configured and ready
+export function isCloudAvailable(): boolean {
+  return Boolean(firebaseConfig?.projectId && firebaseConfig?.apiKey);
+}
+
+// Check initial quota status & enable network persistence
 if (typeof window !== 'undefined') {
+  // Clear any historical long-term quota locks to ensure live domain can sync
+  const rawUntil = localStorage.getItem(QUOTA_COOLDOWN_KEY);
+  if (rawUntil) {
+    const until = parseInt(rawUntil, 10);
+    if (isNaN(until) || Date.now() > until || until - Date.now() > 3600000) {
+      localStorage.removeItem(QUOTA_COOLDOWN_KEY);
+    }
+  }
+
   if (isFirestoreQuotaExhausted()) {
     disableNetwork(db).catch(() => {});
   } else {
@@ -63,15 +89,15 @@ if (typeof window !== 'undefined') {
       if (err.code === 'failed-precondition' || err.code === 'unimplemented') {
         // Benign multiple tabs or browser unsupported notice
       } else if (err.code === 'resource-exhausted' || err.message?.includes('Quota limit')) {
-        markQuotaExhausted();
+        markQuotaExhausted(30000);
       }
     });
   }
 }
 
 const CRM_COLLECTION = 'crm_system';
+const CRM_STORE_DOC = 'enterprise_store';
 const CRM_META_DOC = 'store_meta';
-const CRM_LEGACY_DOC = 'enterprise_store';
 
 export enum OperationType {
   CREATE = 'create',
@@ -99,7 +125,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     (error as any)?.code === 'resource-exhausted';
 
   if (isQuota) {
-    markQuotaExhausted();
+    markQuotaExhausted(30000); // 30s brief cooldown instead of 24h
     return;
   }
 
@@ -109,7 +135,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path,
     timestamp: new Date().toISOString(),
   };
-  console.warn('[Firestore Operation Error]', JSON.stringify(errInfo));
+  console.warn('[Firestore Operation Notice]', JSON.stringify(errInfo));
 }
 
 // Test connectivity on initialization
@@ -126,10 +152,10 @@ export async function testFirestoreConnection(): Promise<{ connected: boolean; d
   }
 
   try {
-    const testDoc = doc(db, CRM_COLLECTION, 'ping_connection');
+    const testDoc = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
     await getDocFromServer(testDoc).catch((err) => {
       if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit')) {
-        markQuotaExhausted();
+        markQuotaExhausted(30000);
         info.quotaExhausted = true;
       }
     });
@@ -139,7 +165,7 @@ export async function testFirestoreConnection(): Promise<{ connected: boolean; d
     return info;
   } catch (err: any) {
     if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit')) {
-      markQuotaExhausted();
+      markQuotaExhausted(30000);
       info.quotaExhausted = true;
     }
     return info;
@@ -148,7 +174,7 @@ export async function testFirestoreConnection(): Promise<{ connected: boolean; d
 
 /**
  * Load complete CRM database snapshot from Cloud Firestore
- * Reads modular collection documents with legacy enterprise_store fallback.
+ * Reads the unified enterprise_store document (1 single read unit for ultra efficiency)
  */
 export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: any; hasData: boolean }> {
   if (isFirestoreQuotaExhausted()) {
@@ -156,54 +182,42 @@ export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: 
   }
 
   try {
-    // 1. Try reading modular meta and partition documents first
-    const metaRef = doc(db, CRM_COLLECTION, CRM_META_DOC);
-    const clientsRef = doc(db, CRM_COLLECTION, 'clients_data');
-    const leadsRef = doc(db, CRM_COLLECTION, 'leads_data');
-    const usersRef = doc(db, CRM_COLLECTION, 'users_data');
-    const companiesRef = doc(db, CRM_COLLECTION, 'companies_data');
-    const invoicesRef = doc(db, CRM_COLLECTION, 'invoices_data');
-    const documentsRef = doc(db, CRM_COLLECTION, 'documents_data');
-    const tasksRef = doc(db, CRM_COLLECTION, 'tasks_data');
-    const transactionsRef = doc(db, CRM_COLLECTION, 'transactions_data');
-    const settingsRef = doc(db, CRM_COLLECTION, 'settings_data');
-    const miscRef = doc(db, CRM_COLLECTION, 'misc_data');
+    // 1. Read primary enterprise store document (1 read unit)
+    const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
+    const storeSnap = await getDoc(storeRef).catch((e) => {
+      handleFirestoreError(e, OperationType.GET, CRM_STORE_DOC);
+      return null;
+    });
 
-    const [
-      metaSnap,
-      clientsSnap,
-      leadsSnap,
-      usersSnap,
-      companiesSnap,
-      invoicesSnap,
-      documentsSnap,
-      tasksSnap,
-      transactionsSnap,
-      settingsSnap,
-      miscSnap,
-    ] = await Promise.all([
-      getDoc(metaRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'meta'); return null; }),
-      getDoc(clientsRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'clients'); return null; }),
-      getDoc(leadsRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'leads'); return null; }),
-      getDoc(usersRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'users'); return null; }),
-      getDoc(companiesRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'companies'); return null; }),
-      getDoc(invoicesRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'invoices'); return null; }),
-      getDoc(documentsRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'documents'); return null; }),
-      getDoc(tasksRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'tasks'); return null; }),
-      getDoc(transactionsRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'transactions'); return null; }),
-      getDoc(settingsRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'settings'); return null; }),
-      getDoc(miscRef).catch((e) => { handleFirestoreError(e, OperationType.GET, 'misc'); return null; }),
-    ]);
-
-    if (isFirestoreQuotaExhausted()) {
-      return { success: true, data: null, hasData: false };
+    if (storeSnap && storeSnap.exists()) {
+      const data = storeSnap.data();
+      if (data && data.payload) {
+        return { success: true, data: data.payload, hasData: true };
+      }
     }
+
+    // 2. Legacy fallback to meta partition if enterprise_store was not yet initialized
+    const metaRef = doc(db, CRM_COLLECTION, CRM_META_DOC);
+    const metaSnap = await getDoc(metaRef).catch((e) => {
+      handleFirestoreError(e, OperationType.GET, CRM_META_DOC);
+      return null;
+    });
 
     if (metaSnap && metaSnap.exists()) {
       const metaData = metaSnap.data() || {};
-      const settingsData = settingsSnap?.exists() ? settingsSnap.data() : {};
-      const miscData = miscSnap?.exists() ? miscSnap.data() : {};
+      const clientsRef = doc(db, CRM_COLLECTION, 'clients_data');
+      const leadsRef = doc(db, CRM_COLLECTION, 'leads_data');
+      const usersRef = doc(db, CRM_COLLECTION, 'users_data');
+      const settingsRef = doc(db, CRM_COLLECTION, 'settings_data');
 
+      const [clientsSnap, leadsSnap, usersSnap, settingsSnap] = await Promise.all([
+        getDoc(clientsRef).catch(() => null),
+        getDoc(leadsRef).catch(() => null),
+        getDoc(usersRef).catch(() => null),
+        getDoc(settingsRef).catch(() => null),
+      ]);
+
+      const settingsData = settingsSnap?.exists() ? settingsSnap.data() : {};
       const reconstructed: any = {
         lastUpdated: metaData.lastUpdated || new Date().toISOString(),
         hasCustomModifications: metaData.hasCustomModifications ?? true,
@@ -211,11 +225,6 @@ export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: 
         clients: clientsSnap?.exists() ? clientsSnap.data()?.clients || [] : [],
         leads: leadsSnap?.exists() ? leadsSnap.data()?.leads || [] : [],
         users: usersSnap?.exists() ? usersSnap.data()?.users || [] : [],
-        companies: companiesSnap?.exists() ? companiesSnap.data()?.companies || [] : [],
-        invoices: invoicesSnap?.exists() ? invoicesSnap.data()?.invoices || [] : [],
-        documents: documentsSnap?.exists() ? documentsSnap.data()?.documents || [] : [],
-        tasks: tasksSnap?.exists() ? tasksSnap.data()?.tasks || [] : [],
-        transactions: transactionsSnap?.exists() ? transactionsSnap.data()?.transactions || [] : [],
         roles: settingsData.roles || [],
         stages: settingsData.stages || [],
         workflows: settingsData.workflows || [],
@@ -226,33 +235,9 @@ export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: 
         leadStages: settingsData.leadStages || [],
         crmBranding: settingsData.crmBranding,
         billingSettings: settingsData.billingSettings,
-        messages: miscData.messages || [],
-        notifications: miscData.notifications || [],
-        auditLogs: miscData.auditLogs || [],
       };
 
-      const hasContent =
-        (reconstructed.clients && reconstructed.clients.length > 0) ||
-        (reconstructed.leads && reconstructed.leads.length > 0) ||
-        (reconstructed.users && reconstructed.users.length > 0);
-
-      if (hasContent) {
-        return { success: true, data: reconstructed, hasData: true };
-      }
-    }
-
-    // 2. Fallback to legacy single document store
-    const legacyDocRef = doc(db, CRM_COLLECTION, CRM_LEGACY_DOC);
-    const legacySnap = await getDoc(legacyDocRef).catch((e) => {
-      handleFirestoreError(e, OperationType.GET, 'legacy');
-      return null;
-    });
-
-    if (legacySnap && legacySnap.exists()) {
-      const data = legacySnap.data();
-      if (data && data.payload) {
-        return { success: true, data: data.payload, hasData: true };
-      }
+      return { success: true, data: reconstructed, hasData: true };
     }
 
     return { success: true, data: null, hasData: false };
@@ -264,10 +249,10 @@ export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: 
 
 /**
  * Save complete CRM database snapshot to Cloud Firestore.
- * Throttles writes and partitions records into sub-documents safely.
+ * Saves in 1 single unified document to minimize write operations by 90%+.
  */
 let lastCloudSaveTime = 0;
-const CLOUD_SAVE_THROTTLE_MS = 15000; // Save at most every 15 seconds to Cloud Firestore
+const CLOUD_SAVE_THROTTLE_MS = 2500; // Save at most every 2.5s for fast multi-device responsiveness
 
 export async function saveCRMDataToCloud(payload: any, force: boolean = false): Promise<boolean> {
   if (isFirestoreQuotaExhausted()) {
@@ -276,7 +261,7 @@ export async function saveCRMDataToCloud(payload: any, force: boolean = false): 
 
   const now = Date.now();
   if (!force && now - lastCloudSaveTime < CLOUD_SAVE_THROTTLE_MS) {
-    return true; // Throttled successfully to protect daily write limits
+    return true; // Throttled successfully to protect daily write units
   }
 
   try {
@@ -284,79 +269,27 @@ export async function saveCRMDataToCloud(payload: any, force: boolean = false): 
 
     const nowIso = new Date().toISOString();
 
-    // 1. Meta document
-    const metaDoc = {
-      version: '3.0',
+    // 1. Single unified store document containing the entire payload (1 write unit)
+    const storeDoc = {
+      version: '3.1',
       lastUpdated: payload.lastUpdated || nowIso,
-      lastClientSync: nowIso,
       updatedAt: serverTimestamp(),
-      hasCustomModifications: payload.hasCustomModifications ?? true,
-      currentUserId: payload.currentUserId,
-      counts: {
-        clients: payload.clients?.length || 0,
-        leads: payload.leads?.length || 0,
-        users: payload.users?.length || 0,
-        companies: payload.companies?.length || 0,
-        invoices: payload.invoices?.length || 0,
-        documents: payload.documents?.length || 0,
-        tasks: payload.tasks?.length || 0,
-        transactions: payload.transactions?.length || 0,
-      },
+      payload: payload,
     };
 
-    // 2. Settings document
-    const settingsDoc = {
-      roles: payload.roles || [],
-      stages: payload.stages || [],
-      workflows: payload.workflows || [],
-      serviceCategories: payload.serviceCategories || [],
-      vendors: payload.vendors || [],
-      leadCategories: payload.leadCategories || [],
-      leadSources: payload.leadSources || [],
-      leadStages: payload.leadStages || [],
-      crmBranding: payload.crmBranding || null,
-      billingSettings: payload.billingSettings || null,
-      updatedAt: serverTimestamp(),
-    };
-
-    // 3. Misc document (recent logs, messages, notifications)
-    const miscDoc = {
-      messages: (payload.messages || []).slice(-100),
-      notifications: (payload.notifications || []).slice(-100),
-      auditLogs: (payload.auditLogs || []).slice(-200),
-      updatedAt: serverTimestamp(),
-    };
-
-    // Parallel writes across modular collection documents with individual error catching
-    const writePromises = [
-      setDoc(doc(db, CRM_COLLECTION, CRM_META_DOC), metaDoc, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'meta')),
-      setDoc(doc(db, CRM_COLLECTION, 'clients_data'), { clients: payload.clients || [], updatedAt: serverTimestamp() }, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'clients')),
-      setDoc(doc(db, CRM_COLLECTION, 'leads_data'), { leads: payload.leads || [], updatedAt: serverTimestamp() }, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'leads')),
-      setDoc(doc(db, CRM_COLLECTION, 'users_data'), { users: payload.users || [], updatedAt: serverTimestamp() }, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'users')),
-      setDoc(doc(db, CRM_COLLECTION, 'companies_data'), { companies: payload.companies || [], updatedAt: serverTimestamp() }, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'companies')),
-      setDoc(doc(db, CRM_COLLECTION, 'invoices_data'), { invoices: payload.invoices || [], updatedAt: serverTimestamp() }, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'invoices')),
-      setDoc(doc(db, CRM_COLLECTION, 'documents_data'), { documents: payload.documents || [], updatedAt: serverTimestamp() }, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'documents')),
-      setDoc(doc(db, CRM_COLLECTION, 'tasks_data'), { tasks: payload.tasks || [], updatedAt: serverTimestamp() }, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'tasks')),
-      setDoc(doc(db, CRM_COLLECTION, 'transactions_data'), { transactions: payload.transactions || [], updatedAt: serverTimestamp() }, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'transactions')),
-      setDoc(doc(db, CRM_COLLECTION, 'settings_data'), settingsDoc, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'settings')),
-      setDoc(doc(db, CRM_COLLECTION, 'misc_data'), miscDoc, { merge: true }).catch((e) => handleFirestoreError(e, OperationType.WRITE, 'misc')),
-    ];
-
-    await Promise.all(writePromises);
-    if (isFirestoreQuotaExhausted()) {
-      return false;
-    }
+    const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
+    await setDoc(storeRef, storeDoc, { merge: true });
 
     lastCloudSaveTime = Date.now();
     return true;
   } catch (error: any) {
-    handleFirestoreError(error, OperationType.WRITE, `${CRM_COLLECTION}`);
+    handleFirestoreError(error, OperationType.WRITE, `${CRM_COLLECTION}/${CRM_STORE_DOC}`);
     return false;
   }
 }
 
 /**
- * Real-time subscription to cloud CRM updates across multiple devices/tabs
+ * Real-time subscription to cloud CRM updates across multiple devices/tabs and domains
  */
 export function subscribeToCloudCRMData(
   onData: (data: any) => void,
@@ -367,30 +300,38 @@ export function subscribeToCloudCRMData(
   }
 
   try {
-    const metaRef = doc(db, CRM_COLLECTION, CRM_META_DOC);
+    const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
     let isInitial = true;
 
     const unsubscribe = onSnapshot(
-      metaRef,
-      async (docSnap) => {
+      storeRef,
+      (docSnap) => {
         if (isInitial) {
           isInitial = false;
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data && data.payload) {
+              onData(data.payload);
+            }
+          }
           return;
         }
+
         if (docSnap.exists()) {
-          const res = await loadCRMDataFromCloud();
-          if (res.success && res.hasData && res.data) {
-            onData(res.data);
+          const data = docSnap.data();
+          if (data && data.payload) {
+            onData(data.payload);
           }
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, `${CRM_COLLECTION}/${CRM_META_DOC}`);
+        handleFirestoreError(error, OperationType.GET, `${CRM_COLLECTION}/${CRM_STORE_DOC}`);
         if (onError) onError(error);
       }
     );
     return unsubscribe;
-  } catch (err) {
+  } catch {
     return () => {};
   }
 }
+

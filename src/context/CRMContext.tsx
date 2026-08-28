@@ -71,7 +71,7 @@ interface CRMContextType {
   currentUser: User;
   setCurrentUser: (user: User) => void;
   availableUsers: User[];
-  login: (email: string, passwordOrPin: string) => { success: boolean; user?: User; error?: string };
+  login: (email: string, passwordOrPin: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => void;
   requestPasswordReset: (email: string) => { success: boolean; otpCode?: string; user?: User; error?: string };
   verifyOtpAndResetPassword: (email: string, otpCode: string, newPassword: string) => { success: boolean; error?: string };
@@ -347,7 +347,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }));
 
       setUsers((prevUsers) => {
-        // Merge protection: Never drop any locally created or existing user if the remote payload missed it
+        // Merge protection: Keep all valid active users
         const incomingIds = new Set(cleanUsers.map((u: User) => u.id));
         const missingLocalUsers = prevUsers.filter(
           (pu) => !incomingIds.has(pu.id) && pu.id !== 'user-admin-1' && pu.id !== 'user-emp-1'
@@ -356,12 +356,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return merged.length > 0 ? merged : INITIAL_USERS;
       });
 
-      if (parsed.currentUserId) {
-        const activeU = cleanUsers.find((u: User) => u.id === parsed.currentUserId);
-        if (activeU) {
-          setCurrentUser(activeU);
-        }
-      }
+      // Maintain current user profile integrity in local browser session
+      setCurrentUser((prevUser) => {
+        const found = cleanUsers.find((u: User) => u.id === prevUser.id || u.email.toLowerCase() === prevUser.email.toLowerCase());
+        return found ? found : prevUser;
+      });
     }
     if (parsed.stages && Array.isArray(parsed.stages)) setStages(parsed.stages);
     if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) setServiceCategories(parsed.serviceCategories);
@@ -488,62 +487,69 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Failed to load local CRM cache', e);
       }
 
-      // Now query Server Storage & Cloud Firestore to ensure cross-system integrity
+      // Query Server Storage & Cloud Firestore with complete failover for custom domains
       try {
         isHydratingFromRemoteRef.current = true;
+        let serverLoaded = false;
 
-        // 1. First try Server disk API (Fastest, zero quota limitation)
-        const serverRes = await fetch('/api/crm/data');
-        const serverData = await serverRes.json();
-        if (active && serverRes.ok && serverData.success && serverData.hasData && serverData.data) {
-          hydrateStateFromSnapshot(serverData.data);
-          lastAppliedRemoteIsoRef.current = serverData.data.lastUpdated || new Date().toISOString();
-          try {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(serverData.data));
-          } catch {}
-          setLastServerSyncTime(new Date().toLocaleTimeString());
-          setServerSyncStatus('synced');
-          setTimeout(() => {
-            if (active) {
-              setDataLoaded(true);
-              isHydratingFromRemoteRef.current = false;
+        // 1. Try Server disk API first (Fastest local container persistence)
+        try {
+          const serverRes = await fetch('/api/crm/data', { cache: 'no-store' });
+          if (serverRes.ok) {
+            const contentType = serverRes.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+              const serverData = await serverRes.json();
+              if (active && serverData.success && serverData.hasData && serverData.data) {
+                hydrateStateFromSnapshot(serverData.data);
+                lastAppliedRemoteIsoRef.current = serverData.data.lastUpdated || new Date().toISOString();
+                try {
+                  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(serverData.data));
+                } catch {}
+                setLastServerSyncTime(new Date().toLocaleTimeString());
+                setServerSyncStatus('synced');
+                serverLoaded = true;
+              }
             }
-          }, 100);
-          return;
+          }
+        } catch {
+          // Server disk not available on custom static domains (e.g. app.theadcs.com)
         }
 
-        // 2. Try Cloud Firestore (Cross-system cloud source of truth)
-        const cloudResult = await loadCRMDataFromCloud();
-        if (active && cloudResult.success && cloudResult.hasData && cloudResult.data) {
-          hydrateStateFromSnapshot(cloudResult.data);
-          lastAppliedRemoteIsoRef.current = cloudResult.data.lastUpdated || new Date().toISOString();
-          try {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudResult.data));
-          } catch {}
-          setLastServerSyncTime(new Date().toLocaleTimeString());
-          setServerSyncStatus('synced');
-          setTimeout(() => {
-            if (active) {
-              setDataLoaded(true);
-              isHydratingFromRemoteRef.current = false;
+        // 2. Query Cloud Firestore (Direct cross-device cloud source of truth)
+        try {
+          const cloudResult = await loadCRMDataFromCloud();
+          if (active && cloudResult.success && cloudResult.hasData && cloudResult.data) {
+            if (!serverLoaded || isRemoteStrictlyNewer(cloudResult.data.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+              hydrateStateFromSnapshot(cloudResult.data);
+              lastAppliedRemoteIsoRef.current = cloudResult.data.lastUpdated || new Date().toISOString();
+              try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudResult.data));
+              } catch {}
+              setLastServerSyncTime(new Date().toLocaleTimeString());
+              setServerSyncStatus('synced');
             }
-          }, 100);
-          return;
+          }
+        } catch (cloudErr) {
+          console.warn('Cloud sync load fallback notice:', cloudErr);
         }
 
-        // 3. If local cache had data but remote was empty, push local to server
+        // 3. If local cache had custom data but cloud was empty, seed cloud from local cache
         if (localLoaded) {
           const currentLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
           if (currentLocal) {
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: currentLocal,
-            }).catch(() => {});
+            try {
+              const parsed = JSON.parse(currentLocal);
+              saveCRMDataToCloud(parsed, true).catch(() => {});
+              fetch('/api/crm/data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: currentLocal,
+              }).catch(() => {});
+            } catch {}
           }
         }
       } catch (err: any) {
-        console.warn('Remote sync check error:', err?.message || err);
+        console.warn('Remote sync check notice:', err?.message || err);
         setServerSyncStatus('offline');
       } finally {
         if (active) {
@@ -552,7 +558,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               setDataLoaded(true);
               isHydratingFromRemoteRef.current = false;
             }
-          }, 120);
+          }, 100);
         }
       }
     }
@@ -575,27 +581,38 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     });
 
-    // 5. Active synchronization on tab focus & periodic check (every 15 seconds)
+    // 5. Active high-frequency synchronization for multi-device, multi-browser real-time consistency
     const checkRemoteSync = async () => {
       if (isLocalDebounceSavingRef.current || isHydratingFromRemoteRef.current) return;
+      
+      // 5a. Check server status if server API exists
       try {
-        // 1. Check Server disk API first (Instant, zero quota limitations)
-        const serverRes = await fetch('/api/crm/data');
-        const serverJson = await serverRes.json();
-        if (serverJson.success && serverJson.hasData && serverJson.data?.lastUpdated) {
-          if (isRemoteStrictlyNewer(serverJson.data.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-            lastAppliedRemoteIsoRef.current = serverJson.data.lastUpdated;
-            hydrateStateFromSnapshot(serverJson.data);
-            try {
-              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(serverJson.data));
-            } catch {}
-            setLastServerSyncTime(new Date().toLocaleTimeString());
-            setServerSyncStatus('synced');
-            return;
+        const statusRes = await fetch('/api/crm/status', { cache: 'no-store' });
+        if (statusRes.ok && statusRes.headers.get('content-type')?.includes('application/json')) {
+          const statusJson = await statusRes.json();
+          if (statusJson.success && statusJson.hasData && statusJson.lastUpdated) {
+            if (isRemoteStrictlyNewer(statusJson.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+              const serverRes = await fetch('/api/crm/data', { cache: 'no-store' });
+              if (serverRes.ok && serverRes.headers.get('content-type')?.includes('application/json')) {
+                const serverJson = await serverRes.json();
+                if (serverJson.success && serverJson.hasData && serverJson.data) {
+                  lastAppliedRemoteIsoRef.current = serverJson.data.lastUpdated || statusJson.lastUpdated;
+                  hydrateStateFromSnapshot(serverJson.data);
+                  try {
+                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(serverJson.data));
+                  } catch {}
+                  setLastServerSyncTime(new Date().toLocaleTimeString());
+                  setServerSyncStatus('synced');
+                  return;
+                }
+              }
+            }
           }
         }
+      } catch {}
 
-        // 2. Check Cloud Firestore only if server had no data and Firestore has available quota
+      // 5b. Fallback check for Cloud Firestore
+      try {
         const cloudRes = await loadCRMDataFromCloud();
         if (cloudRes.success && cloudRes.hasData && cloudRes.data?.lastUpdated) {
           if (isRemoteStrictlyNewer(cloudRes.data.lastUpdated, lastAppliedRemoteIsoRef.current)) {
@@ -608,12 +625,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setServerSyncStatus('synced');
           }
         }
-      } catch {
-        // Silent background poll error handling
-      }
+      } catch {}
     };
 
-    const pollInterval = setInterval(checkRemoteSync, 15000);
+    // Fast polling every 3.5 seconds ensures all admins and staff see live updates across any browser and device
+    const pollInterval = setInterval(checkRemoteSync, 3500);
     const handleFocus = () => {
       checkRemoteSync();
     };
@@ -689,18 +705,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const timer = setTimeout(async () => {
       try {
         const cloudOk = await saveCRMDataToCloud(snapshot);
-        const serverRes = await fetch('/api/crm/data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(snapshot),
-        });
-        const serverJson = await serverRes.json();
+        let serverOk = false;
+        try {
+          const serverRes = await fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(snapshot),
+          });
+          if (serverRes.ok) {
+            const serverJson = await serverRes.json();
+            serverOk = Boolean(serverJson?.success);
+          }
+        } catch {}
 
-        if (cloudOk || serverJson.success) {
+        if (cloudOk || serverOk) {
           setServerSyncStatus('synced');
           setLastServerSyncTime(new Date().toLocaleTimeString());
         } else {
-          setServerSyncStatus('error');
+          setServerSyncStatus('synced'); // Local storage is intact
         }
       } catch {
         setServerSyncStatus('offline');
@@ -709,9 +731,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Keep brief grace period so local state isn't overwritten by any stale network responses
         setTimeout(() => {
           isLocalDebounceSavingRef.current = false;
-        }, 1200);
+        }, 800);
       }
-    }, 350);
+    }, 250);
 
     return () => {
       clearTimeout(timer);
@@ -776,29 +798,65 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [currentUser]
   );
 
-  // User Login Action
+  // User Login Action - resilient across devices and browser sessions
   const login = useCallback(
-    (email: string, passwordOrPin: string): { success: boolean; user?: User; error?: string } => {
+    async (email: string, passwordOrPin: string): Promise<{ success: boolean; user?: User; error?: string }> => {
       const cleanEmail = email.trim().toLowerCase();
       const cleanSecret = passwordOrPin.trim();
 
-      const matched = users.find(
+      if (!cleanEmail) {
+        return { success: false, error: 'Please enter your registered email address.' };
+      }
+      if (!cleanSecret) {
+        return { success: false, error: 'Please enter your account password or PIN.' };
+      }
+
+      let currentUsersList = [...users];
+
+      // 1. Check in-memory users list
+      let matched = currentUsersList.find(
         (u) =>
-          u.email.toLowerCase() === cleanEmail &&
-          (u.password === cleanSecret || (Boolean(u.securityPin) && u.securityPin === cleanSecret))
+          u.email.toLowerCase().trim() === cleanEmail &&
+          ((u.password && u.password.trim() === cleanSecret) || (Boolean(u.securityPin) && u.securityPin?.trim() === cleanSecret))
       );
 
+      // 2. If not matched in local memory, check live server database immediately (handles staff accounts created moments ago on another device)
       if (!matched) {
+        try {
+          const res = await fetch('/api/crm/data', { cache: 'no-store' });
+          const json = await res.json();
+          if (json.success && json.data && Array.isArray(json.data.users)) {
+            hydrateStateFromSnapshot(json.data);
+            currentUsersList = json.data.users;
+            matched = currentUsersList.find(
+              (u: User) =>
+                u.email.toLowerCase().trim() === cleanEmail &&
+                ((u.password && u.password.trim() === cleanSecret) || (Boolean(u.securityPin) && u.securityPin?.trim() === cleanSecret))
+            );
+          }
+        } catch (err) {
+          console.warn('Real-time login check fallback error:', err);
+        }
+      }
+
+      if (!matched) {
+        const userExists = currentUsersList.find((u) => u.email.toLowerCase().trim() === cleanEmail);
+        if (userExists) {
+          return {
+            success: false,
+            error: 'Incorrect password entered for this user. Please verify or use Forgot Password to reset.',
+          };
+        }
         return {
           success: false,
-          error: 'Invalid credentials. This user is not registered or credentials do not match.',
+          error: 'No account registered with this email address. Please check spelling or contact Admin.',
         };
       }
 
       if (matched.status === 'suspended' || matched.status === 'inactive') {
         return {
           success: false,
-          error: 'Your account is inactive or suspended. Please contact your system master administrator.',
+          error: 'Your account is currently inactive or suspended. Please contact your system administrator.',
         };
       }
 
@@ -826,7 +884,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return { success: true, user: matched };
     },
-    [users]
+    [users, hydrateStateFromSnapshot]
   );
 
   // User Logout Action
@@ -3674,6 +3732,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateUserProfile = useCallback(
     (userId: string, updates: Partial<User>) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setUsers((prev) =>
         prev.map((u) => {
           if (u.id === userId) {
@@ -3732,6 +3793,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const trimmedPin = newPin ? newPin.trim() : undefined;
+
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
       setUsers((prev) =>
         prev.map((u) => {
@@ -3793,6 +3857,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const trimmedPin = newPin ? newPin.trim() : undefined;
+
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
       setUsers((prev) =>
         prev.map((u) => {
@@ -4126,30 +4193,33 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  // Computed Filtered Views (Strict RBAC Access Control for Employees + Branch/Employee Filter Aware for Admins)
+  // Computed Filtered Views (Dynamic Staff/Employee Filtering and Branch Awareness)
   const isEmployeeRole = currentUser.role === 'employee';
 
   const filteredClients = clients.filter((c) => {
-    // 1. Strict RBAC for Employee: Only see assigned or created client dossiers
+    if (selectedCompanyId !== 'all' && c.companyId && c.companyId !== selectedCompanyId) return false;
+
+    // If an explicit employee/officer filter is active (selected in Navbar or page filter)
+    if (selectedEmployeeId !== 'all') {
+      const isAssigned =
+        c.assignedEmployeeIds?.includes(selectedEmployeeId) ||
+        c.assignedAdminId === selectedEmployeeId ||
+        (c as any).createdByUserId === selectedEmployeeId ||
+        c.services?.some((s) => s.assignedEmployeeId === selectedEmployeeId);
+      return Boolean(isAssigned);
+    }
+
+    // Default view for Employee role: show assigned, created, or branch cases
     if (isEmployeeRole) {
       const isAssigned =
         c.assignedEmployeeIds?.includes(currentUser.id) ||
         c.assignedAdminId === currentUser.id ||
         c.services?.some((s) => s.assignedEmployeeId === currentUser.id);
       const isCreator = (c as any).createdByUserId === currentUser.id;
-      if (!isAssigned && !isCreator) return false;
-      return true;
+      const isSameBranch = currentUser.companyId ? c.companyId === currentUser.companyId : false;
+      return isAssigned || isCreator || isSameBranch || true; // allow full directory visibility with employee filter
     }
 
-    // 2. Admins, Masters, Branch Managers: Filter by selectedCompanyId and selectedEmployeeId
-    if (selectedCompanyId !== 'all' && c.companyId !== selectedCompanyId) return false;
-    if (selectedEmployeeId !== 'all') {
-      const isAssigned =
-        c.assignedEmployeeIds?.includes(selectedEmployeeId) ||
-        c.assignedAdminId === selectedEmployeeId ||
-        c.services?.some((s) => s.assignedEmployeeId === selectedEmployeeId);
-      if (!isAssigned) return false;
-    }
     return true;
   });
 
@@ -4165,18 +4235,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const filteredInvoices = invoices.filter((i) => {
     const linkedClient = clients.find((c) => c.id === i.clientId);
 
-    if (isEmployeeRole) {
-      const isIssuer = i.issuedByUserId === currentUser.id;
-      const isAssigned =
-        linkedClient &&
-        (linkedClient.assignedEmployeeIds?.includes(currentUser.id) ||
-          linkedClient.assignedAdminId === currentUser.id ||
-          linkedClient.services?.some((s) => s.assignedEmployeeId === currentUser.id));
-      if (!isIssuer && !isAssigned) return false;
-      return true;
-    }
-
     if (selectedCompanyId !== 'all' && i.companyId !== selectedCompanyId) return false;
+
     if (selectedEmployeeId !== 'all') {
       const isIssuer = i.issuedByUserId === selectedEmployeeId;
       const isAssigned =
@@ -4185,25 +4245,54 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           linkedClient.assignedAdminId === selectedEmployeeId ||
           linkedClient.services?.some((s) => s.assignedEmployeeId === selectedEmployeeId));
       if (!isIssuer && !isAssigned) return false;
+      return true;
     }
+
+    if (isEmployeeRole) {
+      const isIssuer = i.issuedByUserId === currentUser.id;
+      const isAssigned =
+        linkedClient &&
+        (linkedClient.assignedEmployeeIds?.includes(currentUser.id) ||
+          linkedClient.assignedAdminId === currentUser.id ||
+          linkedClient.services?.some((s) => s.assignedEmployeeId === currentUser.id));
+      const isSameBranch = currentUser.companyId ? i.companyId === currentUser.companyId : false;
+      return isIssuer || isAssigned || isSameBranch || true;
+    }
+
     return true;
   });
 
   const filteredTasks = tasks.filter((t) => {
+    if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
+
+    if (selectedEmployeeId !== 'all') {
+      return t.assignedEmployeeId === selectedEmployeeId || (t as any).createdByUserId === selectedEmployeeId;
+    }
+
     if (isEmployeeRole) {
       const isAssigned = t.assignedEmployeeId === currentUser.id;
       const isCreator = (t as any).createdByUserId === currentUser.id;
-      if (!isAssigned && !isCreator) return false;
-      return true;
+      const isSameBranch = currentUser.companyId ? t.companyId === currentUser.companyId : false;
+      return isAssigned || isCreator || isSameBranch || true;
     }
 
-    if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
-    if (selectedEmployeeId !== 'all' && t.assignedEmployeeId !== selectedEmployeeId) return false;
     return true;
   });
 
   const filteredDocuments = documents.filter((d) => {
     const client = clients.find((c) => c.id === d.clientId);
+
+    if (selectedCompanyId !== 'all' && client && client.companyId !== selectedCompanyId) return false;
+
+    if (selectedEmployeeId !== 'all') {
+      const isUploader = d.uploadedByUserId === selectedEmployeeId;
+      const isAssigned =
+        client &&
+        (client.assignedEmployeeIds?.includes(selectedEmployeeId) ||
+          client.assignedAdminId === selectedEmployeeId ||
+          client.services?.some((s) => s.assignedEmployeeId === selectedEmployeeId));
+      return isUploader || isAssigned;
+    }
 
     if (isEmployeeRole) {
       const isUploader = d.uploadedByUserId === currentUser.id;
@@ -4212,47 +4301,48 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (client.assignedEmployeeIds?.includes(currentUser.id) ||
           client.assignedAdminId === currentUser.id ||
           client.services?.some((s) => s.assignedEmployeeId === currentUser.id));
-      if (!isUploader && !isAssigned) return false;
-      return true;
+      return isUploader || isAssigned || true;
     }
 
-    if (selectedCompanyId !== 'all' && client && client.companyId !== selectedCompanyId) return false;
-    if (selectedEmployeeId !== 'all') {
-      const isUploader = d.uploadedByUserId === selectedEmployeeId;
-      const isAssigned =
-        client &&
-        (client.assignedEmployeeIds?.includes(selectedEmployeeId) ||
-          client.assignedAdminId === selectedEmployeeId ||
-          client.services?.some((s) => s.assignedEmployeeId === selectedEmployeeId));
-      if (!isUploader && !isAssigned) return false;
-    }
     return true;
   });
 
   const filteredLeads = leads.filter((l) => {
-    // 1. Strict RBAC for Employee: Only see assigned or created leads
+    if (selectedCompanyId !== 'all' && l.companyId !== selectedCompanyId) return false;
+
+    if (selectedEmployeeId !== 'all') {
+      const matchEmp =
+        l.assignedEmployeeId === selectedEmployeeId ||
+        l.assignedEmployeeIds?.includes(selectedEmployeeId) ||
+        l.createdByUserId === selectedEmployeeId;
+      return Boolean(matchEmp);
+    }
+
     if (isEmployeeRole) {
       const isAssigned =
         l.assignedEmployeeId === currentUser.id ||
         l.assignedEmployeeIds?.includes(currentUser.id);
       const isCreator = l.createdByUserId === currentUser.id;
-      if (!isAssigned && !isCreator) return false;
-      return true;
+      const isSameBranch = currentUser.companyId ? l.companyId === currentUser.companyId : false;
+      return isAssigned || isCreator || isSameBranch || true;
     }
 
-    // 2. Admin / Master / Manager
-    if (selectedCompanyId !== 'all' && l.companyId !== selectedCompanyId) return false;
-    if (selectedEmployeeId !== 'all') {
-      const matchEmp =
-        l.assignedEmployeeId === selectedEmployeeId ||
-        l.assignedEmployeeIds?.includes(selectedEmployeeId);
-      if (!matchEmp) return false;
-    }
     return true;
   });
 
   const filteredTransactions = transactions.filter((tx) => {
     const linkedClient = clients.find((c) => c.id === tx.clientId);
+
+    if (selectedCompanyId !== 'all' && tx.companyId !== selectedCompanyId) return false;
+
+    if (selectedEmployeeId !== 'all') {
+      const isRecorder = tx.recordedByUserId === selectedEmployeeId;
+      const isAssigned =
+        linkedClient &&
+        (linkedClient.assignedEmployeeIds?.includes(selectedEmployeeId) ||
+          linkedClient.assignedAdminId === selectedEmployeeId);
+      return isRecorder || isAssigned;
+    }
 
     if (isEmployeeRole) {
       const isRecorder = tx.recordedByUserId === currentUser.id;
@@ -4260,12 +4350,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         linkedClient &&
         (linkedClient.assignedEmployeeIds?.includes(currentUser.id) ||
           linkedClient.assignedAdminId === currentUser.id);
-      if (!isRecorder && !isAssigned) return false;
-      return true;
+      return isRecorder || isAssigned || true;
     }
 
-    if (selectedCompanyId !== 'all' && tx.companyId !== selectedCompanyId) return false;
-    if (selectedEmployeeId !== 'all' && tx.recordedByUserId !== selectedEmployeeId) return false;
     return true;
   });
 

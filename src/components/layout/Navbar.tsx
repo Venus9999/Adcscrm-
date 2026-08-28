@@ -246,7 +246,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Employee / Staff Global Filter */}
           {currentUser.role !== 'client' && (
-            <div className="relative hidden lg:block shrink-0" ref={empRef}>
+            <div className="relative hidden sm:block shrink-0" ref={empRef}>
               <button
                 onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-colors border shadow-2xs ${

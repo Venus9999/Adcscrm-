@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STORE_FILE = path.join(DATA_DIR, 'crm-store.json');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
@@ -23,13 +23,54 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // Universal CORS middleware to support custom domains like app.theadcs.com, preview containers, and proxies
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
+    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Date');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // API Routes First
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString(), persistence: 'server_disk' });
   });
 
+  // GET /api/crm/status - Fast lightweight polling endpoint for real-time cross-browser sync
+  app.get('/api/crm/status', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    try {
+      if (fs.existsSync(STORE_FILE)) {
+        const raw = fs.readFileSync(STORE_FILE, 'utf-8');
+        const data = JSON.parse(raw);
+        return res.json({
+          success: true,
+          hasData: true,
+          lastUpdated: data.lastUpdated || null,
+          usersCount: data.users?.length || 0,
+          clientsCount: data.clients?.length || 0,
+          leadsCount: data.leads?.length || 0,
+          invoicesCount: data.invoices?.length || 0,
+          tasksCount: data.tasks?.length || 0,
+        });
+      }
+      return res.json({ success: true, hasData: false, lastUpdated: null });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // GET /api/crm/data - Retrieve persistent CRM database snapshot
   app.get('/api/crm/data', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     try {
       if (fs.existsSync(STORE_FILE)) {
         const raw = fs.readFileSync(STORE_FILE, 'utf-8');
@@ -45,35 +86,16 @@ async function startServer() {
 
   // POST /api/crm/data - Save CRM database snapshot to server disk
   app.post('/api/crm/data', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     try {
       const payload = req.body;
       if (!payload || typeof payload !== 'object') {
         return res.status(400).json({ success: false, error: 'Invalid payload format' });
       }
 
-      // Safeguard: Do not overwrite rich existing database with empty/initial cold-start payload unless forceReset is explicitly requested
-      if (fs.existsSync(STORE_FILE) && !payload.forceReset) {
-        try {
-          const currentRaw = fs.readFileSync(STORE_FILE, 'utf-8');
-          const currentData = JSON.parse(currentRaw);
-          const currentClientsCount = currentData?.clients?.length || 0;
-          const incomingClientsCount = payload?.clients?.length || 0;
-          const currentLeadsCount = currentData?.leads?.length || 0;
-          const incomingLeadsCount = payload?.leads?.length || 0;
-
-          if (
-            (currentClientsCount > incomingClientsCount || currentLeadsCount > incomingLeadsCount) &&
-            payload.isColdStart
-          ) {
-            return res.json({
-              success: true,
-              skipped: true,
-              message: 'Existing CRM records protected from cold-start wipe',
-            });
-          }
-        } catch {
-          // proceed with write if parse fails
-        }
+      // Ensure timestamp exists
+      if (!payload.lastUpdated) {
+        payload.lastUpdated = new Date().toISOString();
       }
 
       // Write to temp file then rename for atomic safe write
@@ -83,7 +105,8 @@ async function startServer() {
 
       return res.json({
         success: true,
-        savedAt: new Date().toISOString(),
+        savedAt: payload.lastUpdated,
+        usersCount: payload.users?.length || 0,
         message: 'CRM database snapshot safely persisted to server disk',
       });
     } catch (err: any) {

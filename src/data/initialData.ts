@@ -47,7 +47,7 @@ export const DEFAULT_BILLING_SETTINGS: InvoiceBillingSettings = {
     iban: 'AE290260000102938475601',
     swift: 'EBILAEADXXX',
   },
-  signatoryName: 'Alexander Vance',
+  signatoryName: 'Gurpreet Singh Kataria',
   signatoryTitle: 'Managing Director & Authorized Signatory',
   signatorySignatureUrl: DEFAULT_OFFICIAL_SIGNATURE,
   stampUrl: DEFAULT_OFFICIAL_STAMP,
@@ -58,7 +58,7 @@ export const DEFAULT_BILLING_SETTINGS: InvoiceBillingSettings = {
   termsAndConditions: 'All government pass-through fees are 0% VAT exempt. Professional typing and PRO representation are subject to 5% UAE standard VAT. Payment is due upon receipt of invoice.',
   invoiceFooterNote: 'Thank you for choosing ADCS CRM. Cryptographically signed for Federal Tax Authority (FTA) compliance.',
   lastUpdated: '2026-08-27T00:00:00Z',
-  updatedBy: 'Alexander Vance (Master)',
+  updatedBy: 'Gurpreet Singh Kataria (Master)',
 };
 
 export const INITIAL_LEAD_CATEGORIES: LeadCategory[] = [
@@ -204,7 +204,7 @@ Government Relations & Clearance Department
     senderName: 'ADCS Visa Clearance Desk',
     senderEmail: 'visa-clearance@adcs.ae',
     lastUpdated: '2026-08-27T00:00:00Z',
-    updatedBy: 'Alexander Vance (Master)',
+    updatedBy: 'Gurpreet Singh Kataria (Master)',
   },
 };
 
@@ -407,7 +407,7 @@ export const INITIAL_COMPANIES: Company[] = [
 export const INITIAL_USERS: User[] = [
   {
     id: 'user-master',
-    name: 'Alexander Vance',
+    name: 'Gurpreet Singh Kataria',
     email: 'master@adcs.ae',
     phone: '+971 50 888 9900',
     password: 'Master@2026!',

@@ -46,18 +46,21 @@ export const LoginScreen: React.FC = () => {
   const [copiedOtp, setCopiedOtp] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const res = login(email, password);
+    try {
+      const res = await login(email, password);
       setIsSubmitting(false);
       if (!res.success) {
         setLoginError(res.error || 'Authentication failed');
       }
-    }, 400);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setLoginError(err.message || 'An unexpected error occurred during login.');
+    }
   };
 
   // Step 1: Request OTP

@@ -49,6 +49,7 @@ export const SystemSettings: React.FC = () => {
     stages,
     updateStage,
     currentUser,
+    availableUsers,
     crmBranding,
     updateCRMBranding,
     resetCRMBrandingToDefault,
@@ -273,7 +274,7 @@ export const SystemSettings: React.FC = () => {
     if (!isMaster) {
       setBrandingNotice({
         type: 'error',
-        text: 'Access Denied: Only Master User (Alexander Vance) can modify CRM Name, Logo & Branding.',
+        text: 'Access Denied: Only Master User can modify CRM Name, Logo & Branding.',
       });
       return;
     }
@@ -1834,7 +1835,7 @@ export const SystemSettings: React.FC = () => {
               <div>
                 <p className="font-bold text-amber-200">Restricted Setting: Master User Only</p>
                 <p className="text-amber-300/80 mt-0.5">
-                  CRM Name, Photo Logo, and System Branding parameters are strictly reserved and can only be altered by the Master Administrator (<strong className="text-amber-100">Alexander Vance</strong>). You are currently signed in as <strong className="capitalize">{currentUser.name} ({currentUser.role})</strong>.
+                  CRM Name, Photo Logo, and System Branding parameters are strictly reserved and can only be altered by the Master Administrator (<strong className="text-amber-100">{availableUsers?.find((u) => u.role === 'master')?.name || 'Master Administrator'}</strong>). You are currently signed in as <strong className="capitalize">{currentUser.name} ({currentUser.role})</strong>.
                 </p>
               </div>
             </div>
