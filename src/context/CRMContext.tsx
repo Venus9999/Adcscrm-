@@ -346,74 +346,59 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         companyIds: u.companyIds && u.companyIds.length > 0 ? u.companyIds : u.companyId ? [u.companyId] : [],
       }));
 
-      setUsers((prevUsers) => {
-        // Merge protection: Keep all valid active users
-        const incomingIds = new Set(cleanUsers.map((u: User) => u.id));
-        const missingLocalUsers = prevUsers.filter(
-          (pu) => !incomingIds.has(pu.id) && pu.id !== 'user-admin-1' && pu.id !== 'user-emp-1'
-        );
-        const merged = [...cleanUsers, ...missingLocalUsers];
-        return merged.length > 0 ? merged : INITIAL_USERS;
-      });
+      // Directly set users without merging missing local users to ensure deletions are permanent
+      setUsers(cleanUsers.length > 0 ? cleanUsers : INITIAL_USERS);
 
       // Maintain current user profile integrity in local browser session
       setCurrentUser((prevUser) => {
         const found = cleanUsers.find((u: User) => u.id === prevUser.id || u.email.toLowerCase() === prevUser.email.toLowerCase());
-        return found ? found : prevUser;
+        if (found) return found;
+        if (prevUser.role !== 'master') {
+          setIsAuthenticated(false);
+          try {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+          } catch {}
+          return INITIAL_USERS[0];
+        }
+        return prevUser;
       });
     }
     if (parsed.stages && Array.isArray(parsed.stages)) setStages(parsed.stages);
     if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) setServiceCategories(parsed.serviceCategories);
     if (parsed.clients && Array.isArray(parsed.clients)) {
-      setClients((prevClients) => {
-        const incomingIds = new Set(parsed.clients.map((c: Client) => c.id));
-        const missingLocalClients = prevClients.filter((pc) => !incomingIds.has(pc.id));
-        return [...parsed.clients, ...missingLocalClients];
-      });
+      setClients(parsed.clients);
     }
     if (parsed.documents && Array.isArray(parsed.documents)) setDocuments(parsed.documents);
     if (parsed.tasks && Array.isArray(parsed.tasks)) {
-      setTasks((prevTasks) => {
-        const incomingIds = new Set(parsed.tasks.map((t: TaskItem) => t.id));
-        const missingLocalTasks = prevTasks.filter((pt) => !incomingIds.has(pt.id));
-        return [...parsed.tasks, ...missingLocalTasks];
-      });
+      setTasks(parsed.tasks);
     }
     if (parsed.invoices && Array.isArray(parsed.invoices)) {
-      setInvoices((prevInvoices) => {
-        const incomingIds = new Set(parsed.invoices.map((i: Invoice) => i.id));
-        const missingLocalInvoices = prevInvoices.filter((pi) => !incomingIds.has(pi.id));
-        return [...parsed.invoices, ...missingLocalInvoices];
-      });
+      setInvoices(parsed.invoices);
     }
     if (parsed.messages && Array.isArray(parsed.messages)) setMessages(parsed.messages);
     if (parsed.auditLogs && Array.isArray(parsed.auditLogs)) setAuditLogs(parsed.auditLogs);
     if (parsed.notifications && Array.isArray(parsed.notifications)) setNotifications(parsed.notifications);
     if (parsed.leads && Array.isArray(parsed.leads)) {
-      setLeads((prevLeads) => {
-        const incomingIds = new Set(parsed.leads.map((l: Lead) => l.id));
-        const missingLocalLeads = prevLeads.filter((pl) => !incomingIds.has(pl.id));
-        return [...parsed.leads, ...missingLocalLeads];
-      });
+      setLeads(parsed.leads);
     }
     if (parsed.leadCategories && Array.isArray(parsed.leadCategories) && parsed.leadCategories.length > 0) {
       setLeadCategories(parsed.leadCategories);
-    } else {
+    } else if (parsed.leadCategories) {
       setLeadCategories(INITIAL_LEAD_CATEGORIES);
     }
     if (parsed.leadSources && Array.isArray(parsed.leadSources) && parsed.leadSources.length > 0) {
       setLeadSources(parsed.leadSources);
-    } else {
+    } else if (parsed.leadSources) {
       setLeadSources(INITIAL_LEAD_SOURCES);
     }
     if (parsed.leadStages && Array.isArray(parsed.leadStages) && parsed.leadStages.length > 0) {
       setLeadStages(parsed.leadStages);
-    } else {
+    } else if (parsed.leadStages) {
       setLeadStages(INITIAL_LEAD_STAGES);
     }
     if (parsed.transactions && Array.isArray(parsed.transactions) && parsed.transactions.length > 0) {
       setTransactions(parsed.transactions);
-    } else {
+    } else if (parsed.transactions) {
       setTransactions(INITIAL_TRANSACTIONS);
     }
     if (parsed.crmBranding) {
@@ -491,6 +476,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         isHydratingFromRemoteRef.current = true;
         let serverLoaded = false;
+        let cloudLoaded = false;
 
         // 1. Try Server disk API first (Fastest local container persistence)
         try {
@@ -527,14 +513,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               } catch {}
               setLastServerSyncTime(new Date().toLocaleTimeString());
               setServerSyncStatus('synced');
+              cloudLoaded = true;
             }
           }
         } catch (cloudErr) {
           console.warn('Cloud sync load fallback notice:', cloudErr);
         }
 
-        // 3. If local cache had custom data but cloud was empty, seed cloud from local cache
-        if (localLoaded) {
+        // 3. ONLY seed cloud from local cache if BOTH server and cloud were completely empty on first launch
+        if (!serverLoaded && !cloudLoaded && localLoaded) {
           const currentLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
           if (currentLocal) {
             try {
@@ -649,6 +636,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Save to local storage immediately ON CHANGE, then sync silently to backend Cloud & Server in background
   useEffect(() => {
     if (!dataLoaded || isHydratingFromRemoteRef.current) return;
+    if (!hasUserEditedRef.current) return; // Prevent initial/unmodified state from overwriting remote cloud data
 
     const nowIso = new Date().toISOString();
     lastAppliedRemoteIsoRef.current = nowIso;
@@ -820,22 +808,42 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ((u.password && u.password.trim() === cleanSecret) || (Boolean(u.securityPin) && u.securityPin?.trim() === cleanSecret))
       );
 
-      // 2. If not matched in local memory, check live server database immediately (handles staff accounts created moments ago on another device)
+      // 2. If not matched in local memory, check live server database & Cloud Firestore immediately (handles staff accounts created/updated moments ago on another device or domain)
       if (!matched) {
         try {
           const res = await fetch('/api/crm/data', { cache: 'no-store' });
-          const json = await res.json();
-          if (json.success && json.data && Array.isArray(json.data.users)) {
-            hydrateStateFromSnapshot(json.data);
-            currentUsersList = json.data.users;
-            matched = currentUsersList.find(
-              (u: User) =>
-                u.email.toLowerCase().trim() === cleanEmail &&
-                ((u.password && u.password.trim() === cleanSecret) || (Boolean(u.securityPin) && u.securityPin?.trim() === cleanSecret))
-            );
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.data && Array.isArray(json.data.users)) {
+              hydrateStateFromSnapshot(json.data);
+              currentUsersList = json.data.users;
+              matched = currentUsersList.find(
+                (u: User) =>
+                  u.email.toLowerCase().trim() === cleanEmail &&
+                  ((u.password && u.password.trim() === cleanSecret) || (Boolean(u.securityPin) && u.securityPin?.trim() === cleanSecret))
+              );
+            }
           }
         } catch (err) {
-          console.warn('Real-time login check fallback error:', err);
+          console.warn('Real-time server login check fallback:', err);
+        }
+
+        // Also check Cloud Firestore (critical for custom domains like app.theadcs.com)
+        if (!matched) {
+          try {
+            const cloudRes = await loadCRMDataFromCloud();
+            if (cloudRes.success && cloudRes.hasData && cloudRes.data && Array.isArray(cloudRes.data.users)) {
+              hydrateStateFromSnapshot(cloudRes.data);
+              currentUsersList = cloudRes.data.users;
+              matched = currentUsersList.find(
+                (u: User) =>
+                  u.email.toLowerCase().trim() === cleanEmail &&
+                  ((u.password && u.password.trim() === cleanSecret) || (Boolean(u.securityPin) && u.securityPin?.trim() === cleanSecret))
+              );
+            }
+          } catch (cloudErr) {
+            console.warn('Real-time cloud login check fallback:', cloudErr);
+          }
         }
       }
 
@@ -3711,7 +3719,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteUser = useCallback(
     (id: string) => {
       hasUserEditedRef.current = true;
-      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
       setUsers((prev) => {
         const next = prev.filter((u) => u.id !== id);
         try {
@@ -3719,15 +3729,41 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (saved) {
             const parsed = JSON.parse(saved);
             parsed.users = next;
-            parsed.lastUpdated = new Date().toISOString();
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+            // Immediately broadcast across tabs
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({
+                type: 'CRM_TAB_UPDATE',
+                snapshot: parsed,
+              });
+            }
+
+            // Immediately force persist to Cloud Firestore and Server API
+            saveCRMDataToCloud(parsed, true).catch(() => {});
+            fetch('/api/crm/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(parsed),
+            }).catch(() => {});
           }
         } catch {}
         return next;
       });
+
+      // If current user is the one deleted, log them out immediately
+      if (currentUser.id === id && currentUser.role !== 'master') {
+        setIsAuthenticated(false);
+        try {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        } catch {}
+      }
+
       recordAuditLog('User Deleted', 'Users', `Deleted user account ID ${id}`);
     },
-    [recordAuditLog]
+    [currentUser.id, currentUser.role, recordAuditLog]
   );
 
   const updateUserProfile = useCallback(
