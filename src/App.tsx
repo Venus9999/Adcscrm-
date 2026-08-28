@@ -1,0 +1,183 @@
+import React, { useState } from 'react';
+import { CRMProvider, useCRM } from './context/CRMContext';
+import { GmailProvider } from './context/GmailContext';
+import { GmailConfirmDialog } from './components/gmail/GmailConfirmDialog';
+import { GmailHub } from './components/gmail/GmailHub';
+import { Navbar } from './components/layout/Navbar';
+import { Sidebar } from './components/layout/Sidebar';
+import { MasterDashboard } from './components/dashboard/MasterDashboard';
+import { AdminDashboard } from './components/dashboard/AdminDashboard';
+import { EmployeeDashboard } from './components/dashboard/EmployeeDashboard';
+import { ClientPortal } from './components/dashboard/ClientPortal';
+import { ClientsList } from './components/clients/ClientsList';
+import { ClientDetailModal } from './components/clients/ClientDetailModal';
+import { AddClientModal } from './components/clients/AddClientModal';
+import { WorkStagesPipeline } from './components/pipeline/WorkStagesPipeline';
+import { CompaniesManagement } from './components/companies/CompaniesManagement';
+import { DocumentVault } from './components/documents/DocumentVault';
+import { TasksManager } from './components/tasks/TasksManager';
+import { InvoicesPayments } from './components/payments/InvoicesPayments';
+import { MessagesHub } from './components/messages/MessagesHub';
+import { ReportsAnalytics } from './components/reports/ReportsAnalytics';
+import { AuditTrail } from './components/audit/AuditTrail';
+import { ServicesCatalog } from './components/services/ServicesCatalog';
+import { SystemSettings } from './components/settings/SystemSettings';
+import { GlobalSearchModal } from './components/common/GlobalSearchModal';
+import { LeadsManagement } from './components/leads/LeadsManagement';
+import { TransactionsManagement } from './components/transactions/TransactionsManagement';
+import { EmployeesManagement } from './components/employees/EmployeesManagement';
+import { UserProfileSettings } from './components/settings/UserProfileSettings';
+import { VendorsManagement } from './components/vendors/VendorsManagement';
+import { LoginScreen } from './components/auth/LoginScreen';
+
+const AppContent: React.FC = () => {
+  const { currentUser, activeTab, selectedClientId, setSelectedClientId, setActiveTab, isAuthenticated } = useCRM();
+
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // If not authenticated, render the secure Login Screen
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
+
+  // Render main screen based on active tab and current user role
+  const renderContent = () => {
+    // If client role is active, always prioritize Client Portal if dashboard or client_portal is active
+    if (currentUser.role === 'client' && (activeTab === 'dashboard' || activeTab === 'client_portal')) {
+      return <ClientPortal />;
+    }
+
+    switch (activeTab) {
+      case 'dashboard':
+        if (currentUser.role === 'master') return <MasterDashboard />;
+        if (currentUser.role === 'admin') return <AdminDashboard />;
+        if (currentUser.role === 'employee') return <EmployeeDashboard />;
+        return <ClientPortal />;
+
+      case 'client_portal':
+        return <ClientPortal />;
+
+      case 'leads':
+        return <LeadsManagement />;
+
+      case 'transactions':
+        return <TransactionsManagement />;
+
+      case 'users':
+      case 'employees':
+      case 'team':
+        return <EmployeesManagement />;
+
+      case 'profile':
+        return <UserProfileSettings />;
+
+      case 'companies':
+        return <CompaniesManagement />;
+
+      case 'vendors':
+      case 'partners':
+        return <VendorsManagement />;
+
+      case 'clients':
+        return (
+          <ClientsList
+            onOpenAddClient={() => setShowAddClientModal(true)}
+            onOpenClientDetail={(id) => setSelectedClientId(id)}
+          />
+        );
+
+      case 'pipeline':
+        return <WorkStagesPipeline onOpenClientDetail={(id) => setSelectedClientId(id)} />;
+
+      case 'services':
+        return <ServicesCatalog />;
+
+      case 'documents':
+        return <DocumentVault />;
+
+      case 'tasks':
+        return <TasksManager />;
+
+      case 'payments':
+        return <InvoicesPayments />;
+
+      case 'messages':
+        return <MessagesHub />;
+
+      case 'reports':
+        return <ReportsAnalytics />;
+
+      case 'audit':
+        return <AuditTrail />;
+
+      case 'gmail':
+        return <GmailHub />;
+
+      case 'settings':
+        return <SystemSettings />;
+
+      default:
+        return <MasterDashboard />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden font-sans">
+      {/* Left Sidebar */}
+      <Sidebar />
+
+      {/* Main Container */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Navbar */}
+        <Navbar
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onOpenAddClient={() => setShowAddClientModal(true)}
+          onOpenCreateInvoice={() => setActiveTab('payments')}
+          onOpenAddTask={() => setActiveTab('tasks')}
+          onOpenUploadDoc={() => setActiveTab('documents')}
+        />
+
+        {/* Scrollable Viewport */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto">{renderContent()}</div>
+        </main>
+      </div>
+
+      {/* Global Search Modal */}
+      <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+
+      {/* Add Client Modal */}
+      <AddClientModal
+        isOpen={showAddClientModal}
+        onClose={() => setShowAddClientModal(false)}
+      />
+
+      {/* Client Detail / Dossier Modal */}
+      {selectedClientId && (
+        <ClientDetailModal
+          clientId={selectedClientId}
+          onClose={() => setSelectedClientId(null)}
+          onOpenInvoiceModal={() => {
+            setActiveTab('payments');
+          }}
+        />
+      )}
+
+      {/* Mandatory Gmail Mutating Action Confirmation Dialog */}
+      <GmailConfirmDialog />
+    </div>
+  );
+};
+
+export function App() {
+  return (
+    <CRMProvider>
+      <GmailProvider>
+        <AppContent />
+      </GmailProvider>
+    </CRMProvider>
+  );
+}
+
+export default App;

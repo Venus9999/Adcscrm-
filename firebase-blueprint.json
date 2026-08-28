@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "CRMEnterpriseStore": {
+      "title": "CRM Enterprise Store Snapshot",
+      "description": "Durable cross-device synchronized data snapshot for ApexPro CRM",
+      "type": "object",
+      "properties": {
+        "payload": {
+          "type": "object",
+          "description": "Full relational snapshot containing companies, clients, invoices, documents, workflows, leads, categories, and settings"
+        },
+        "lastClientSync": {
+          "type": "string",
+          "description": "ISO timestamp of the latest client write"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Server timestamp of document update"
+        }
+      },
+      "required": ["payload"]
+    }
+  },
+  "firestore": {
+    "/crm_system/{docId}": {
+      "schema": "CRMEnterpriseStore",
+      "description": "Global multi-device synchronized enterprise CRM store"
+    }
+  }
+}

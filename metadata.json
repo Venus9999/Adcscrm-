@@ -1,0 +1,7 @@
+{
+  "name": "ADCS CRM - Enterprise Corporate & Visa Services Management",
+  "description": "Comprehensive multi-company CRM platform for document clearing, visa processing, business setup, recruitment, and client lifecycle management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
