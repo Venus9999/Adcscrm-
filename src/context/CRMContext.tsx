@@ -435,7 +435,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.stages && Array.isArray(parsed.stages)) setStages(parsed.stages);
     if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) setServiceCategories(parsed.serviceCategories);
     if (parsed.clients && Array.isArray(parsed.clients)) {
-      setClients(parsed.clients);
+      setClients(
+        parsed.clients.map((c: any) => ({
+          ...c,
+          services: Array.isArray(c.services) ? c.services : [],
+          notes: Array.isArray(c.notes) ? c.notes : [],
+          tags: Array.isArray(c.tags) ? c.tags : [],
+        }))
+      );
     }
     if (parsed.documents && Array.isArray(parsed.documents)) setDocuments(parsed.documents);
     if (parsed.tasks && Array.isArray(parsed.tasks)) {
@@ -2467,7 +2474,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const newOutstanding = Math.max(0, newTotal - newPaid);
             return {
               ...c,
-              services: [...c.services, newService],
+              services: [...(c.services || []), newService],
               totalAmount: newTotal,
               paidAmount: newPaid,
               outstandingAmount: newOutstanding,

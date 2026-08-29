@@ -127,8 +127,8 @@ export const EmployeeDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="text-sm divide-y divide-slate-100 dark:divide-slate-800">
-                  {myClients.map((client) => {
-                    const activeSrv = client.services[0];
+                  {(myClients || []).map((client) => {
+                    const activeSrv = client?.services?.[0];
                     return (
                       <tr
                         key={client.id}

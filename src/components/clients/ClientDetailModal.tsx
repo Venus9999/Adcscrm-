@@ -517,7 +517,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
             }`}
           >
-            Services & Stages ({client.services.length})
+            Services & Stages ({(client.services || []).length})
           </button>
           <button
             onClick={() => setActiveTab('documents')}
@@ -888,7 +888,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 </button>
               </div>
 
-              {client.services.map((srv) => (
+              {(client.services || []).map((srv) => (
                 <div
                   key={srv.id}
                   className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-4"

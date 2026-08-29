@@ -404,7 +404,7 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                   </tr>
                 ) : (
                   displayClients.map((client) => {
-                    const activeSrv = client.services[0];
+                    const activeSrv = client.services?.[0];
                     const isSelected = selectedClientIds.includes(client.id);
 
                     return (
@@ -514,7 +514,7 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
       {viewMode === 'grid' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {displayClients.map((client) => {
-            const activeSrv = client.services[0];
+            const activeSrv = client.services?.[0];
             return (
               <div
                 key={client.id}

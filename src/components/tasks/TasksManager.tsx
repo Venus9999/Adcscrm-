@@ -54,8 +54,8 @@ export const TasksManager: React.FC = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    assignedEmployeeId: users.find((u) => u.role === 'employee')?.id || users[0].id,
-    clientId: clients[0]?.id || '',
+    assignedEmployeeId: (users || []).find((u) => u && u.role === 'employee')?.id || users?.[0]?.id || '',
+    clientId: (clients || [])[0]?.id || '',
     priority: 'medium' as Task['priority'],
     dueDate: new Date().toISOString().split('T')[0],
   });
@@ -153,8 +153,8 @@ export const TasksManager: React.FC = () => {
     setFormData({
       title: '',
       description: '',
-      assignedEmployeeId: users.find((u) => u.role === 'employee')?.id || users[0].id,
-      clientId: clients[0]?.id || '',
+      assignedEmployeeId: (users || []).find((u) => u && u.role === 'employee')?.id || users?.[0]?.id || '',
+      clientId: (clients || [])[0]?.id || '',
       priority: 'medium',
       dueDate: '2026-03-01',
     });

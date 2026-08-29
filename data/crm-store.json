@@ -173,7 +173,8 @@
       "totalAmount": 0,
       "type": "individual",
       "updatedAt": "2026-08-29T18:08:03.434Z",
-      "whatsapp": "058989899"
+      "whatsapp": "058989899",
+      "services": []
     },
     {
       "assignedAdminId": "user-admin-1",

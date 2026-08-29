@@ -36,6 +36,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
     serviceCategories,
     users,
     updateServiceStage,
+    updateClient,
     addCustomStage,
     updateStage,
     deleteStage,
@@ -79,9 +80,15 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
     e.preventDefault();
     if (!transitionClient || !targetStageId) return;
 
-    const srv = transitionClient.services[0];
+    const srv = transitionClient.services?.[0];
     if (srv) {
       updateServiceStage(transitionClient.id, srv.id, targetStageId, remarks, followUpDate || undefined);
+    } else {
+      const targetStageObj = stages.find((s) => s.id === targetStageId);
+      updateClient(transitionClient.id, {
+        currentStageId: targetStageId,
+        currentStageName: targetStageObj?.name || 'In Progress',
+      });
     }
 
     setShowTransitionModal(false);
@@ -458,7 +465,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
                       <div className="py-10 text-center text-slate-400 text-[11px] font-medium">No active cases</div>
                     ) : (
                       stageClients.map((client) => {
-                        const activeSrv = client.services[0];
+                        const activeSrv = client.services?.[0];
                         const currentIdx = sortedStages.findIndex((s) => s.id === stage.id);
                         const nextStage = sortedStages[currentIdx + 1];
                         const prevStage = sortedStages[currentIdx - 1];
