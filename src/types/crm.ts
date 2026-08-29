@@ -4,12 +4,15 @@ export interface UserPermissions {
   canCreateClients: boolean;
   canEditStages: boolean;
   canManagePayments: boolean;
+  canManageBilling?: boolean;
   canEditInvoices?: boolean;
   canDeleteInvoices?: boolean;
   canViewAllCompanies: boolean;
   canAssignEmployees: boolean;
+  canAssignTasks?: boolean;
   canDeleteRecords: boolean;
   canExportReports: boolean;
+  canViewReports?: boolean;
   canManageLeads?: boolean;
   canManageTransactions?: boolean;
   canManageUsers?: boolean;
@@ -19,6 +22,7 @@ export interface UserPermissions {
   canExportData?: boolean;
   canViewFinancials?: boolean;
   canManageWorkflows?: boolean;
+  canEditWorkflows?: boolean;
   canManageRoles?: boolean;
 }
 
@@ -194,17 +198,38 @@ export interface Company {
   createdAt: string;
 }
 
+export interface Department {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  companyId?: string;
+  headOfDepartment?: string;
+  headOfDepartmentId?: string;
+  color: string;
+  badgeBg?: string;
+  badgeText?: string;
+  employeeCount?: number;
+  budget?: number;
+  tags?: string[];
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface ServiceCategory {
   id: string;
   name: string;
   code: string;
-  category: 'Visa Processing' | 'Business Setup' | 'Document Clearing' | 'PRO Services' | 'Recruitment' | 'Attestation';
+  category: 'Visa Processing' | 'Business Setup' | 'Document Clearing' | 'PRO Services' | 'Recruitment' | 'Attestation' | string;
   defaultPrice: number;
   governmentFees: number;
   estimatedDays: number;
   description: string;
   requiredDocuments: string[];
   defaultStages: string[];
+  isActive?: boolean;
+  isPopular?: boolean;
+  tags?: string[];
 }
 
 export type StageCategory = 'inquiry' | 'documentation' | 'processing' | 'authority' | 'approval' | 'completed' | 'cancelled';
@@ -362,10 +387,15 @@ export interface Client {
   visaType?: string;
   visaExpiry?: string;
   mobile: string;
+  phone?: string;
   whatsapp: string;
   email: string;
   residentialAddress: string;
   companyId: string;
+  companyName?: string;
+  category?: string;
+  type?: string;
+  status?: string;
   vendorId?: string;
   vendorName?: string;
   referredBy?: string;

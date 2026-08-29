@@ -38,6 +38,7 @@ import {
   VisaApplicationStatus,
   VisaTimelineEvent,
   VisaUploadedDoc,
+  Department,
 } from '../types/crm';
 import {
   INITIAL_COMPANIES,
@@ -62,6 +63,7 @@ import {
   INITIAL_LEAD_SOURCES,
   INITIAL_LEAD_STAGES,
   INITIAL_VISA_APPLICATIONS,
+  INITIAL_DEPARTMENTS,
 } from '../data/initialData';
 
 interface DuplicateCheckResult {
@@ -103,6 +105,8 @@ interface CRMContextType {
 
   // Data Collections
   companies: Company[];
+  filteredCompanies: Company[];
+  departments: Department[];
   vendors: Vendor[];
   users: User[];
   roles: RoleDefinition[];
@@ -121,6 +125,28 @@ interface CRMContextType {
   leadSources: LeadSource[];
   leadStages: LeadStage[];
   transactions: Transaction[];
+
+  // Departments Management (Admin & Master)
+  addDepartment: (dept: Omit<Department, 'id' | 'createdAt'>) => Department;
+  updateDepartment: (id: string, updates: Partial<Department>) => void;
+  deleteDepartment: (id: string) => void;
+
+  // Frontend Client Self-Registration & Service Application
+  registerClient: (data: {
+    fullName: string;
+    email: string;
+    password: string;
+    phone: string;
+    nationality?: string;
+    companyName?: string;
+    passportNo?: string;
+  }) => Promise<{ success: boolean; client?: Client; user?: User; error?: string }>;
+  applyForService: (
+    serviceCategoryId: string,
+    notes?: string,
+    targetCompanyId?: string,
+    attachedDocs?: { name: string; url: string; size?: string; type?: string }[]
+  ) => Promise<{ success: boolean; service?: ClientService; invoice?: Invoice; error?: string }>;
 
   // Roles Management
   addRole: (role: Omit<RoleDefinition, 'id' | 'createdAt'>) => RoleDefinition;
@@ -303,6 +329,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [companies, setCompanies] = useState<Company[]>(INITIAL_COMPANIES);
+  const [departments, setDepartments] = useState<Department[]>(INITIAL_DEPARTMENTS);
   const [vendors, setVendors] = useState<Vendor[]>(INITIAL_VENDORS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [roles, setRoles] = useState<RoleDefinition[]>(INITIAL_ROLES);
@@ -363,6 +390,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const hydrateStateFromSnapshot = useCallback((parsed: any) => {
     if (!parsed || typeof parsed !== 'object') return false;
     if (parsed.companies && Array.isArray(parsed.companies) && parsed.companies.length > 0) setCompanies(parsed.companies);
+    if (parsed.departments && Array.isArray(parsed.departments) && parsed.departments.length > 0) {
+      setDepartments(parsed.departments);
+    } else if (parsed.departments) {
+      setDepartments(INITIAL_DEPARTMENTS);
+    }
     if (parsed.vendors && Array.isArray(parsed.vendors)) setVendors(parsed.vendors);
     if (parsed.roles && Array.isArray(parsed.roles)) setRoles(parsed.roles);
     if (parsed.workflows && Array.isArray(parsed.workflows)) setWorkflows(parsed.workflows);
@@ -686,6 +718,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const snapshot = {
       currentUserId: currentUser.id,
       companies,
+      departments,
       vendors,
       users,
       roles,
@@ -772,6 +805,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     dataLoaded,
     currentUser.id,
     companies,
+    departments,
     vendors,
     users,
     roles,
@@ -1242,6 +1276,466 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // safe fallback
     }
   }, []);
+
+  // Departments Management
+  const addDepartment = useCallback(
+    (deptData: Omit<Department, 'id' | 'createdAt'>): Department => {
+      const newDept: Department = {
+        ...deptData,
+        id: `dept-${Date.now()}`,
+        isActive: deptData.isActive !== undefined ? deptData.isActive : true,
+        createdAt: new Date().toISOString(),
+      };
+      setDepartments((prev) => [...prev, newDept]);
+      recordAuditLog('Department Created', 'Settings', `Created department "${newDept.name}" (${newDept.code})`);
+      return newDept;
+    },
+    [recordAuditLog]
+  );
+
+  const updateDepartment = useCallback(
+    (id: string, updates: Partial<Department>) => {
+      setDepartments((prev) =>
+        prev.map((d) => {
+          if (d.id === id) {
+            const cleanUpdates: Partial<Department> = {};
+            (Object.keys(updates) as Array<keyof Department>).forEach((key) => {
+              if (updates[key] !== undefined) {
+                (cleanUpdates as any)[key] = updates[key];
+              }
+            });
+            return {
+              ...d,
+              ...cleanUpdates,
+              id: d.id,
+              createdAt: d.createdAt,
+            };
+          }
+          return d;
+        })
+      );
+      recordAuditLog('Department Updated', 'Settings', `Updated department ID ${id}`);
+    },
+    [recordAuditLog]
+  );
+
+  const deleteDepartment = useCallback(
+    (id: string) => {
+      setDepartments((prev) => {
+        const target = prev.find((d) => d.id === id);
+        if (target) {
+          recordAuditLog('Department Deleted', 'Settings', `Deleted department "${target.name}" (${target.code})`);
+        }
+        return prev.filter((d) => d.id !== id);
+      });
+    },
+    [recordAuditLog]
+  );
+
+  // Frontend Client Self-Registration
+  const registerClient = useCallback(
+    async (data: {
+      fullName: string;
+      email: string;
+      password: string;
+      phone: string;
+      nationality?: string;
+      companyName?: string;
+      passportNo?: string;
+    }): Promise<{ success: boolean; client?: Client; user?: User; error?: string }> => {
+      const cleanEmail = data.email.trim().toLowerCase();
+      const cleanName = data.fullName.trim();
+      const cleanPass = data.password.trim();
+      const cleanPhone = data.phone.trim();
+
+      if (!cleanName) return { success: false, error: 'Full name is required.' };
+      if (!cleanEmail || !cleanEmail.includes('@')) return { success: false, error: 'Valid email address is required.' };
+      if (!cleanPass || cleanPass.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
+      if (!cleanPhone) return { success: false, error: 'Contact phone number is required.' };
+
+      const existingUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (existingUser) {
+        return {
+          success: false,
+          error: 'An account with this email already exists. Please sign in or use Forgot Password.',
+        };
+      }
+
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
+      const randomDigits = Math.floor(1000 + Math.random() * 9000);
+      const userId = `user-client-${Date.now()}`;
+      const clientId = `client-${Date.now()}`;
+      const refNo = `CL-2026-${randomDigits}`;
+
+      const targetCompany = companies[0] || INITIAL_COMPANIES[0];
+
+      // 1. Create client User account
+      const newUser: User = {
+        id: userId,
+        name: cleanName,
+        email: cleanEmail,
+        password: cleanPass,
+        role: 'client',
+        title: 'Client / Account Holder',
+        jobTitle: 'Client',
+        companyId: targetCompany.id,
+        companyIds: [targetCompany.id],
+        phone: cleanPhone,
+        avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+        status: 'active',
+        createdAt: nowIso,
+        permissions: {
+          canCreateClients: false,
+          canEditStages: false,
+          canManagePayments: false,
+          canViewAllCompanies: false,
+          canAssignEmployees: false,
+          canDeleteRecords: false,
+          canExportReports: false,
+          canManageUsers: false,
+          canManageCompanies: false,
+          canViewReports: false,
+          canExportData: false,
+          canManageBilling: true,
+          canAssignTasks: false,
+          canEditWorkflows: false,
+        },
+      };
+
+      // Split name into first and last
+      const nameParts = cleanName.split(' ');
+      const firstName = nameParts[0] || cleanName;
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      // 2. Create Client profile record
+      const newClient: Client = {
+        id: clientId,
+        refNo,
+        firstName,
+        lastName,
+        fullName: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        mobile: cleanPhone,
+        whatsapp: cleanPhone,
+        dob: '1990-01-01',
+        gender: 'Male',
+        passportNo: data.passportNo || `P${Math.floor(10000000 + Math.random() * 90000000)}`,
+        passportExpiry: '2030-12-31',
+        emiratesId: '784-1990-1234567-1',
+        emiratesIdExpiry: '2028-12-31',
+        residentialAddress: 'Dubai, United Arab Emirates',
+        nationality: data.nationality || 'United Arab Emirates',
+        companyName: data.companyName || `${cleanName}'s Portfolio`,
+        companyId: targetCompany.id,
+        category: 'individual',
+        type: 'individual',
+        status: 'active',
+        currentStageId: 'stage-1',
+        currentStageName: 'New Inquiry',
+        services: [],
+        assignedEmployeeIds: targetCompany.employeeIds && targetCompany.employeeIds.length > 0 ? targetCompany.employeeIds.slice(0, 2) : ['user-emp-1'],
+        assignedAdminId: targetCompany.adminId || 'user-admin',
+        totalAmount: 0,
+        paidAmount: 0,
+        outstandingAmount: 0,
+        paymentStatus: 'paid',
+        avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+        notes: [
+          {
+            id: `note-${Date.now()}`,
+            userId: userId,
+            userName: cleanName,
+            userRole: 'client',
+            text: `✨ Client created account online via Frontend Registration on ${new Date().toLocaleDateString()}. Welcome to ADCS Corporate Services!`,
+            createdAt: nowIso,
+          },
+        ],
+        calls: [],
+        tags: ['Online Registration', 'Self-Service Portal'],
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+
+      // Update state
+      setUsers((prev) => [newUser, ...prev]);
+      setClients((prev) => [newClient, ...prev]);
+
+      // Update company counts
+      setCompanies((prev) =>
+        prev.map((comp) =>
+          comp.id === targetCompany.id
+            ? {
+                ...comp,
+                totalClientsCount: comp.totalClientsCount + 1,
+              }
+            : comp
+        )
+      );
+
+      // Auto login as new client
+      setCurrentUser(newUser);
+      setIsAuthenticated(true);
+      setSelectedCompanyId(targetCompany.id);
+      setSelectedClientId(clientId);
+      try {
+        localStorage.setItem(AUTH_STORAGE_KEY, 'true');
+      } catch {}
+
+      // Notifications
+      const notif: NotificationItem = {
+        id: `notif-${Date.now()}`,
+        targetRole: 'admin',
+        title: 'New Client Self-Registration',
+        message: `${cleanName} registered an online client account (${refNo}).`,
+        type: 'system',
+        linkTab: 'clients',
+        relatedClientId: clientId,
+        read: false,
+        timestamp: nowIso,
+      };
+      setNotifications((prev) => [notif, ...prev]);
+
+      recordAuditLog(
+        'Client Self-Registration',
+        'Security',
+        `New client ${cleanName} (${cleanEmail}) registered online and initialized portal (${refNo})`
+      );
+
+      try {
+        confetti({
+          particleCount: 70,
+          spread: 60,
+          origin: { y: 0.6 },
+        });
+      } catch {}
+
+      return { success: true, client: newClient, user: newUser };
+    },
+    [users, companies, recordAuditLog]
+  );
+
+  // Client Apply For Service from Services Catalog
+  const applyForService = useCallback(
+    async (
+      serviceCategoryId: string,
+      notes?: string,
+      targetCompanyId?: string,
+      attachedDocs?: { name: string; url: string; size?: string; type?: string }[]
+    ): Promise<{ success: boolean; service?: ClientService; invoice?: Invoice; error?: string }> => {
+      const srvCat = serviceCategories.find((s) => s.id === serviceCategoryId);
+      if (!srvCat) {
+        return { success: false, error: 'Service catalog item not found.' };
+      }
+
+      let targetClient = clients.find(
+        (c) => c.email.toLowerCase() === currentUser.email.toLowerCase() || (selectedClientId && c.id === selectedClientId)
+      );
+
+      if (!targetClient && currentUser.role === 'client') {
+        targetClient = clients[0];
+      }
+
+      if (!targetClient) {
+        return { success: false, error: 'Active client profile not found. Please contact support.' };
+      }
+
+      const compId = targetCompanyId || targetClient.companyId || companies[0]?.id || 'comp-1';
+      const compObj = companies.find((c) => c.id === compId);
+      const companyName = compObj ? compObj.name : 'ADCS Corporate Services LLC';
+
+      const srvInstanceId = `srv-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const invId = `inv-${Date.now()}`;
+      const invNumber = `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      const price = srvCat.defaultPrice || 0;
+      const govFees = srvCat.governmentFees || 0;
+      const vat = Math.round(price * 0.05);
+      const grandTotal = price + govFees + vat;
+
+      const newInvoice: Invoice = {
+        id: invId,
+        invoiceNumber: invNumber,
+        clientId: targetClient.id,
+        clientName: targetClient.fullName,
+        clientEmail: targetClient.email,
+        clientPhone: targetClient.phone,
+        clientAddress: targetClient.address || 'Dubai, United Arab Emirates',
+        clientPassport: targetClient.passportNo,
+        companyId: compId,
+        companyName: companyName,
+        serviceName: srvCat.name,
+        subtotal: price,
+        vatRate: 5,
+        vatAmount: vat,
+        governmentFees: govFees,
+        grandTotal: grandTotal,
+        amountPaid: 0,
+        balanceAmount: grandTotal,
+        status: 'unpaid',
+        issueDate: new Date().toISOString().split('T')[0],
+        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        paymentMethod: 'Bank Transfer',
+        notes: notes || `Service application filed online for "${srvCat.name}". Invoice automatically generated.`,
+        items: [
+          ...(govFees > 0
+            ? [
+                {
+                  id: `item-gov-${Date.now()}`,
+                  description: `${srvCat.name} Government & Consular Authority Fees`,
+                  quantity: 1,
+                  unitPrice: govFees,
+                  total: govFees,
+                  isGovernmentFee: true,
+                },
+              ]
+            : []),
+          {
+            id: `item-srv-${Date.now()}`,
+            description: `Professional Filing & Processing Fee: ${srvCat.name}`,
+            quantity: 1,
+            unitPrice: price,
+            total: price,
+            isGovernmentFee: false,
+          },
+        ],
+        issuedByUserId: currentUser.id,
+        issuedByUserName: currentUser.name,
+        createdAt: new Date().toISOString(),
+      };
+
+      const requiredDocs = srvCat.requiredDocuments.map((docName, idx) => ({
+        id: `rd-${Date.now()}-${idx}`,
+        name: docName,
+        status: 'pending' as const,
+      }));
+
+      const newClientService: ClientService = {
+        id: srvInstanceId,
+        clientId: targetClient.id,
+        serviceId: srvCat.id,
+        serviceName: srvCat.name,
+        category: srvCat.category,
+        price: price,
+        governmentFees: govFees,
+        advancePaid: 0,
+        balance: grandTotal,
+        invoiceId: invId,
+        invoiceNumber: invNumber,
+        status: 'active',
+        currentStageId: 'stage-1',
+        currentStageName: 'New Inquiry',
+        assignedEmployeeId: targetClient.assignedEmployeeIds?.[0] || 'user-emp-1',
+        assignedEmployeeName: 'Assigned PRO Specialist',
+        startDate: new Date().toISOString().split('T')[0],
+        targetCompletionDate: new Date(Date.now() + (srvCat.estimatedDays || 7) * 86400000).toISOString().split('T')[0],
+        referenceNumber: `SRV-${srvCat.code || 'REQ'}-${Math.floor(1000 + Math.random() * 9000)}`,
+        requiredDocs,
+        stageHistory: [
+          {
+            id: `sh-${Date.now()}`,
+            serviceId: srvInstanceId,
+            fromStage: '',
+            toStage: 'New Inquiry',
+            updatedByUserId: currentUser.id,
+            updatedByUserName: currentUser.name,
+            updatedByUserRole: currentUser.role,
+            timestamp: new Date().toISOString(),
+            remarks: `Service requested online via Client Portal. Notes: ${notes || 'Standard application'}. Auto-generated Invoice #${invNumber}.`,
+          },
+        ],
+      };
+
+      // If client attached documents, register them
+      if (attachedDocs && attachedDocs.length > 0) {
+        const newDocItems: DocumentItem[] = attachedDocs.map((doc, idx) => ({
+          id: `doc-${Date.now()}-${idx}`,
+          clientId: targetClient!.id,
+          clientName: targetClient!.fullName,
+          companyId: compId,
+          name: doc.name,
+          category: 'Other',
+          fileType: doc.type || 'pdf',
+          fileSize: doc.size || '1.2 MB',
+          fileUrl: doc.url,
+          status: 'under_review',
+          uploadedByUserId: currentUser.id,
+          uploadedByName: currentUser.name,
+          uploadedByRole: currentUser.role,
+          uploadedAt: new Date().toISOString(),
+          version: 1,
+        }));
+        setDocuments((prev) => [...newDocItems, ...prev]);
+      }
+
+      setInvoices((prev) => [newInvoice, ...prev]);
+
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.id === targetClient!.id) {
+            const updatedServices = [...(c.services || []), newClientService];
+            const updatedTotal = c.totalAmount + grandTotal;
+            const updatedOutstanding = c.outstandingAmount + grandTotal;
+            const updatedNotes: InternalNote[] = [
+              {
+                id: `note-${Date.now()}`,
+                userId: currentUser.id,
+                userName: currentUser.name,
+                userRole: currentUser.role,
+                text: `📋 Applied for "${srvCat.name}". Generated Tax Invoice #${invNumber} (Total: AED ${grandTotal.toLocaleString()}). Required docs: ${srvCat.requiredDocuments.join(', ')}`,
+                createdAt: new Date().toISOString(),
+              },
+              ...(c.notes || []),
+            ];
+
+            return {
+              ...c,
+              services: updatedServices,
+              totalAmount: updatedTotal,
+              outstandingAmount: updatedOutstanding,
+              paymentStatus: c.paidAmount >= updatedTotal ? 'paid' : c.paidAmount > 0 ? 'partially_paid' : 'unpaid',
+              notes: updatedNotes,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return c;
+        })
+      );
+
+      // Notification to admins and assigned staff
+      const notif: NotificationItem = {
+        id: `notif-${Date.now()}`,
+        targetRole: 'admin',
+        title: `New Service Application: ${srvCat.name}`,
+        message: `${targetClient.fullName} applied for ${srvCat.name} via Client Portal. Invoice #${invNumber} generated.`,
+        type: 'assignment',
+        linkTab: 'clients',
+        relatedClientId: targetClient.id,
+        read: false,
+        timestamp: new Date().toISOString(),
+      };
+      setNotifications((prev) => [notif, ...prev]);
+
+      recordAuditLog(
+        'Client Applied for Service',
+        'Services',
+        `Client ${targetClient.fullName} applied for service "${srvCat.name}" with Invoice #${invNumber} (AED ${grandTotal.toLocaleString()})`
+      );
+
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } catch {}
+
+      return { success: true, service: newClientService, invoice: newInvoice };
+    },
+    [serviceCategories, clients, currentUser, selectedClientId, companies, recordAuditLog]
+  );
 
   // Duplicate Client Detection
   const checkDuplicateClient = useCallback(
@@ -4728,10 +5222,43 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [visaApplications, recordAuditLog]
   );
 
-  // Computed Filtered Views (Dynamic Staff/Employee Filtering and Branch Awareness)
+  // Computed Filtered Views (Strict Employee Data Isolation & Branch Filtering)
   const isEmployeeRole = currentUser.role === 'employee';
+  const isClientRole = currentUser.role === 'client';
+
+  const filteredCompanies = companies.filter((comp) => {
+    if (isClientRole) {
+      return (
+        comp.id === currentUser.companyId ||
+        (currentUser.companyIds && currentUser.companyIds.includes(comp.id))
+      );
+    }
+
+    if (isEmployeeRole) {
+      const isAssignedStaff =
+        (comp.employeeIds && comp.employeeIds.includes(currentUser.id)) ||
+        comp.adminId === currentUser.id ||
+        (comp as any).assignedAdminIds?.includes(currentUser.id) ||
+        comp.id === currentUser.companyId ||
+        (currentUser.companyIds && currentUser.companyIds.includes(comp.id));
+      return Boolean(isAssignedStaff);
+    }
+
+    if (selectedCompanyId !== 'all') {
+      return comp.id === selectedCompanyId;
+    }
+
+    return true;
+  });
 
   const filteredClients = clients.filter((c) => {
+    if (isClientRole) {
+      const isSelf =
+        c.email.toLowerCase() === currentUser.email.toLowerCase() ||
+        (selectedClientId && c.id === selectedClientId);
+      return Boolean(isSelf);
+    }
+
     if (selectedCompanyId !== 'all' && c.companyId && c.companyId !== selectedCompanyId) return false;
 
     // If an explicit employee/officer filter is active (selected in Navbar or page filter)
@@ -4744,23 +5271,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return Boolean(isAssigned);
     }
 
-    // Default view for Employee role: show assigned, created, or branch cases
+    // Default view for Employee role: STRICT ISOLATION - only assigned or created clients
     if (isEmployeeRole) {
       const isAssigned =
         c.assignedEmployeeIds?.includes(currentUser.id) ||
         c.assignedAdminId === currentUser.id ||
+        (c as any).createdByUserId === currentUser.id ||
         c.services?.some((s) => s.assignedEmployeeId === currentUser.id);
-      const isCreator = (c as any).createdByUserId === currentUser.id;
-      const isSameBranch = currentUser.companyId ? c.companyId === currentUser.companyId : false;
-      return isAssigned || isCreator || isSameBranch || true; // allow full directory visibility with employee filter
+      return Boolean(isAssigned);
     }
 
     return true;
   });
 
   const filteredVendors = vendors.filter((v) => {
-    if (isEmployeeRole && currentUser.companyId) {
-      if (v.companyId && v.companyId !== currentUser.companyId) return false;
+    if (isClientRole) return false;
+    if (isEmployeeRole) {
+      if (currentUser.companyId && v.companyId && v.companyId !== currentUser.companyId) return false;
     } else if (selectedCompanyId !== 'all' && v.companyId && v.companyId !== selectedCompanyId) {
       return false;
     }
@@ -4769,6 +5296,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const filteredInvoices = invoices.filter((i) => {
     const linkedClient = clients.find((c) => c.id === i.clientId);
+
+    if (isClientRole) {
+      const isMatch =
+        i.clientEmail?.toLowerCase() === currentUser.email.toLowerCase() ||
+        (linkedClient && linkedClient.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+        (selectedClientId && i.clientId === selectedClientId);
+      return Boolean(isMatch);
+    }
 
     if (selectedCompanyId !== 'all' && i.companyId !== selectedCompanyId) return false;
 
@@ -4790,25 +5325,33 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (linkedClient.assignedEmployeeIds?.includes(currentUser.id) ||
           linkedClient.assignedAdminId === currentUser.id ||
           linkedClient.services?.some((s) => s.assignedEmployeeId === currentUser.id));
-      const isSameBranch = currentUser.companyId ? i.companyId === currentUser.companyId : false;
-      return isIssuer || isAssigned || isSameBranch || true;
+      return Boolean(isIssuer || isAssigned);
     }
 
     return true;
   });
 
   const filteredTasks = tasks.filter((t) => {
+    if (isClientRole) {
+      return selectedClientId ? t.clientId === selectedClientId : false;
+    }
+
     if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
 
     if (selectedEmployeeId !== 'all') {
-      return t.assignedEmployeeId === selectedEmployeeId || (t as any).createdByUserId === selectedEmployeeId;
+      return (
+        t.assignedEmployeeId === selectedEmployeeId ||
+        (t.assignedEmployeeIds && t.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+        (t as any).createdByUserId === selectedEmployeeId
+      );
     }
 
     if (isEmployeeRole) {
-      const isAssigned = t.assignedEmployeeId === currentUser.id;
-      const isCreator = (t as any).createdByUserId === currentUser.id;
-      const isSameBranch = currentUser.companyId ? t.companyId === currentUser.companyId : false;
-      return isAssigned || isCreator || isSameBranch || true;
+      const isAssigned =
+        t.assignedEmployeeId === currentUser.id ||
+        (t.assignedEmployeeIds && t.assignedEmployeeIds.includes(currentUser.id)) ||
+        (t as any).createdByUserId === currentUser.id;
+      return Boolean(isAssigned);
     }
 
     return true;
@@ -4816,6 +5359,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const filteredDocuments = documents.filter((d) => {
     const client = clients.find((c) => c.id === d.clientId);
+
+    if (isClientRole) {
+      return (
+        (client && client.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+        (selectedClientId && d.clientId === selectedClientId)
+      );
+    }
 
     if (selectedCompanyId !== 'all' && client && client.companyId !== selectedCompanyId) return false;
 
@@ -4836,13 +5386,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (client.assignedEmployeeIds?.includes(currentUser.id) ||
           client.assignedAdminId === currentUser.id ||
           client.services?.some((s) => s.assignedEmployeeId === currentUser.id));
-      return isUploader || isAssigned || true;
+      return Boolean(isUploader || isAssigned);
     }
 
     return true;
   });
 
   const filteredLeads = leads.filter((l) => {
+    if (isClientRole) return false;
+
     if (selectedCompanyId !== 'all' && l.companyId !== selectedCompanyId) return false;
 
     if (selectedEmployeeId !== 'all') {
@@ -4856,10 +5408,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (isEmployeeRole) {
       const isAssigned =
         l.assignedEmployeeId === currentUser.id ||
-        l.assignedEmployeeIds?.includes(currentUser.id);
-      const isCreator = l.createdByUserId === currentUser.id;
-      const isSameBranch = currentUser.companyId ? l.companyId === currentUser.companyId : false;
-      return isAssigned || isCreator || isSameBranch || true;
+        l.assignedEmployeeIds?.includes(currentUser.id) ||
+        l.createdByUserId === currentUser.id;
+      return Boolean(isAssigned);
     }
 
     return true;
@@ -4867,6 +5418,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const filteredTransactions = transactions.filter((tx) => {
     const linkedClient = clients.find((c) => c.id === tx.clientId);
+
+    if (isClientRole) {
+      return (
+        (linkedClient && linkedClient.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+        (selectedClientId && tx.clientId === selectedClientId)
+      );
+    }
 
     if (selectedCompanyId !== 'all' && tx.companyId !== selectedCompanyId) return false;
 
@@ -4885,7 +5443,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         linkedClient &&
         (linkedClient.assignedEmployeeIds?.includes(currentUser.id) ||
           linkedClient.assignedAdminId === currentUser.id);
-      return isRecorder || isAssigned || true;
+      return Boolean(isRecorder || isAssigned);
     }
 
     return true;
@@ -5000,6 +5558,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const filteredVisaApplications = React.useMemo(() => {
     return visaApplications.filter((vsa) => {
+      if (isClientRole) {
+        const isClientApp =
+          vsa.clientEmail?.toLowerCase() === currentUser.email.toLowerCase() ||
+          (selectedClientId && vsa.clientId === selectedClientId);
+        return Boolean(isClientApp);
+      }
+
       if (selectedCompanyId !== 'all' && vsa.companyId && vsa.companyId !== selectedCompanyId) return false;
 
       if (selectedEmployeeId !== 'all') {
@@ -5008,13 +5573,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (isEmployeeRole) {
         const isAssigned = vsa.assignedOfficerId === currentUser.id;
-        const isSameBranch = currentUser.companyId ? vsa.companyId === currentUser.companyId : false;
-        return isAssigned || isSameBranch || true;
+        return Boolean(isAssigned);
       }
 
       return true;
     });
-  }, [visaApplications, selectedCompanyId, selectedEmployeeId, isEmployeeRole, currentUser]);
+  }, [visaApplications, selectedCompanyId, selectedEmployeeId, isEmployeeRole, isClientRole, currentUser, selectedClientId]);
 
   return (
     <CRMContext.Provider
@@ -5048,6 +5612,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSelectedClientId,
 
         companies,
+        filteredCompanies,
+        departments,
         vendors,
         users,
         roles,
@@ -5067,6 +5633,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         leadStages,
         transactions,
         visaApplications,
+
+        addDepartment,
+        updateDepartment,
+        deleteDepartment,
+
+        registerClient,
+        applyForService,
 
         addRole,
         updateRole,

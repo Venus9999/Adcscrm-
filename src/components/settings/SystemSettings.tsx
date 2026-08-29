@@ -43,9 +43,11 @@ import {
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
 import { VisaEmailTemplate, CRMBranding, InvoiceBillingSettings, LeadCategory, LeadSource, LeadStage } from '../../types/crm';
+import { DepartmentSettings } from './DepartmentSettings';
 
 export const SystemSettings: React.FC = () => {
   const {
+    departments,
     stages,
     updateStage,
     currentUser,
@@ -91,7 +93,7 @@ export const SystemSettings: React.FC = () => {
   const isMaster = currentUser.role === 'master';
   const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'billing' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync'>('billing');
+  const [activeTab, setActiveTab] = useState<'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync'>('billing');
   
   // Billing Settings Form State
   const [billingForm, setBillingForm] = useState<InvoiceBillingSettings>(billingSettings);
@@ -468,6 +470,19 @@ export const SystemSettings: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('departments')}
+          className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'departments'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          <span>Departments ({departments.length})</span>
+          {!isAdminOrMaster && <Lock className="w-3 h-3 text-slate-400" />}
+        </button>
+
+        <button
           onClick={() => setActiveTab('lead_config')}
           className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'lead_config'
@@ -553,6 +568,9 @@ export const SystemSettings: React.FC = () => {
           <span>Cloud & Data Persistence</span>
         </button>
       </div>
+
+      {/* Tab: Departments Management */}
+      {activeTab === 'departments' && <DepartmentSettings />}
 
       {/* Tab: Invoice & Billing Settings */}
       {activeTab === 'billing' && (

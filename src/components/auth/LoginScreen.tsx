@@ -13,17 +13,28 @@ import {
   Copy,
   Check,
   FileCheck2,
+  UserPlus,
+  Building2,
+  Phone,
+  Globe,
+  Sparkles,
+  UserCheck,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 
 export const LoginScreen: React.FC = () => {
   const {
     login,
+    registerClient,
+    companies,
     requestPasswordReset,
     verifyOtpAndResetPassword,
     availableUsers,
     crmBranding,
   } = useCRM();
+
+  // Auth Mode: Login vs Client Self-Registration
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   // Login form state
   const [email, setEmail] = useState('');
@@ -32,6 +43,18 @@ export const LoginScreen: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Client Registration state
+  const [regFullName, setRegFullName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regNationality, setRegNationality] = useState('United Arab Emirates');
+  const [regCompanyName, setRegCompanyName] = useState('');
+  const [regPassport, setRegPassport] = useState('');
+  const [regCompanyId, setRegCompanyId] = useState(companies[0]?.id || '');
+  const [regError, setRegError] = useState<string | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   // Forgot Password modal state
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -60,6 +83,46 @@ export const LoginScreen: React.FC = () => {
     } catch (err: any) {
       setIsSubmitting(false);
       setLoginError(err.message || 'An unexpected error occurred during login.');
+    }
+  };
+
+  const handleClientRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError(null);
+
+    if (!regFullName.trim()) {
+      setRegError('Please provide your full legal name.');
+      return;
+    }
+    if (!regEmail.trim()) {
+      setRegError('Please provide a valid email address.');
+      return;
+    }
+    if (regPassword.length < 6) {
+      setRegError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setIsRegistering(true);
+    try {
+      const res = await registerClient({
+        fullName: regFullName.trim(),
+        email: regEmail.trim(),
+        password: regPassword,
+        phone: regPhone.trim() || '+971 50 000 0000',
+        nationality: regNationality,
+        companyName: regCompanyName.trim() || undefined,
+        passportNo: regPassport.trim() || undefined,
+        companyId: regCompanyId || undefined,
+      });
+
+      setIsRegistering(false);
+      if (!res.success) {
+        setRegError(res.error || 'Registration failed. Please check your details.');
+      }
+    } catch (err: any) {
+      setIsRegistering(false);
+      setRegError(err?.message || 'An error occurred during registration.');
     }
   };
 
@@ -200,120 +263,339 @@ export const LoginScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Side: Login Form (Interactive Column) */}
+        {/* Right Side: Login / Registration Form (Interactive Column) */}
         <div className="lg:col-span-7 p-8 sm:p-10 flex flex-col justify-between bg-slate-900">
           <div>
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-white tracking-tight">Sign In to Workspace</h2>
-              <p className="text-xs text-slate-400 mt-1">
-                Enter your registered corporate credentials to access the workspace.
-              </p>
+            {/* Mode Switcher Tabs */}
+            <div className="flex items-center gap-1 p-1 bg-slate-950/80 border border-slate-800 rounded-2xl mb-6">
+              <button
+                type="button"
+                onClick={() => setAuthMode('login')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  authMode === 'login'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAuthMode('register')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  authMode === 'register'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Client Registration</span>
+              </button>
             </div>
 
-            {/* Error Banner */}
-            {loginError && (
-              <div className="mb-5 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-rose-300 text-xs animate-in fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-                <div className="flex-1">
-                  <p className="font-semibold">{loginError}</p>
+            {authMode === 'login' ? (
+              <div>
+                <div className="mb-5">
+                  <h2 className="text-2xl font-bold text-white tracking-tight">Sign In to Workspace</h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Enter your registered corporate credentials to access the workspace.
+                  </p>
                 </div>
+
+                {/* Error Banner */}
+                {loginError && (
+                  <div className="mb-5 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-rose-300 text-xs animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                    <div className="flex-1">
+                      <p className="font-semibold">{loginError}</p>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleLogin} className="space-y-4">
+                  {/* Email Address */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                      Corporate Email Address
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="user@adcs.ae"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-slate-300">
+                        Password / Security PIN
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResetEmail(email || '');
+                          setResetStep(1);
+                          setResetError(null);
+                          setShowForgotModal(true);
+                        }}
+                        className="text-xs text-blue-400 hover:text-blue-300 font-semibold transition-colors cursor-pointer hover:underline"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="w-full pl-10 pr-10 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium tracking-wide"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Remember Me */}
+                  <div className="flex items-center justify-between pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded-sm border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-400 font-medium">Keep me signed in</span>
+                    </label>
+                  </div>
+
+                  {/* Submit CTA */}
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-70 mt-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Verifying Credentials...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Sign In to CRM Portal</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              /* Client Self-Registration Form */
+              <div>
+                <div className="mb-5">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-white tracking-tight">Client Account Setup</h2>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">
+                      SELF-SERVICE
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Register to apply for UAE visas, company setup, tax clearance, and track services.
+                  </p>
+                </div>
+
+                {/* Error Banner */}
+                {regError && (
+                  <div className="mb-4 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-rose-300 text-xs animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                    <div className="flex-1">
+                      <p className="font-semibold">{regError}</p>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleClientRegister} className="space-y-3.5">
+                  {/* Full Name & Email */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Full Legal Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={regFullName}
+                        onChange={(e) => setRegFullName(e.target.value)}
+                        placeholder="e.g. Alexander Wright"
+                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        placeholder="client@investor.com"
+                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password & Mobile */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Portal Password *
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        placeholder="Min. 6 characters"
+                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Phone / WhatsApp
+                      </label>
+                      <input
+                        type="tel"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        placeholder="+971 50 123 4567"
+                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Nationality & Company / Entity */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Nationality
+                      </label>
+                      <select
+                        value={regNationality}
+                        onChange={(e) => setRegNationality(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
+                      >
+                        <option value="United Arab Emirates">United Arab Emirates</option>
+                        <option value="United Kingdom">United Kingdom</option>
+                        <option value="United States">United States</option>
+                        <option value="India">India</option>
+                        <option value="Saudi Arabia">Saudi Arabia</option>
+                        <option value="Germany">Germany</option>
+                        <option value="France">France</option>
+                        <option value="Canada">Canada</option>
+                        <option value="Australia">Australia</option>
+                        <option value="Pakistan">Pakistan</option>
+                        <option value="Egypt">Egypt</option>
+                        <option value="Other">Other Global</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Company / Entity Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={regCompanyName}
+                        onChange={(e) => setRegCompanyName(e.target.value)}
+                        placeholder="e.g. Apex Global FZ-LLC"
+                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Passport / Trade License Number */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Passport / Emirates ID (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={regPassport}
+                        onChange={(e) => setRegPassport(e.target.value)}
+                        placeholder="e.g. N12345678"
+                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Preferred Branch / Entity
+                      </label>
+                      <select
+                        value={regCompanyId}
+                        onChange={(e) => setRegCompanyId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
+                      >
+                        {companies.map((comp) => (
+                          <option key={comp.id} value={comp.id}>
+                            {comp.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Register CTA */}
+                  <button
+                    type="submit"
+                    disabled={isRegistering}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-70 mt-3"
+                  >
+                    {isRegistering ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Creating Client Profile...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Register & Enter Client Portal</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-[10px] text-center text-slate-500 mt-2">
+                    By registering, you gain access to direct service applications, document clearance tracking, and official invoices.
+                  </p>
+                </form>
               </div>
             )}
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              {/* Email Address */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  Corporate Email Address
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="user@adcs.ae"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-300">
-                    Password / Security PIN
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetEmail(email || '');
-                      setResetStep(1);
-                      setResetError(null);
-                      setShowForgotModal(true);
-                    }}
-                    className="text-xs text-blue-400 hover:text-blue-300 font-semibold transition-colors cursor-pointer hover:underline"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-10 pr-10 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium tracking-wide"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Remember Me */}
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded-sm border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-slate-400 font-medium">Keep me signed in</span>
-                </label>
-              </div>
-
-              {/* Submit CTA */}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-70 mt-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Verifying Credentials...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Sign In to CRM Portal</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
           </div>
         </div>
       </div>

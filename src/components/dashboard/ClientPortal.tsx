@@ -24,6 +24,7 @@ import { useCRM } from '../../context/CRMContext';
 import { ClientService, DocumentItem, VisaApplication } from '../../types/crm';
 import { VisaApplicationModal } from '../visa/VisaApplicationModal';
 import { VisaTimelineModal } from '../visa/VisaTimelineModal';
+import { ApplyServicesView } from './ApplyServicesView';
 
 export const ClientPortal: React.FC = () => {
   const {
@@ -46,7 +47,7 @@ export const ClientPortal: React.FC = () => {
     clients.find((c) => c.id === 'client-1') ||
     clients[0];
 
-  const [activeTab, setActiveTab] = useState<'tracker' | 'visa_services' | 'documents' | 'payments' | 'messages'>('tracker');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'apply_services' | 'visa_services' | 'documents' | 'payments' | 'messages'>('tracker');
   const [selectedServiceIndex, setSelectedServiceIndex] = useState(0);
   const [chatMessage, setChatMessage] = useState('');
   const [uploadCategory, setUploadCategory] = useState<DocumentItem['category']>('Passport');
@@ -136,6 +137,13 @@ export const ClientPortal: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-3 bg-slate-800/80 p-3 rounded-md border border-slate-700">
             <button
+              onClick={() => setActiveTab('apply_services')}
+              className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-md text-xs transition-all shadow-md shadow-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Apply for Services</span>
+            </button>
+            <button
               onClick={() => setShowVisaApplyModal(true)}
               className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-md text-xs transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
             >
@@ -161,6 +169,17 @@ export const ClientPortal: React.FC = () => {
 
         {/* Tab Navigation */}
         <div className="flex items-center gap-2 mt-6 pt-4 border-t border-slate-800 overflow-x-auto text-xs font-bold uppercase tracking-tight">
+          <button
+            onClick={() => setActiveTab('apply_services')}
+            className={`px-3.5 py-2 rounded-md transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'apply_services'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm'
+                : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Apply Services</span>
+          </button>
           <button
             onClick={() => setActiveTab('tracker')}
             className={`px-3.5 py-2 rounded-md transition-all flex items-center gap-2 cursor-pointer ${
@@ -218,6 +237,11 @@ export const ClientPortal: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Tab: Apply for Services */}
+      {activeTab === 'apply_services' && (
+        <ApplyServicesView client={client} onServiceApplied={() => setActiveTab('tracker')} />
+      )}
 
       {/* Tab 1: Live Tracker */}
       {activeTab === 'tracker' && (
