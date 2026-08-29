@@ -69,41 +69,43 @@ export const TransactionsManagement: React.FC = () => {
   });
 
   const displayTransactions = useMemo(() => {
-    return filteredTransactions.filter((tx) => {
+    return (filteredTransactions || []).filter((tx) => {
+      if (!tx) return false;
       const matchSearch =
-        tx.transactionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (tx.transactionNumber && tx.transactionNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (tx.clientName && tx.clientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (tx.companyName && tx.companyName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (tx.referenceNumber && tx.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (tx.receiptNumber && tx.receiptNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        tx.category.toLowerCase().includes(searchTerm.toLowerCase());
+        (tx.category && tx.category.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const matchType = typeFilter === 'all' || tx.type === typeFilter;
       const matchMethod = methodFilter === 'all' || tx.paymentMethod === methodFilter;
       const matchClient = clientFilter === 'all' || tx.clientId === clientFilter;
       const matchStatus = statusFilter === 'all' || tx.status === statusFilter;
 
-      return matchSearch && matchType && matchMethod && matchClient && matchStatus;
+      return Boolean(matchSearch && matchType && matchMethod && matchClient && matchStatus);
     });
   }, [filteredTransactions, searchTerm, typeFilter, methodFilter, clientFilter, statusFilter]);
 
   // Financial Summaries
   const metrics = useMemo(() => {
-    const totalDeposits = filteredTransactions
-      .filter((t) => ['deposit', 'service_fee', 'typing_fee', 'vat_payment'].includes(t.type) && t.status === 'completed')
-      .reduce((sum, t) => sum + t.amount, 0);
+    const list = filteredTransactions || [];
+    const totalDeposits = list
+      .filter((t) => t && ['deposit', 'service_fee', 'typing_fee', 'vat_payment'].includes(t.type) && t.status === 'completed')
+      .reduce((sum, t) => sum + (t?.amount || 0), 0);
 
-    const totalGovFees = filteredTransactions
-      .filter((t) => t.type === 'gov_fee' && t.status === 'completed')
-      .reduce((sum, t) => sum + t.amount, 0);
+    const totalGovFees = list
+      .filter((t) => t && t.type === 'gov_fee' && t.status === 'completed')
+      .reduce((sum, t) => sum + (t?.amount || 0), 0);
 
-    const totalExpenses = filteredTransactions
-      .filter((t) => t.type === 'expense' && t.status === 'completed')
-      .reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = list
+      .filter((t) => t && t.type === 'expense' && t.status === 'completed')
+      .reduce((sum, t) => sum + (t?.amount || 0), 0);
 
-    const totalRefunds = filteredTransactions
-      .filter((t) => ['refund', 'withdrawal'].includes(t.type) && t.status === 'completed')
-      .reduce((sum, t) => sum + t.amount, 0);
+    const totalRefunds = list
+      .filter((t) => t && ['refund', 'withdrawal'].includes(t.type) && t.status === 'completed')
+      .reduce((sum, t) => sum + (t?.amount || 0), 0);
 
     const netBalance = totalDeposits - totalGovFees - totalExpenses - totalRefunds;
 

@@ -56,12 +56,13 @@ export const DocumentVault: React.FC = () => {
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
 
   // Filtered documents
-  const filteredDocs = documents.filter((doc) => {
+  const filteredDocs = (documents || []).filter((doc) => {
+    if (!doc) return false;
     const matchSearch =
       !searchQuery ||
-      doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.category.toLowerCase().includes(searchQuery.toLowerCase());
+      (doc.name && doc.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (doc.clientName && doc.clientName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (doc.category && doc.category.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchSearch) return false;
 
@@ -72,7 +73,7 @@ export const DocumentVault: React.FC = () => {
   });
 
   // Filtered radar
-  const filteredRadar = expiringDocuments.filter((item) => item.daysLeft <= expiryDaysFilter);
+  const filteredRadar = (expiringDocuments || []).filter((item) => item && item.daysLeft <= expiryDaysFilter);
 
   const processFile = (file: File) => {
     // Format size
@@ -198,7 +199,7 @@ export const DocumentVault: React.FC = () => {
               : 'text-slate-600 dark:text-slate-400'
           }`}
         >
-          Needs Review ({documents.filter((d) => d.status === 'pending' || d.status === 'under_review').length})
+          Needs Review ({(documents || []).filter((d) => d && (d.status === 'pending' || d.status === 'under_review')).length})
         </button>
 
         <button

@@ -77,16 +77,16 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const [taggedUserId, setTaggedUserId] = useState('');
 
   const activeEmployees = useMemo(() => {
-    return users.filter((u) => u.role === 'employee' || u.role === 'admin' || u.role === 'master');
+    return (users || []).filter((u) => u && (u.role === 'employee' || u.role === 'admin' || u.role === 'master'));
   }, [users]);
 
   // Tasks linked to this lead
   const leadTasks = useMemo(() => {
-    return tasks.filter((t) => t.leadId === lead.id);
+    return (tasks || []).filter((t) => t && t.leadId === lead.id);
   }, [tasks, lead.id]);
 
-  const completedTasksCount = leadTasks.filter((t) => t.status === 'completed').length;
-  const pendingTasksCount = leadTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled').length;
+  const completedTasksCount = (leadTasks || []).filter((t) => t && t.status === 'completed').length;
+  const pendingTasksCount = (leadTasks || []).filter((t) => t && t.status !== 'completed' && t.status !== 'cancelled').length;
 
   // Notes list (with fallback to legacy string notes)
   const notesList: InternalNote[] = useMemo(() => {

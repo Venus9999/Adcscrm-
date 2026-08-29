@@ -51,25 +51,26 @@ export const VisaServicesManager: React.FC = () => {
   // Filtered applications list
   const displayApplications = useMemo(() => {
     const list = isClientRole
-      ? visaApplications.filter(
+      ? (visaApplications || []).filter(
           (a) =>
-            a.clientEmail.toLowerCase() === currentUser.email.toLowerCase() ||
-            a.clientId === currentUser.id
+            (a.clientEmail && currentUser?.email && a.clientEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+            a.clientId === currentUser?.id
         )
-      : filteredVisaApplications;
+      : (filteredVisaApplications || []);
 
-    return list.filter((app) => {
+    return (list || []).filter((app) => {
+      if (!app) return false;
       const matchStatus = selectedStatusFilter === 'all' || app.status === selectedStatusFilter;
       const matchRegion = selectedRegion === 'all' || app.targetRegion === selectedRegion;
       const matchQuery =
         !searchQuery ||
-        app.applicationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.targetCountry.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.visaType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (app.applicationNumber && app.applicationNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (app.targetCountry && app.targetCountry.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (app.clientName && app.clientName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (app.visaType && app.visaType.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (app.clientPassportNo && app.clientPassportNo.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      return matchStatus && matchRegion && matchQuery;
+      return Boolean(matchStatus && matchRegion && matchQuery);
     });
   }, [
     isClientRole,
@@ -84,20 +85,20 @@ export const VisaServicesManager: React.FC = () => {
   // Statistics
   const stats = useMemo(() => {
     const apps = isClientRole
-      ? visaApplications.filter(
+      ? (visaApplications || []).filter(
           (a) =>
-            a.clientEmail.toLowerCase() === currentUser.email.toLowerCase() ||
-            a.clientId === currentUser.id
+            (a.clientEmail && currentUser?.email && a.clientEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+            a.clientId === currentUser?.id
         )
-      : visaApplications;
+      : (visaApplications || []);
 
     const total = apps.length;
     const underReview = apps.filter(
-      (a) => a.status === 'embassy_processing' || a.status === 'documents_verification'
+      (a) => a && (a.status === 'embassy_processing' || a.status === 'documents_verification')
     ).length;
-    const biometrics = apps.filter((a) => a.status === 'biometrics_appointment').length;
-    const completed = apps.filter((a) => a.status === 'issued' || a.status === 'approved').length;
-    const totalFees = apps.reduce((sum, a) => sum + (a.totalAmount || 0), 0);
+    const biometrics = apps.filter((a) => a && a.status === 'biometrics_appointment').length;
+    const completed = apps.filter((a) => a && (a.status === 'issued' || a.status === 'approved')).length;
+    const totalFees = apps.reduce((sum, a) => sum + (a?.totalAmount || 0), 0);
 
     return { total, underReview, biometrics, completed, totalFees };
   }, [visaApplications, isClientRole, currentUser]);

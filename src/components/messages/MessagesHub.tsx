@@ -20,10 +20,10 @@ export const MessagesHub: React.FC = () => {
   const [searchFilter, setSearchFilter] = useState('');
 
   // Find active client or user thread
-  const activeClient = clients.find((c) => c.id === activeConvId);
+  const activeClient = (clients || []).find((c) => c && c.id === activeConvId);
 
   // Group messages by conversation ID
-  const activeThread = messages.filter((m) => m.conversationId === activeConvId);
+  const activeThread = (messages || []).filter((m) => m && m.conversationId === activeConvId);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +60,8 @@ export const MessagesHub: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
-            {clients.map((client) => {
-              const threadMsgs = messages.filter((m) => m.conversationId === client.id);
+            {(clients || []).map((client) => {
+              const threadMsgs = (messages || []).filter((m) => m && m.conversationId === client.id);
               const lastMsg = threadMsgs[threadMsgs.length - 1];
               const isSelected = activeConvId === client.id;
 

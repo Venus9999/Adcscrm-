@@ -296,7 +296,7 @@ export const GmailProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         'Authentication',
         `Moved message "${subject}" (${messageId}) to Trash via Gmail API`
       );
-      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      setMessages((prev) => (prev || []).filter((m) => m && m.id !== messageId));
       if (selectedMessage?.id === messageId) {
         setSelectedMessage(null);
       }

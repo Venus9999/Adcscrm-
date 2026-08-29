@@ -52,17 +52,18 @@ export const DepartmentSettings: React.FC = () => {
     tagsInput: 'Operations, Core',
   });
 
-  const filteredDepts = departments.filter((d) => {
+  const filteredDepts = (departments || []).filter((d) => {
+    if (!d) return false;
     const matchesSearch =
-      d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.name && d.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (d.code && d.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (d.headOfDepartment && d.headOfDepartment.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (d.description && d.description.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesCompany =
       selectedCompanyFilter === 'all' || !d.companyId || d.companyId === selectedCompanyFilter;
 
-    return matchesSearch && matchesCompany;
+    return Boolean(matchesSearch && matchesCompany);
   });
 
   const handleOpenAddModal = () => {
@@ -266,8 +267,8 @@ export const DepartmentSettings: React.FC = () => {
       {/* Department Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredDepts.map((dept) => {
-          const linkedCompany = companies.find((c) => c.id === dept.companyId);
-          const deptEmployees = users.filter((u) => u.companyId === dept.companyId && u.role === 'employee');
+          const linkedCompany = (companies || []).find((c) => c && c.id === dept.companyId);
+          const deptEmployees = (users || []).filter((u) => u && u.companyId === dept.companyId && u.role === 'employee');
 
           return (
             <div

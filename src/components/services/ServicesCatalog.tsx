@@ -109,7 +109,7 @@ export const ServicesCatalog: React.FC = () => {
   const handleRemoveDocumentItem = (index: number) => {
     setFormData({
       ...formData,
-      requiredDocuments: formData.requiredDocuments.filter((_, idx) => idx !== index),
+      requiredDocuments: (formData.requiredDocuments || []).filter((_, idx) => idx !== index),
     });
   };
 
@@ -167,16 +167,17 @@ export const ServicesCatalog: React.FC = () => {
     setDeletingServiceId(null);
   };
 
-  const displayServices = serviceCategories.filter((s) => {
+  const displayServices = (serviceCategories || []).filter((s) => {
+    if (!s) return false;
     const matchesSearch =
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (s.name && s.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (s.code && s.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesCategory =
       selectedCategoryTab === 'All' || s.category === selectedCategoryTab;
 
-    return matchesSearch && matchesCategory;
+    return Boolean(matchesSearch && matchesCategory);
   });
 
   const canManage = currentUser.role === 'master' || currentUser.role === 'admin';

@@ -408,6 +408,51 @@ export const LoginScreen: React.FC = () => {
                     )}
                   </button>
                 </form>
+
+                {/* Quick 1-Click Access for Admins & Testing */}
+                <div className="mt-6 pt-4 border-t border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      Instant Access / Demo Logins:
+                    </span>
+                    <span className="text-[10px] text-slate-500">Click to auto-fill</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('master@adcs.ae');
+                        setPassword('Master@2026!');
+                        login('master@adcs.ae', 'Master@2026!');
+                      }}
+                      className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-blue-600/20 border border-slate-700 hover:border-blue-500/50 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white group-hover:text-blue-300">Gurpreet Singh (Master)</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 font-extrabold">MASTER</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5 font-mono">master@adcs.ae</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('gurpreet.singh369@gmail.com');
+                        setPassword('8899');
+                        login('gurpreet.singh369@gmail.com', '8899');
+                      }}
+                      className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-emerald-600/20 border border-slate-700 hover:border-emerald-500/50 text-left transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white group-hover:text-emerald-300">Director Gmail Login</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-extrabold">PIN: 8899</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5 font-mono">gurpreet.singh369@gmail.com</p>
+                    </button>
+                  </div>
+                </div>
               </div>
             ) : (
               /* Client Self-Registration Form */

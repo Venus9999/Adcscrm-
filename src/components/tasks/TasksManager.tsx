@@ -75,17 +75,18 @@ export const TasksManager: React.FC = () => {
   // Map task IDs to due reminders
   const taskReminderMap = useMemo(() => {
     const map = new Map<string, (typeof taskDueReminders)[0]>();
-    taskDueReminders.forEach((r) => map.set(r.taskId, r));
+    (taskDueReminders || []).forEach((r) => map.set(r.taskId, r));
     return map;
   }, [taskDueReminders]);
 
-  const overdueCount = useMemo(() => taskDueReminders.filter((r) => r.isOverdue).length, [taskDueReminders]);
-  const dueTodayCount = useMemo(() => taskDueReminders.filter((r) => r.isDueToday).length, [taskDueReminders]);
-  const dueSoonCount = useMemo(() => taskDueReminders.filter((r) => r.dueStatus === 'due_soon').length, [taskDueReminders]);
+  const overdueCount = useMemo(() => (taskDueReminders || []).filter((r) => r.isOverdue).length, [taskDueReminders]);
+  const dueTodayCount = useMemo(() => (taskDueReminders || []).filter((r) => r.isDueToday).length, [taskDueReminders]);
+  const dueSoonCount = useMemo(() => (taskDueReminders || []).filter((r) => r.dueStatus === 'due_soon').length, [taskDueReminders]);
 
   const displayTasks = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return filteredTasks.filter((t) => {
+    return (filteredTasks || []).filter((t) => {
+      if (!t) return false;
       const empName = (userMap.get(t.assignedEmployeeId) || t.assignedEmployeeName || '').toLowerCase();
       const compName = t.companyId ? (companyMap.get(t.companyId) || '').toLowerCase() : '';
       const clientName = (t.clientName || '').toLowerCase();
@@ -159,7 +160,7 @@ export const TasksManager: React.FC = () => {
     });
   };
 
-  const branchEmployees = users.filter((u) => u.role === 'employee' || u.role === 'admin');
+  const branchEmployees = (users || []).filter((u) => u && (u.role === 'employee' || u.role === 'admin'));
 
   return (
     <div className="space-y-6">

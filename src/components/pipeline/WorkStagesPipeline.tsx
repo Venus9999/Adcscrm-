@@ -171,27 +171,29 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
   };
 
   // Sort stages by step number
-  const sortedStages = [...stages].sort((a, b) => a.stepNumber - b.stepNumber);
-  const staffUsers = users.filter((u) => u.role !== 'client');
+  const sortedStages = [...(stages || [])].sort((a, b) => a.stepNumber - b.stepNumber);
+  const staffUsers = (users || []).filter((u) => u && u.role !== 'client');
 
   // Filter clients by stage, service, employee, and search query
   const getStageClients = (stageId: string) => {
-    return filteredClients.filter((c) => {
+    return (filteredClients || []).filter((c) => {
+      if (!c) return false;
       const matchStage = c.currentStageId === stageId;
       const matchService =
         selectedServiceFilter === 'all' ||
-        c.services.some((s) => s.serviceId === selectedServiceFilter);
+        (c.services || []).some((s) => s.serviceId === selectedServiceFilter);
       const matchEmployee =
         selectedEmployeeFilter === 'all' ||
-        c.assignedEmployeeIds?.includes(selectedEmployeeFilter) ||
+        (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedEmployeeFilter)) ||
+        c.assignedEmployeeId === selectedEmployeeFilter ||
         c.assignedAdminId === selectedEmployeeFilter ||
-        c.services.some((s) => s.assignedEmployeeId === selectedEmployeeFilter);
+        (c.services || []).some((s) => s.assignedEmployeeId === selectedEmployeeFilter);
       const matchSearch =
         !searchQuery.trim() ||
-        c.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.refNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.passportNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.services.some((s) => s.assignedEmployeeName?.toLowerCase().includes(searchQuery.toLowerCase()));
+        (c.fullName && c.fullName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.refNo && c.refNo.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.passportNo && c.passportNo.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.services || []).some((s) => s.assignedEmployeeName?.toLowerCase().includes(searchQuery.toLowerCase()));
 
       return matchStage && matchService && matchEmployee && matchSearch;
     });
@@ -285,13 +287,14 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
                 onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
                 className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
               >
-                <option value="all">All PRO Officers & Staff ({staffUsers.length})</option>
-                {staffUsers.map((u) => {
-                  const empCases = filteredClients.filter(
+                <option value="all">All PRO Officers & Staff ({(staffUsers || []).length})</option>
+                {(staffUsers || []).map((u) => {
+                  const empCases = (filteredClients || []).filter(
                     (c) =>
-                      c.assignedEmployeeIds?.includes(u.id) ||
+                      (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(u.id)) ||
+                      c.assignedEmployeeId === u.id ||
                       c.assignedAdminId === u.id ||
-                      c.services.some((s) => s.assignedEmployeeId === u.id)
+                      (c.services || []).some((s) => s.assignedEmployeeId === u.id)
                   ).length;
                   return (
                     <option key={u.id} value={u.id}>
@@ -310,8 +313,8 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
                 onChange={(e) => setSelectedServiceFilter(e.target.value)}
                 className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
               >
-                <option value="all">All Service Categories ({serviceCategories.length})</option>
-                {serviceCategories.map((s) => (
+                <option value="all">All Service Categories ({(serviceCategories || []).length})</option>
+                {(serviceCategories || []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
@@ -347,14 +350,15 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
-            All Staff ({filteredClients.length})
+            All Staff ({(filteredClients || []).length})
           </button>
-          {staffUsers.map((u) => {
-            const count = filteredClients.filter(
+          {(staffUsers || []).map((u) => {
+            const count = (filteredClients || []).filter(
               (c) =>
-                c.assignedEmployeeIds?.includes(u.id) ||
+                (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(u.id)) ||
+                c.assignedEmployeeId === u.id ||
                 c.assignedAdminId === u.id ||
-                c.services.some((s) => s.assignedEmployeeId === u.id)
+                (c.services || []).some((s) => s.assignedEmployeeId === u.id)
             ).length;
             const isSelected = selectedEmployeeFilter === u.id;
             return (
@@ -393,11 +397,12 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
         <div className="overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {sortedStages.map((stage) => {
-              const stageClients = filteredClients.filter((c) => {
+              const stageClients = (filteredClients || []).filter((c) => {
+                if (!c) return false;
                 const matchStage = c.currentStageId === stage.id;
                 const matchService =
                   selectedServiceFilter === 'all' ||
-                  c.services.some((s) => s.serviceId === selectedServiceFilter);
+                  (c.services || []).some((s) => s.serviceId === selectedServiceFilter);
                 return matchStage && matchService;
               });
 
@@ -535,7 +540,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {sortedStages.map((stage) => {
-                  const clientCount = filteredClients.filter((c) => c.currentStageId === stage.id).length;
+                  const clientCount = (filteredClients || []).filter((c) => c && c.currentStageId === stage.id).length;
                   return (
                     <tr key={stage.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-500">

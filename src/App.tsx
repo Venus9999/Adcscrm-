@@ -31,6 +31,8 @@ import { VendorsManagement } from './components/vendors/VendorsManagement';
 import { VisaServicesManager } from './components/visa/VisaServicesManager';
 import { LoginScreen } from './components/auth/LoginScreen';
 
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+
 const AppContent: React.FC = () => {
   const { currentUser, activeTab, selectedClientId, setSelectedClientId, setActiveTab, isAuthenticated } = useCRM();
 
@@ -177,11 +179,13 @@ const AppContent: React.FC = () => {
 
 export function App() {
   return (
-    <CRMProvider>
-      <GmailProvider>
-        <AppContent />
-      </GmailProvider>
-    </CRMProvider>
+    <ErrorBoundary>
+      <CRMProvider>
+        <GmailProvider>
+          <AppContent />
+        </GmailProvider>
+      </CRMProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -167,7 +167,7 @@ export const CompaniesManagement: React.FC = () => {
     setShowModal(false);
   };
 
-  const adminUsers = users.filter((u) => u.role === 'admin' || u.role === 'master');
+  const adminUsers = (users || []).filter((u) => u && (u.role === 'admin' || u.role === 'master'));
 
   return (
     <div className="space-y-6">
@@ -198,11 +198,12 @@ export const CompaniesManagement: React.FC = () => {
 
       {/* Companies Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {companies.map((comp) => {
-          const compClients = clients.filter((c) => c.companyId === comp.id);
-          const compInvoices = invoices.filter((i) => i.companyId === comp.id);
-          const compRevenue = compInvoices.reduce((acc, i) => acc + i.amountPaid, 0);
-          const compAdmins = users.filter((u) => (comp.assignedAdminIds || [comp.adminId]).includes(u.id));
+        {(companies || []).map((comp) => {
+          if (!comp) return null;
+          const compClients = (clients || []).filter((c) => c && c.companyId === comp.id);
+          const compInvoices = (invoices || []).filter((i) => i && i.companyId === comp.id);
+          const compRevenue = compInvoices.reduce((acc, i) => acc + (i?.amountPaid || 0), 0);
+          const compAdmins = (users || []).filter((u) => u && (comp.assignedAdminIds || [comp.adminId]).includes(u.id));
 
           return (
             <div

@@ -36,15 +36,15 @@ export const ReportsAnalytics: React.FC = () => {
   const maxMonthRev = Math.max(...monthlyRevenue.map((m) => m.amount));
 
   // Service distribution
-  const serviceStats = serviceCategories.map((cat) => {
-    const matchingCount = clients.reduce(
-      (acc, c) => acc + c.services.filter((s) => s.serviceId === cat.id).length,
+  const serviceStats = (serviceCategories || []).map((cat) => {
+    const matchingCount = (clients || []).reduce(
+      (acc, c) => acc + (c.services || []).filter((s) => s.serviceId === cat.id).length,
       0
     );
     return {
       name: cat.name,
       count: matchingCount,
-      revenue: matchingCount * cat.defaultPrice,
+      revenue: matchingCount * (cat.defaultPrice || 0),
     };
   });
 
@@ -200,11 +200,13 @@ export const ReportsAnalytics: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {users
-                .filter((u) => u.role === 'employee')
+              {(users || [])
+                .filter((u) => u && u.role === 'employee')
                 .map((emp) => {
-                  const empClients = clients.filter((c) => c.assignedEmployeeIds.includes(emp.id));
-                  const comp = companies.find((c) => c.id === emp.companyId);
+                  const empClients = (clients || []).filter((c) =>
+                    c && (c.assignedEmployeeIds || (c.assignedEmployeeId ? [c.assignedEmployeeId] : [])).includes(emp.id)
+                  );
+                  const comp = (companies || []).find((c) => c && c.id === emp.companyId);
 
                   return (
                     <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">

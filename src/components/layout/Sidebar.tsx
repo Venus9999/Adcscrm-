@@ -50,15 +50,15 @@ export const Sidebar: React.FC = () => {
     logout,
   } = useCRM();
 
-  const isClient = currentUser.role === 'client';
+  const isClient = currentUser?.role === 'client';
 
-  const pendingTasksCount = tasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled').length;
-  const unreadMessagesCount = messages.filter((m) => !m.read && m.senderRole !== currentUser.role).length;
-  const unpaidInvoicesCount = invoices.filter((i) => i.status === 'unpaid' || i.status === 'partially_paid').length;
-  const urgentExpiriesCount = expiringDocuments.filter((e) => e.isUrgent).length;
-  const newLeadsCount = leads.filter((l) => l.status === 'new').length;
-  const activeVisaCount = visaApplications.filter(
-    (v) => v.status !== 'issued' && v.status !== 'rejected'
+  const pendingTasksCount = (tasks || []).filter((t) => t && t.status !== 'completed' && t.status !== 'cancelled').length;
+  const unreadMessagesCount = (messages || []).filter((m) => m && !m.read && m.senderRole !== currentUser?.role).length;
+  const unpaidInvoicesCount = (invoices || []).filter((i) => i && (i.status === 'unpaid' || i.status === 'partially_paid')).length;
+  const urgentExpiriesCount = (expiringDocuments || []).filter((e) => e && e.isUrgent).length;
+  const newLeadsCount = (leads || []).filter((l) => l && l.status === 'new').length;
+  const activeVisaCount = (visaApplications || []).filter(
+    (v) => v && v.status !== 'issued' && v.status !== 'rejected'
   ).length;
 
   const masterControlItems: SidebarNavItem[] = [

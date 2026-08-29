@@ -478,7 +478,7 @@ export const SystemSettings: React.FC = () => {
           }`}
         >
           <Building2 className="w-3.5 h-3.5" />
-          <span>Departments ({departments.length})</span>
+          <span>Departments ({(departments || []).length})</span>
           {!isAdminOrMaster && <Lock className="w-3 h-3 text-slate-400" />}
         </button>
 

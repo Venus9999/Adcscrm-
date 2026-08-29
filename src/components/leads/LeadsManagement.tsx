@@ -161,32 +161,32 @@ export const LeadsManagement: React.FC = () => {
   });
 
   const activeEmployees = useMemo(() => {
-    return users.filter((u) => u.role === 'employee' || u.role === 'admin' || u.role === 'master');
+    return (users || []).filter((u) => u && (u.role === 'employee' || u.role === 'admin' || u.role === 'master'));
   }, [users]);
 
   // Derived filter options from leads
   const availableJobTypes = useMemo(() => {
     const set = new Set<string>();
-    leads.forEach((l) => {
-      if (l.jobType) set.add(l.jobType);
-      if (l.jobTitleInterest) set.add(l.jobTitleInterest);
+    (leads || []).forEach((l) => {
+      if (l?.jobType) set.add(l.jobType);
+      if (l?.jobTitleInterest) set.add(l.jobTitleInterest);
     });
     return Array.from(set);
   }, [leads]);
 
   const availableCountries = useMemo(() => {
     const set = new Set<string>(['United Arab Emirates', 'Saudi Arabia', 'Qatar', 'Oman', 'Kuwait', 'Bahrain', 'India', 'Pakistan', 'United Kingdom', 'United States', 'Egypt', 'Philippines']);
-    leads.forEach((l) => {
-      if (l.country) set.add(l.country);
-      if (l.nationality) set.add(l.nationality);
+    (leads || []).forEach((l) => {
+      if (l?.country) set.add(l.country);
+      if (l?.nationality) set.add(l.nationality);
     });
     return Array.from(set);
   }, [leads]);
 
   const availableCities = useMemo(() => {
     const set = new Set<string>(['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah', 'Fujairah', 'Umm Al Quwain', 'Riyadh', 'Jeddah', 'London', 'Karachi', 'Mumbai', 'Cairo']);
-    leads.forEach((l) => {
-      if (l.city) set.add(l.city);
+    (leads || []).forEach((l) => {
+      if (l?.city) set.add(l.city);
     });
     return Array.from(set);
   }, [leads]);
@@ -201,8 +201,8 @@ export const LeadsManagement: React.FC = () => {
       'Outside UAE (Europe / UK / Americas)',
       'Outside UAE (Other)',
     ]);
-    leads.forEach((l) => {
-      if (l.currentLocation) set.add(l.currentLocation);
+    (leads || []).forEach((l) => {
+      if (l?.currentLocation) set.add(l.currentLocation);
     });
     return Array.from(set);
   }, [leads]);
@@ -210,31 +210,36 @@ export const LeadsManagement: React.FC = () => {
   // Company map for search matching
   const companyMap = useMemo(() => {
     const map = new Map<string, string>();
-    companies.forEach((c) => map.set(c.id, c.name));
+    (companies || []).forEach((c) => {
+      if (c?.id) map.set(c.id, c.name || '');
+    });
     return map;
   }, [companies]);
 
   // User map for search matching
   const userMap = useMemo(() => {
     const map = new Map<string, string>();
-    users.forEach((u) => map.set(u.id, u.name));
+    (users || []).forEach((u) => {
+      if (u?.id) map.set(u.id, u.name || '');
+    });
     return map;
   }, [users]);
 
   const displayLeads = useMemo(() => {
-    return filteredLeads.filter((lead) => {
+    return (filteredLeads || []).filter((lead) => {
+      if (!lead) return false;
       const q = searchTerm.toLowerCase().trim();
-      const compName = (companyMap.get(lead.companyId) || '').toLowerCase();
-      const empName = (userMap.get(lead.assignedEmployeeId) || '').toLowerCase();
+      const compName = (lead.companyId ? companyMap.get(lead.companyId) || '' : '').toLowerCase();
+      const empName = (lead.assignedEmployeeId ? userMap.get(lead.assignedEmployeeId) || '' : '').toLowerCase();
 
       const matchSearch =
         !q ||
-        lead.name.toLowerCase().includes(q) ||
-        lead.refNo.toLowerCase().includes(q) ||
+        (lead.name && lead.name.toLowerCase().includes(q)) ||
+        (lead.refNo && lead.refNo.toLowerCase().includes(q)) ||
         (lead.companyName && lead.companyName.toLowerCase().includes(q)) ||
         compName.includes(q) ||
         empName.includes(q) ||
-        lead.phone.includes(q) ||
+        (lead.phone && lead.phone.includes(q)) ||
         (lead.email && lead.email.toLowerCase().includes(q)) ||
         (lead.serviceInterested && lead.serviceInterested.toLowerCase().includes(q)) ||
         (lead.category && lead.category.toLowerCase().includes(q)) ||
@@ -279,7 +284,7 @@ export const LeadsManagement: React.FC = () => {
         employeeFilter === 'all' ||
         lead.assignedEmployeeId === employeeFilter;
 
-      return (
+      return Boolean(
         matchSearch &&
         matchStatus &&
         matchPriority &&
@@ -312,13 +317,14 @@ export const LeadsManagement: React.FC = () => {
 
   // Statistics
   const stats = useMemo(() => {
-    const total = filteredLeads.length;
-    const newLeads = filteredLeads.filter((l) => l.status === 'new').length;
-    const inProgress = filteredLeads.filter((l) => ['contacted', 'proposal_sent', 'negotiation'].includes(l.status)).length;
-    const converted = filteredLeads.filter((l) => l.status === 'converted').length;
-    const pipelineValue = filteredLeads
-      .filter((l) => l.status !== 'lost' && l.status !== 'converted')
-      .reduce((acc, l) => acc + (l.estimatedValue || 0), 0);
+    const list = filteredLeads || [];
+    const total = list.length;
+    const newLeads = list.filter((l) => l && l.status === 'new').length;
+    const inProgress = list.filter((l) => l && ['contacted', 'proposal_sent', 'negotiation'].includes(l.status)).length;
+    const converted = list.filter((l) => l && l.status === 'converted').length;
+    const pipelineValue = list
+      .filter((l) => l && l.status !== 'lost' && l.status !== 'converted')
+      .reduce((acc, l) => acc + (l?.estimatedValue || 0), 0);
     const conversionRate = total > 0 ? Math.round((converted / total) * 100) : 0;
 
     return { total, newLeads, inProgress, converted, pipelineValue, conversionRate };

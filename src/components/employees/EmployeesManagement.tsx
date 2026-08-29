@@ -148,13 +148,14 @@ export const EmployeesManagement: React.FC = () => {
   });
 
   // Filtered Users
-  const displayUsers = users.filter((u) => {
+  const displayUsers = (users || []).filter((u) => {
+    if (!u) return false;
     const matchesSearch =
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (u.department && u.department.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (u.jobTitle && u.jobTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      u.phone.includes(searchTerm);
+      (u.phone && u.phone.includes(searchTerm));
 
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
     const matchesDept = departmentFilter === 'all' || u.department === departmentFilter;
@@ -163,7 +164,7 @@ export const EmployeesManagement: React.FC = () => {
       u.companyId === companyFilter ||
       (u.companyIds && u.companyIds.includes(companyFilter));
 
-    return matchesSearch && matchesRole && matchesDept && matchesComp;
+    return Boolean(matchesSearch && matchesRole && matchesDept && matchesComp);
   });
 
   // Handlers for User CRUD
@@ -603,13 +604,14 @@ export const EmployeesManagement: React.FC = () => {
           {/* Team Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayUsers.map((user) => {
-              const userClients = clients.filter(
+              const userClients = (clients || []).filter(
                 (c) =>
-                  (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(user.id)) ||
-                  c.assignedAdminId === user.id
+                  c &&
+                  ((c.assignedEmployeeIds && c.assignedEmployeeIds.includes(user.id)) ||
+                  c.assignedAdminId === user.id)
               );
-              const userTasks = tasks.filter((t) => t.assignedToUserId === user.id);
-              const userBranch = companies.find((c) => c.id === user.companyId);
+              const userTasks = (tasks || []).filter((t) => t && t.assignedToUserId === user.id);
+              const userBranch = (companies || []).find((c) => c && c.id === user.companyId);
 
               return (
                 <div
@@ -671,7 +673,7 @@ export const EmployeesManagement: React.FC = () => {
                       <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-center">
                         <span className="text-[9px] uppercase font-bold text-slate-400 block">Leads</span>
                         <span className="font-bold text-xs text-indigo-600 dark:text-indigo-400">
-                          {leads.filter((l) => l.assignedEmployeeId === user.id).length}
+                          {(leads || []).filter((l) => l && l.assignedEmployeeId === user.id).length}
                         </span>
                       </div>
                       <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-center">
@@ -681,7 +683,7 @@ export const EmployeesManagement: React.FC = () => {
                       <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-center">
                         <span className="text-[9px] uppercase font-bold text-slate-400 block">Tasks</span>
                         <span className="font-bold text-xs text-amber-600 dark:text-amber-400">
-                          {userTasks.filter((t) => t.status !== 'completed').length}
+                          {(userTasks || []).filter((t) => t && t.status !== 'completed').length}
                         </span>
                       </div>
                     </div>
@@ -756,8 +758,8 @@ export const EmployeesManagement: React.FC = () => {
         /* Roles & Access Control Matrix Tab */
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {roles.map((r) => {
-              const assignedCount = users.filter((u) => u.role === r.roleType).length;
+            {(roles || []).map((r) => {
+              const assignedCount = (users || []).filter((u) => u && u.role === r.roleType).length;
               return (
                 <div
                   key={r.id}
@@ -1209,19 +1211,19 @@ export const EmployeesManagement: React.FC = () => {
                     <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
                       <span className="text-[10px] text-slate-400 block font-bold uppercase">Leads</span>
                       <span className="text-base font-bold text-purple-700 dark:text-purple-300">
-                        {leads.filter((l) => l.assignedEmployeeId === selectedUser.id).length}
+                        {(leads || []).filter((l) => l && l.assignedEmployeeId === selectedUser.id).length}
                       </span>
                     </div>
                     <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
                       <span className="text-[10px] text-slate-400 block font-bold uppercase">Cases / Clients</span>
                       <span className="text-base font-bold text-purple-700 dark:text-purple-300">
-                        {clients.filter((c) => (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedUser.id)) || c.assignedAdminId === selectedUser.id).length}
+                        {(clients || []).filter((c) => c && ((c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedUser.id)) || c.assignedAdminId === selectedUser.id)).length}
                       </span>
                     </div>
                     <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
                       <span className="text-[10px] text-slate-400 block font-bold uppercase">Tasks</span>
                       <span className="text-base font-bold text-purple-700 dark:text-purple-300">
-                        {tasks.filter((t) => t.assignedToUserId === selectedUser.id).length}
+                        {(tasks || []).filter((t) => t && t.assignedToUserId === selectedUser.id).length}
                       </span>
                     </div>
                   </div>
@@ -1238,8 +1240,8 @@ export const EmployeesManagement: React.FC = () => {
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-300 dark:border-slate-600 text-xs font-semibold"
                   >
                     <option value="">-- Choose Employee to receive work --</option>
-                    {users
-                      .filter((u) => u.id !== selectedUser.id && u.status === 'active')
+                    {(users || [])
+                      .filter((u) => u && u.id !== selectedUser.id && u.status === 'active')
                       .map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.name} ({u.role} - {u.department || 'Operations'})
