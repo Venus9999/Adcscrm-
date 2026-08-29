@@ -75,6 +75,7 @@ export const SystemSettings: React.FC = () => {
     sendVisaStatusEmail,
     clients,
     resetToDefaultData,
+    clearAllDataToZero,
     isSavingToServer,
     serverSyncStatus,
     lastServerSyncTime,
@@ -424,6 +425,13 @@ export const SystemSettings: React.FC = () => {
   const handleGlobalResetData = () => {
     if (confirm('Reset entire CRM database to fresh initial seed data?')) {
       resetToDefaultData();
+    }
+  };
+
+  const handleClearAllToZero = async () => {
+    if (confirm('Are you sure you want to remove all clients, leads, invoices, tasks, transactions, and documents and set all operational metrics to 0?')) {
+      await clearAllDataToZero();
+      alert('All operational records have been wiped and metrics set to 0.');
     }
   };
 
@@ -2619,18 +2627,28 @@ export const SystemSettings: React.FC = () => {
           </div>
 
           <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-            <h4 className="text-xs font-bold text-rose-600 mb-1">CRM Factory Reset Zone</h4>
+            <h4 className="text-xs font-bold text-rose-600 mb-1">CRM Reset & Clean Slate Zone</h4>
             <p className="text-[11px] text-slate-500 mb-3">
-              Clear current modifications and restore full initial seed data with demo records.
+              Wipe all client records, transactions, invoices, and leads to start clean at 0, or restore factory demo seeds.
             </p>
-            <button
-              type="button"
-              onClick={handleGlobalResetData}
-              className="px-3.5 py-2 bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 rounded-xl text-xs font-semibold hover:bg-rose-100 flex items-center gap-1.5 cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset to Factory Seed Data</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleClearAllToZero}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Wipe All Data (Set to 0)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleGlobalResetData}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Restore Demo Seed Data</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

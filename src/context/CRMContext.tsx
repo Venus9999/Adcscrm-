@@ -275,6 +275,7 @@ interface CRMContextType {
 
   // System Utility
   resetToDefaultData: () => void;
+  clearAllDataToZero: () => Promise<void>;
   exportCRMData: () => string;
   importCRMData: (jsonData: string) => boolean;
 
@@ -4662,6 +4663,85 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  // Clear all operational data (set records to 0)
+  const clearAllDataToZero = useCallback(async () => {
+    setClients([]);
+    setInvoices([]);
+    setTransactions([]);
+    setLeads([]);
+    setTasks([]);
+    setDocuments([]);
+    setNotifications([]);
+    setMessages([]);
+    setAuditLogs([]);
+    setVisaApplications([]);
+    setSelectedClientId(null);
+
+    // Keep system administrators and staff accounts
+    const staffOnlyUsers = users.filter((u) => u.role !== 'client');
+    setUsers(staffOnlyUsers.length > 0 ? staffOnlyUsers : [INITIAL_USERS[0]]);
+    if (currentUser.role === 'client') {
+      setCurrentUser(INITIAL_USERS[0]);
+    }
+
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+
+    const zeroSnapshot = {
+      currentUserId: INITIAL_USERS[0].id,
+      companies,
+      vendors,
+      users: staffOnlyUsers.length > 0 ? staffOnlyUsers : [INITIAL_USERS[0]],
+      roles,
+      stages,
+      workflows,
+      serviceCategories,
+      clients: [],
+      documents: [],
+      tasks: [],
+      invoices: [],
+      messages: [],
+      auditLogs: [],
+      notifications: [],
+      leads: [],
+      leadCategories,
+      leadSources,
+      leadStages,
+      transactions: [],
+      visaApplications: [],
+      crmBranding,
+      billingSettings,
+      lastUpdated: new Date().toISOString(),
+      forceReset: true,
+      hasCustomModifications: true,
+    };
+
+    try {
+      await saveCRMDataToCloud(zeroSnapshot);
+      await fetch('/api/crm/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(zeroSnapshot),
+      });
+      setServerSyncStatus('synced');
+    } catch {
+      // ignore
+    }
+  }, [
+    users,
+    currentUser,
+    companies,
+    vendors,
+    roles,
+    stages,
+    workflows,
+    serviceCategories,
+    leadCategories,
+    leadSources,
+    leadStages,
+    crmBranding,
+    billingSettings,
+  ]);
+
   const exportCRMData = useCallback(() => {
     const data = {
       companies,
@@ -5780,6 +5860,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createDatabaseBackup,
 
         resetToDefaultData,
+        clearAllDataToZero,
         exportCRMData,
         importCRMData,
 
