@@ -12,6 +12,14 @@ import {
   enableNetwork,
   setLogLevel,
 } from 'firebase/firestore';
+import {
+  getDatabase,
+  ref as rtdbRef,
+  set as rtdbSet,
+  get as rtdbGet,
+  onValue as rtdbOnValue,
+  Database,
+} from 'firebase/database';
 import { getApps, initializeApp, getApp } from 'firebase/app';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -24,7 +32,40 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestoreDbId = (firebaseConfig as Record<string, any>).firestoreDatabaseId || undefined;
 export const db: Firestore = getFirestore(app, firestoreDbId);
 
+// Initialize Firebase Realtime Database (Europe-West1 instance provided by user)
+export const RTDB_URL =
+  (firebaseConfig as Record<string, any>).databaseURL ||
+  'https://gen-lang-client-0989127214-default-rtdb.europe-west1.firebasedatabase.app';
+
+let rtdbInstance: Database | null = null;
+try {
+  rtdbInstance = getDatabase(app, RTDB_URL);
+} catch (e) {
+  console.warn('Firebase RTDB initialization notice:', e);
+}
+export const rtdb: Database | null = rtdbInstance;
+
+const RTDB_CRM_STORE_PATH = 'crm_enterprise_store';
+const CRM_COLLECTION = 'crm_system';
+const CRM_STORE_DOC = 'enterprise_store';
+const CRM_META_DOC = 'store_meta';
 const QUOTA_COOLDOWN_KEY = 'crm_firestore_quota_until';
+
+function sanitizeForRTDB(obj: any): any {
+  if (obj === undefined) return null;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForRTDB);
+  }
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      result[key] = sanitizeForRTDB(val);
+    }
+  }
+  return result;
+}
 
 export function isFirestoreQuotaExhausted(): boolean {
   if (typeof window === 'undefined') return false;
@@ -73,7 +114,6 @@ export function isCloudAvailable(): boolean {
 
 // Check initial quota status & enable network persistence
 if (typeof window !== 'undefined') {
-  // Clear any historical long-term quota locks to ensure live domain can sync
   const rawUntil = localStorage.getItem(QUOTA_COOLDOWN_KEY);
   if (rawUntil) {
     const until = parseInt(rawUntil, 10);
@@ -87,17 +127,13 @@ if (typeof window !== 'undefined') {
   } else {
     enableIndexedDbPersistence(db).catch((err) => {
       if (err.code === 'failed-precondition' || err.code === 'unimplemented') {
-        // Benign multiple tabs or browser unsupported notice
+        // Benign multiple tabs notice
       } else if (err.code === 'resource-exhausted' || err.message?.includes('Quota limit')) {
         markQuotaExhausted(30000);
       }
     });
   }
 }
-
-const CRM_COLLECTION = 'crm_system';
-const CRM_STORE_DOC = 'enterprise_store';
-const CRM_META_DOC = 'store_meta';
 
 export enum OperationType {
   CREATE = 'create',
@@ -125,7 +161,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     (error as any)?.code === 'resource-exhausted';
 
   if (isQuota) {
-    markQuotaExhausted(30000); // 30s brief cooldown instead of 24h
+    markQuotaExhausted(30000);
     return;
   }
 
@@ -135,203 +171,302 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path,
     timestamp: new Date().toISOString(),
   };
-  console.warn('[Firestore Operation Notice]', JSON.stringify(errInfo));
+  console.warn('[Cloud Operation Notice]', JSON.stringify(errInfo));
 }
 
 // Test connectivity on initialization
-export async function testFirestoreConnection(): Promise<{ connected: boolean; databaseId: string; projectId: string; quotaExhausted?: boolean }> {
+export async function testFirestoreConnection(): Promise<{
+  connected: boolean;
+  databaseId: string;
+  projectId: string;
+  databaseUrl?: string;
+  rtdbConnected?: boolean;
+  quotaExhausted?: boolean;
+}> {
   const info = {
     connected: false,
-    databaseId: (firebaseConfig as Record<string, any>).firestoreDatabaseId || '(default)',
+    databaseId: 'Firebase Realtime Database + Cloud Firestore',
     projectId: firebaseConfig.projectId || '',
+    databaseUrl: RTDB_URL,
+    rtdbConnected: false,
     quotaExhausted: isFirestoreQuotaExhausted(),
   };
 
-  if (isFirestoreQuotaExhausted()) {
-    return info;
+  // 1. Test Realtime Database connectivity first
+  if (rtdb) {
+    try {
+      const storeRef = rtdbRef(rtdb, RTDB_CRM_STORE_PATH);
+      await rtdbGet(storeRef);
+      info.connected = true;
+      info.rtdbConnected = true;
+    } catch (rtdbErr) {
+      console.warn('Realtime database ping notice:', rtdbErr);
+    }
   }
 
-  try {
-    const testDoc = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
-    await getDocFromServer(testDoc).catch((err) => {
+  // 2. Test Firestore connectivity
+  if (!isFirestoreQuotaExhausted()) {
+    try {
+      const testDoc = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
+      await getDocFromServer(testDoc).catch((err) => {
+        if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit')) {
+          markQuotaExhausted(30000);
+          info.quotaExhausted = true;
+        }
+      });
+      if (!isFirestoreQuotaExhausted()) {
+        info.connected = true;
+      }
+    } catch (err: any) {
       if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit')) {
         markQuotaExhausted(30000);
         info.quotaExhausted = true;
       }
-    });
-    if (!isFirestoreQuotaExhausted()) {
-      info.connected = true;
     }
-    return info;
-  } catch (err: any) {
-    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit')) {
-      markQuotaExhausted(30000);
-      info.quotaExhausted = true;
-    }
-    return info;
   }
+
+  return info;
 }
 
 /**
- * Load complete CRM database snapshot from Cloud Firestore
- * Reads the unified enterprise_store document (1 single read unit for ultra efficiency)
+ * Load complete CRM database snapshot from Cloud Database (Realtime DB + Firestore fallback)
  */
 export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: any; hasData: boolean }> {
-  if (isFirestoreQuotaExhausted()) {
-    return { success: true, data: null, hasData: false };
-  }
-
-  try {
-    // 1. Read primary enterprise store document (1 read unit)
-    const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
-    const storeSnap = await getDoc(storeRef).catch((e) => {
-      handleFirestoreError(e, OperationType.GET, CRM_STORE_DOC);
-      return null;
-    });
-
-    if (storeSnap && storeSnap.exists()) {
-      const data = storeSnap.data();
-      if (data && data.payload) {
-        return { success: true, data: data.payload, hasData: true };
+  // 1. Primary fast load from Firebase Realtime Database
+  if (rtdb) {
+    try {
+      const storeRef = rtdbRef(rtdb, RTDB_CRM_STORE_PATH);
+      const snapshot = await rtdbGet(storeRef);
+      if (snapshot.exists()) {
+        const val = snapshot.val();
+        if (val) {
+          const payload = val.payload || val;
+          if (payload && typeof payload === 'object') {
+            return { success: true, data: payload, hasData: true };
+          }
+        }
       }
+    } catch (rtdbErr) {
+      console.warn('Realtime database read notice, trying Firestore fallback:', rtdbErr);
     }
-
-    // 2. Legacy fallback to meta partition if enterprise_store was not yet initialized
-    const metaRef = doc(db, CRM_COLLECTION, CRM_META_DOC);
-    const metaSnap = await getDoc(metaRef).catch((e) => {
-      handleFirestoreError(e, OperationType.GET, CRM_META_DOC);
-      return null;
-    });
-
-    if (metaSnap && metaSnap.exists()) {
-      const metaData = metaSnap.data() || {};
-      const clientsRef = doc(db, CRM_COLLECTION, 'clients_data');
-      const leadsRef = doc(db, CRM_COLLECTION, 'leads_data');
-      const usersRef = doc(db, CRM_COLLECTION, 'users_data');
-      const settingsRef = doc(db, CRM_COLLECTION, 'settings_data');
-
-      const [clientsSnap, leadsSnap, usersSnap, settingsSnap] = await Promise.all([
-        getDoc(clientsRef).catch(() => null),
-        getDoc(leadsRef).catch(() => null),
-        getDoc(usersRef).catch(() => null),
-        getDoc(settingsRef).catch(() => null),
-      ]);
-
-      const settingsData = settingsSnap?.exists() ? settingsSnap.data() : {};
-      const reconstructed: any = {
-        lastUpdated: metaData.lastUpdated || new Date().toISOString(),
-        hasCustomModifications: metaData.hasCustomModifications ?? true,
-        currentUserId: metaData.currentUserId || 'user-master',
-        clients: clientsSnap?.exists() ? clientsSnap.data()?.clients || [] : [],
-        leads: leadsSnap?.exists() ? leadsSnap.data()?.leads || [] : [],
-        users: usersSnap?.exists() ? usersSnap.data()?.users || [] : [],
-        roles: settingsData.roles || [],
-        stages: settingsData.stages || [],
-        workflows: settingsData.workflows || [],
-        serviceCategories: settingsData.serviceCategories || [],
-        vendors: settingsData.vendors || [],
-        leadCategories: settingsData.leadCategories || [],
-        leadSources: settingsData.leadSources || [],
-        leadStages: settingsData.leadStages || [],
-        crmBranding: settingsData.crmBranding,
-        billingSettings: settingsData.billingSettings,
-      };
-
-      return { success: true, data: reconstructed, hasData: true };
-    }
-
-    return { success: true, data: null, hasData: false };
-  } catch (error: any) {
-    handleFirestoreError(error, OperationType.GET, `${CRM_COLLECTION}`);
-    return { success: false, data: null, hasData: false };
   }
+
+  // 2. Fallback to Cloud Firestore
+  if (!isFirestoreQuotaExhausted()) {
+    try {
+      const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
+      const storeSnap = await getDoc(storeRef).catch((e) => {
+        handleFirestoreError(e, OperationType.GET, CRM_STORE_DOC);
+        return null;
+      });
+
+      if (storeSnap && storeSnap.exists()) {
+        const data = storeSnap.data();
+        if (data && data.payload) {
+          // If RTDB was empty, seed it with Firestore data
+          if (rtdb) {
+            try {
+              const rRef = rtdbRef(rtdb, RTDB_CRM_STORE_PATH);
+              rtdbSet(rRef, {
+                version: '4.0',
+                lastUpdated: data.payload.lastUpdated || new Date().toISOString(),
+                payload: sanitizeForRTDB(data.payload),
+              }).catch(() => {});
+            } catch {}
+          }
+          return { success: true, data: data.payload, hasData: true };
+        }
+      }
+
+      // Legacy fallback
+      const metaRef = doc(db, CRM_COLLECTION, CRM_META_DOC);
+      const metaSnap = await getDoc(metaRef).catch((e) => {
+        handleFirestoreError(e, OperationType.GET, CRM_META_DOC);
+        return null;
+      });
+
+      if (metaSnap && metaSnap.exists()) {
+        const metaData = metaSnap.data() || {};
+        const clientsRef = doc(db, CRM_COLLECTION, 'clients_data');
+        const leadsRef = doc(db, CRM_COLLECTION, 'leads_data');
+        const usersRef = doc(db, CRM_COLLECTION, 'users_data');
+        const settingsRef = doc(db, CRM_COLLECTION, 'settings_data');
+
+        const [clientsSnap, leadsSnap, usersSnap, settingsSnap] = await Promise.all([
+          getDoc(clientsRef).catch(() => null),
+          getDoc(leadsRef).catch(() => null),
+          getDoc(usersRef).catch(() => null),
+          getDoc(settingsRef).catch(() => null),
+        ]);
+
+        const settingsData = settingsSnap?.exists() ? settingsSnap.data() : {};
+        const reconstructed: any = {
+          lastUpdated: metaData.lastUpdated || new Date().toISOString(),
+          hasCustomModifications: metaData.hasCustomModifications ?? true,
+          currentUserId: metaData.currentUserId || 'user-master',
+          clients: clientsSnap?.exists() ? clientsSnap.data()?.clients || [] : [],
+          leads: leadsSnap?.exists() ? leadsSnap.data()?.leads || [] : [],
+          users: usersSnap?.exists() ? usersSnap.data()?.users || [] : [],
+          roles: settingsData.roles || [],
+          stages: settingsData.stages || [],
+          workflows: settingsData.workflows || [],
+          serviceCategories: settingsData.serviceCategories || [],
+          vendors: settingsData.vendors || [],
+          leadCategories: settingsData.leadCategories || [],
+          leadSources: settingsData.leadSources || [],
+          leadStages: settingsData.leadStages || [],
+          crmBranding: settingsData.crmBranding,
+          billingSettings: settingsData.billingSettings,
+        };
+
+        return { success: true, data: reconstructed, hasData: true };
+      }
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.GET, `${CRM_COLLECTION}`);
+    }
+  }
+
+  return { success: true, data: null, hasData: false };
 }
 
 /**
- * Save complete CRM database snapshot to Cloud Firestore.
- * Saves in 1 single unified document to minimize write operations by 90%+.
+ * Save complete CRM database snapshot to Cloud (Realtime Database + Cloud Firestore)
  */
 let lastCloudSaveTime = 0;
-const CLOUD_SAVE_THROTTLE_MS = 2500; // Save at most every 2.5s for fast multi-device responsiveness
+const CLOUD_SAVE_THROTTLE_MS = 1500; // Ultra responsive live syncing
 
 export async function saveCRMDataToCloud(payload: any, force: boolean = false): Promise<boolean> {
-  if (isFirestoreQuotaExhausted()) {
-    return false;
-  }
-
   const now = Date.now();
   if (!force && now - lastCloudSaveTime < CLOUD_SAVE_THROTTLE_MS) {
-    return true; // Throttled successfully to protect daily write units
-  }
-
-  try {
-    if (!payload || typeof payload !== 'object') return false;
-
-    const nowIso = new Date().toISOString();
-
-    // 1. Single unified store document containing the entire payload (1 write unit)
-    const storeDoc = {
-      version: '3.1',
-      lastUpdated: payload.lastUpdated || nowIso,
-      updatedAt: serverTimestamp(),
-      payload: payload,
-    };
-
-    const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
-    await setDoc(storeRef, storeDoc, { merge: true });
-
-    lastCloudSaveTime = Date.now();
     return true;
-  } catch (error: any) {
-    handleFirestoreError(error, OperationType.WRITE, `${CRM_COLLECTION}/${CRM_STORE_DOC}`);
-    return false;
   }
+
+  if (!payload || typeof payload !== 'object') return false;
+
+  const nowIso = new Date().toISOString();
+  let rtdbSuccess = false;
+
+  // 1. Instant Realtime Database write (Zero-delay WebSocket broadcast to all connected devices)
+  if (rtdb) {
+    try {
+      const sanitized = sanitizeForRTDB(payload);
+      const rtdbDoc = {
+        version: '4.0',
+        lastUpdated: payload.lastUpdated || nowIso,
+        savedAtIso: nowIso,
+        payload: sanitized,
+      };
+      const storeRef = rtdbRef(rtdb, RTDB_CRM_STORE_PATH);
+      await rtdbSet(storeRef, rtdbDoc);
+      rtdbSuccess = true;
+      lastCloudSaveTime = Date.now();
+    } catch (rtdbErr) {
+      console.warn('Realtime database write notice:', rtdbErr);
+    }
+  }
+
+  // 2. Dual-redundant Cloud Firestore write
+  if (!isFirestoreQuotaExhausted()) {
+    try {
+      const storeDoc = {
+        version: '4.0',
+        lastUpdated: payload.lastUpdated || nowIso,
+        updatedAt: serverTimestamp(),
+        payload: payload,
+      };
+      const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
+      await setDoc(storeRef, storeDoc, { merge: true });
+      lastCloudSaveTime = Date.now();
+      return true;
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.WRITE, `${CRM_COLLECTION}/${CRM_STORE_DOC}`);
+      return rtdbSuccess;
+    }
+  }
+
+  return rtdbSuccess;
 }
 
 /**
  * Real-time subscription to cloud CRM updates across multiple devices/tabs and domains
+ * Powered by Firebase Realtime Database WebSockets with Firestore snapshot fallback
  */
 export function subscribeToCloudCRMData(
   onData: (data: any) => void,
   onError?: (err: any) => void
 ): () => void {
-  if (isFirestoreQuotaExhausted()) {
-    return () => {};
+  const unsubscribers: (() => void)[] = [];
+
+  // 1. Firebase Realtime Database instant WebSocket listener
+  if (rtdb) {
+    try {
+      const storeRef = rtdbRef(rtdb, RTDB_CRM_STORE_PATH);
+      const unsubscribeRtdb = rtdbOnValue(
+        storeRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const val = snapshot.val();
+            if (val) {
+              const payload = val.payload || val;
+              if (payload && typeof payload === 'object') {
+                onData(payload);
+              }
+            }
+          }
+        },
+        (error) => {
+          console.warn('Realtime DB subscription notice:', error);
+          if (onError) onError(error);
+        }
+      );
+      unsubscribers.push(() => unsubscribeRtdb());
+    } catch (e) {
+      console.warn('Failed to attach Realtime Database listener:', e);
+    }
   }
 
-  try {
-    const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
-    let isInitial = true;
+  // 2. Cloud Firestore fallback listener
+  if (!isFirestoreQuotaExhausted()) {
+    try {
+      const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
+      let isInitial = true;
 
-    const unsubscribe = onSnapshot(
-      storeRef,
-      (docSnap) => {
-        if (isInitial) {
-          isInitial = false;
+      const unsubscribeFs = onSnapshot(
+        storeRef,
+        (docSnap) => {
+          if (isInitial) {
+            isInitial = false;
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (data && data.payload) {
+                onData(data.payload);
+              }
+            }
+            return;
+          }
+
           if (docSnap.exists()) {
             const data = docSnap.data();
             if (data && data.payload) {
               onData(data.payload);
             }
           }
-          return;
+        },
+        (error) => {
+          handleFirestoreError(error, OperationType.GET, `${CRM_COLLECTION}/${CRM_STORE_DOC}`);
+          if (onError) onError(error);
         }
-
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data && data.payload) {
-            onData(data.payload);
-          }
-        }
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.GET, `${CRM_COLLECTION}/${CRM_STORE_DOC}`);
-        if (onError) onError(error);
-      }
-    );
-    return unsubscribe;
-  } catch {
-    return () => {};
+      );
+      unsubscribers.push(() => unsubscribeFs());
+    } catch {}
   }
+
+  return () => {
+    unsubscribers.forEach((fn) => {
+      try {
+        fn();
+      } catch {}
+    });
+  };
 }
 

@@ -146,11 +146,11 @@ export const CloudDataSyncModal: React.FC<CloudDataSyncModalProps> = ({ isOpen, 
               <h2 className="text-base font-bold flex items-center gap-2">
                 <span>Cloud Persistence & Multi-Device Sync</span>
                 <span className="text-[10px] px-2 py-0.5 bg-white/20 rounded-full font-semibold uppercase tracking-wider">
-                  Firestore Active
+                  Realtime DB Active
                 </span>
               </h2>
               <p className="text-xs text-blue-100 mt-0.5">
-                Permanent Google Cloud database protection across updates & republishing
+                Instant WebSocket live syncing via Firebase Realtime Database + Google Cloud protection
               </p>
             </div>
           </div>
@@ -201,10 +201,10 @@ export const CloudDataSyncModal: React.FC<CloudDataSyncModalProps> = ({ isOpen, 
                 />
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
                   {connInfo.connected
-                    ? 'Google Cloud Firestore: Online & Connected'
+                    ? 'Firebase Realtime Database: Live & Synced'
                     : connInfo.quotaExhausted
                     ? 'Enterprise Server Disk Active (Cloud Daily Quota Protected)'
-                    : 'Enterprise Server Storage: Connected'}
+                    : 'Enterprise Cloud Storage: Connected'}
                 </span>
               </div>
               <button
