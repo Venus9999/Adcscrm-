@@ -62,12 +62,12 @@ export const ClientPortal: React.FC = () => {
     return <div className="p-8 text-center text-slate-500">No client profile found.</div>;
   }
 
-  const activeService: ClientService | undefined = client.services[selectedServiceIndex] || client.services[0];
-  const clientDocs = documents.filter((d) => d.clientId === client.id);
-  const clientInvoices = invoices.filter((i) => i.clientId === client.id);
-  const clientMessages = messages.filter((m) => m.conversationId === client.id);
-  const clientVisaApps = visaApplications.filter(
-    (v) => v.clientId === client.id || v.clientEmail.toLowerCase() === client.email.toLowerCase()
+  const activeService: ClientService | undefined = (client.services || [])[selectedServiceIndex] || (client.services || [])[0];
+  const clientDocs = (documents || []).filter((d) => d && d.clientId === client.id);
+  const clientInvoices = (invoices || []).filter((i) => i && i.clientId === client.id);
+  const clientMessages = (messages || []).filter((m) => m && m.conversationId === client.id);
+  const clientVisaApps = (visaApplications || []).filter(
+    (v) => v && (v.clientId === client.id || (v.clientEmail && client.email && v.clientEmail.toLowerCase() === client.email.toLowerCase()))
   );
 
   // Calculate workflow stage index

@@ -193,12 +193,13 @@ export const VendorsManagement: React.FC = () => {
     setDeletingVendorId(null);
   };
 
-  const displayVendors = filteredVendors.filter((v) => {
+  const displayVendors = (filteredVendors || []).filter((v) => {
+    if (!v) return false;
     const matchesSearch =
-      v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.contactPerson.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.phone.toLowerCase().includes(searchQuery.toLowerCase());
+      (v.name && v.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (v.contactPerson && v.contactPerson.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (v.email && v.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (v.phone && v.phone.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesCategory =
       selectedCategory === 'All Categories' || v.category === selectedCategory;
@@ -306,7 +307,7 @@ export const VendorsManagement: React.FC = () => {
       {/* Vendors Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayVendors.map((vendor) => {
-          const linkedClients = clients.filter((c) => c.vendorId === vendor.id);
+          const linkedClients = (clients || []).filter((c) => c && c.vendorId === vendor.id);
           return (
             <div
               key={vendor.id}
@@ -467,8 +468,8 @@ export const VendorsManagement: React.FC = () => {
                   Clients Affiliated with {viewingVendor.name}
                 </h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {clients
-                    .filter((c) => c.vendorId === viewingVendor.id)
+                  {(clients || [])
+                    .filter((c) => c && c.vendorId === viewingVendor.id)
                     .map((c) => (
                       <div
                         key={c.id}
@@ -486,11 +487,11 @@ export const VendorsManagement: React.FC = () => {
                           </div>
                         </div>
                         <span className="text-xs font-mono font-bold text-emerald-600">
-                          AED {c.totalAmount.toLocaleString()}
+                          AED {c.totalAmount?.toLocaleString() || 0}
                         </span>
                       </div>
                     ))}
-                  {clients.filter((c) => c.vendorId === viewingVendor.id).length === 0 && (
+                  {(clients || []).filter((c) => c && c.vendorId === viewingVendor.id).length === 0 && (
                     <p className="text-slate-400 italic text-xs">No clients currently registered under this vendor.</p>
                   )}
                 </div>

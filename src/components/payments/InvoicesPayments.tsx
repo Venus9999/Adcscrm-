@@ -85,7 +85,7 @@ export const InvoicesPayments: React.FC = () => {
     referenceNumber: string;
     receiptNumber: string;
     date: string;
-    status: 'pending' | 'completed' | 'failed' | 'reversed';
+    status: Transaction['status'];
     notes: string;
   }>({
     id: '',
@@ -146,22 +146,24 @@ export const InvoicesPayments: React.FC = () => {
   const [txNotes, setTxNotes] = useState('');
 
   // Filtered list
-  const displayInvoices = filteredInvoices.filter((inv) => {
+  const displayInvoices = (filteredInvoices || []).filter((inv) => {
+    if (!inv) return false;
     const matchSearch =
       !searchQuery ||
-      inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.serviceName.toLowerCase().includes(searchQuery.toLowerCase());
+      (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (inv.clientName && inv.clientName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (inv.serviceName && inv.serviceName.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchStatus = statusFilter === 'all' || inv.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
-  const displayTransactions = filteredTransactions.filter((tx) => {
+  const displayTransactions = (filteredTransactions || []).filter((tx) => {
+    if (!tx) return false;
     const matchSearch =
       !searchQuery ||
-      tx.transactionNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (tx.transactionNumber && tx.transactionNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (tx.clientName && tx.clientName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      tx.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (tx.category && tx.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (tx.referenceNumber && tx.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (tx.receiptNumber && tx.receiptNumber.toLowerCase().includes(searchQuery.toLowerCase()));
 

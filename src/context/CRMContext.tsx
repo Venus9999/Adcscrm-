@@ -140,6 +140,7 @@ interface CRMContextType {
     nationality?: string;
     companyName?: string;
     passportNo?: string;
+    companyId?: string;
   }) => Promise<{ success: boolean; client?: Client; user?: User; error?: string }>;
   applyForService: (
     serviceCategoryId: string,
@@ -400,7 +401,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.workflows && Array.isArray(parsed.workflows)) setWorkflows(parsed.workflows);
     if (parsed.users && Array.isArray(parsed.users)) {
       // Filter out deleted legacy demo staff accounts (user-admin-1, user-emp-1, tariq, pro)
-      const cleanUsers = parsed.users.filter(
+      const cleanUsers = (parsed.users || []).filter(
         (u: User) =>
           u &&
           u.id !== 'user-admin-1' &&
@@ -1205,7 +1206,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const currentService = client.services?.[0];
-      const serviceName = currentService?.categoryName || 'UAE Residency / Visa Clearance';
+      const serviceName = currentService?.serviceName || currentService?.category || 'UAE Residency / Visa Clearance';
       const stageName = currentService?.currentStageName || 'Document Processing';
       const companyObj = companies.find((c) => c.id === client.companyId);
       const companyName = companyObj?.name || crmBranding.name;
@@ -1351,6 +1352,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       nationality?: string;
       companyName?: string;
       passportNo?: string;
+      companyId?: string;
     }): Promise<{ success: boolean; client?: Client; user?: User; error?: string }> => {
       const cleanEmail = data.email.trim().toLowerCase();
       const cleanName = data.fullName.trim();
@@ -1379,7 +1381,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const clientId = `client-${Date.now()}`;
       const refNo = `CL-2026-${randomDigits}`;
 
-      const targetCompany = companies[0] || INITIAL_COMPANIES[0];
+      const targetCompany = (data.companyId ? companies.find(c => c.id === data.companyId) : null) || companies[0] || INITIAL_COMPANIES[0];
 
       // 1. Create client User account
       const newUser: User = {
@@ -1571,7 +1573,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         clientName: targetClient.fullName,
         clientEmail: targetClient.email,
         clientPhone: targetClient.phone,
-        clientAddress: targetClient.address || 'Dubai, United Arab Emirates',
+        clientAddress: (targetClient as any).address || targetClient.residentialAddress || 'Dubai, United Arab Emirates',
         clientPassport: targetClient.passportNo,
         companyId: compId,
         companyName: companyName,
@@ -1615,9 +1617,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createdAt: new Date().toISOString(),
       };
 
-      const requiredDocs = srvCat.requiredDocuments.map((docName, idx) => ({
-        id: `rd-${Date.now()}-${idx}`,
-        name: docName,
+      const requiredDocs = srvCat.requiredDocuments.map((docName) => ({
+        docName: docName,
+        isUploaded: false,
         status: 'pending' as const,
       }));
 
@@ -2744,7 +2746,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               const updatedServices = (c.services || []).map((s) => ({
                 ...s,
                 requiredDocs: (s.requiredDocs || []).map((req) =>
-                  req.documentId === docId ? { ...req, status } : req
+                  req.documentId === docId ? { ...req, status: (status === 'under_review' ? 'pending' : status) as 'pending' | 'approved' | 'rejected' } : req
                 ),
               }));
               return { ...c, services: updatedServices };
@@ -5121,7 +5123,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             issuedVisaNumber: issuedVisaNumber || app.issuedVisaNumber,
             issuedAt: status === 'issued' ? timestamp : app.issuedAt,
             approvalDate: status === 'approved' || status === 'issued' ? timestamp : app.approvalDate,
-            rejectionReason: status === 'rejected' ? remarks : app.rejectionReason,
+            rejectionReason: status === 'rejected' ? remarks : (app as any).rejectionReason,
             updatedAt: timestamp,
           };
         })
@@ -5278,7 +5280,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (selectedEmployeeId !== 'all') {
       const isAssigned =
         (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-        c.assignedEmployeeId === selectedEmployeeId ||
+        (c as any).assignedEmployeeId === selectedEmployeeId ||
         c.assignedAdminId === selectedEmployeeId ||
         (c as any).createdByUserId === selectedEmployeeId ||
         (c.services && c.services.some((s) => s.assignedEmployeeId === selectedEmployeeId));
@@ -5289,7 +5291,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (isEmployeeRole) {
       const isAssigned =
         (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
-        c.assignedEmployeeId === currentUser?.id ||
+        (c as any).assignedEmployeeId === currentUser?.id ||
         c.assignedAdminId === currentUser?.id ||
         (c as any).createdByUserId === currentUser?.id ||
         (c.services && c.services.some((s) => s.assignedEmployeeId === currentUser?.id));
@@ -5329,7 +5331,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const isAssigned =
         linkedClient &&
         ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          linkedClient.assignedEmployeeId === selectedEmployeeId ||
+          (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
           linkedClient.assignedAdminId === selectedEmployeeId ||
           (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
       if (!isIssuer && !isAssigned) return false;
@@ -5341,7 +5343,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const isAssigned =
         linkedClient &&
         ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
-          linkedClient.assignedEmployeeId === currentUser?.id ||
+          (linkedClient as any).assignedEmployeeId === currentUser?.id ||
           linkedClient.assignedAdminId === currentUser?.id ||
           (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
       return Boolean(isIssuer || isAssigned);
@@ -5361,7 +5363,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (selectedEmployeeId !== 'all') {
       return (
         t.assignedEmployeeId === selectedEmployeeId ||
-        (t.assignedEmployeeIds && t.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+        ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(selectedEmployeeId)) ||
         (t as any).createdByUserId === selectedEmployeeId
       );
     }
@@ -5369,7 +5371,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (isEmployeeRole) {
       const isAssigned =
         t.assignedEmployeeId === currentUser?.id ||
-        (t.assignedEmployeeIds && t.assignedEmployeeIds.includes(currentUser?.id)) ||
+        ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(currentUser?.id)) ||
         (t as any).createdByUserId === currentUser?.id;
       return Boolean(isAssigned);
     }
@@ -5395,7 +5397,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const isAssigned =
         client &&
         ((client.assignedEmployeeIds && client.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          client.assignedEmployeeId === selectedEmployeeId ||
+          (client as any).assignedEmployeeId === selectedEmployeeId ||
           client.assignedAdminId === selectedEmployeeId ||
           (client.services && client.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
       return Boolean(isUploader || isAssigned);
@@ -5406,7 +5408,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const isAssigned =
         client &&
         ((client.assignedEmployeeIds && client.assignedEmployeeIds.includes(currentUser?.id)) ||
-          client.assignedEmployeeId === currentUser?.id ||
+          (client as any).assignedEmployeeId === currentUser?.id ||
           client.assignedAdminId === currentUser?.id ||
           (client.services && client.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
       return Boolean(isUploader || isAssigned);
@@ -5458,7 +5460,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const isAssigned =
         linkedClient &&
         ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          linkedClient.assignedEmployeeId === selectedEmployeeId ||
+          (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
           linkedClient.assignedAdminId === selectedEmployeeId);
       return Boolean(isRecorder || isAssigned);
     }
@@ -5468,7 +5470,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const isAssigned =
         linkedClient &&
         ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
-          linkedClient.assignedEmployeeId === currentUser?.id ||
+          (linkedClient as any).assignedEmployeeId === currentUser?.id ||
           linkedClient.assignedAdminId === currentUser?.id);
       return Boolean(isRecorder || isAssigned);
     }

@@ -249,7 +249,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
           paymentOption === 'pay_now'
             ? {
                 amount: totalAmount,
-                method: paymentMethod === 'credit_card' ? 'credit_card' : paymentMethod === 'bank_transfer' ? 'bank_transfer' : 'cash',
+                method: paymentMethod === 'credit_card' ? ('Credit Card' as const) : paymentMethod === 'bank_transfer' ? ('Bank Transfer' as const) : ('Cash' as const),
                 reference: `ONLINE-PAY-${Math.floor(10000 + Math.random() * 90000)}`,
                 notes: `Full payment cleared online for ${selectedCountry.countryName} visa`,
               }

@@ -37,8 +37,9 @@ export const ReportsAnalytics: React.FC = () => {
 
   // Service distribution
   const serviceStats = (serviceCategories || []).map((cat) => {
+    if (!cat) return { name: '', count: 0, revenue: 0 };
     const matchingCount = (clients || []).reduce(
-      (acc, c) => acc + (c.services || []).filter((s) => s.serviceId === cat.id).length,
+      (acc, c) => acc + (c?.services || []).filter((s) => s && s.serviceId === cat.id).length,
       0
     );
     return {

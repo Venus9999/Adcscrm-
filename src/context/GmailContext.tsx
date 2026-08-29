@@ -73,7 +73,7 @@ interface GmailContextType {
 const GmailContext = createContext<GmailContextType | undefined>(undefined);
 
 export const GmailProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { clients, crmBranding, logAuditEvent } = useCRM();
+  const { clients, crmBranding, recordAuditLog } = useCRM();
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
@@ -181,7 +181,7 @@ export const GmailProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setGmailProfile(profile);
         await fetchMessages();
         
-        logAuditEvent(
+        recordAuditLog(
           'CONNECT_GMAIL',
           'Authentication',
           `Authorized Google Workspace Gmail account: ${result.user.email}`
@@ -206,7 +206,7 @@ export const GmailProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setGmailProfile(null);
     setMessages([]);
     setSelectedMessage(null);
-    logAuditEvent('DISCONNECT_GMAIL', 'Authentication', 'Disconnected Google Gmail session');
+    recordAuditLog('DISCONNECT_GMAIL', 'Authentication', 'Disconnected Google Gmail session');
   };
 
   // Select a message and load its full content
@@ -254,7 +254,7 @@ export const GmailProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     try {
       const result = await gmailService.sendEmail(payload);
-      logAuditEvent(
+      recordAuditLog(
         'SEND_GMAIL_EMAIL',
         'Authentication',
         `Dispatched Gmail message (ID: ${result.id}) to ${payload.to} with subject "${payload.subject}"`
@@ -291,7 +291,7 @@ export const GmailProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     try {
       await gmailService.trashMessage(messageId);
-      logAuditEvent(
+      recordAuditLog(
         'TRASH_GMAIL_MESSAGE',
         'Authentication',
         `Moved message "${subject}" (${messageId}) to Trash via Gmail API`
@@ -323,33 +323,38 @@ export const GmailProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return { success: false, error: `Applicant ${client.fullName} has no email address on file.` };
     }
 
-    const template = crmBranding.visaEmailTemplate;
+    const template = crmBranding.visaEmailTemplate || {
+      subject: 'UAE Visa Update - {CLIENT_NAME} ({REF_NO})',
+      bodyTemplate: 'Dear {CLIENT_NAME},\n\nYour application for {SERVICE_NAME} is currently at stage: {CURRENT_STAGE}.\n\nPassport No: {PASSPORT_NO}\nEmirates ID: {EMIRATES_ID}\n\nStatus: {STAGE_REMARKS}',
+      headerText: 'Official Visa & Residency Notification',
+      footerText: 'Thank you for choosing ADCS Documents Clearing Services.',
+    };
     const currentService = client.services?.[0];
-    const serviceName = currentService?.categoryName || 'UAE Golden Visa / Residency Clearance';
+    const serviceName = currentService?.serviceName || currentService?.category || 'UAE Golden Visa / Residency Clearance';
     const stageName = currentService?.currentStageName || 'Application Processing';
 
     // Parse template with real client variables
-    let subject = template.subject
+    let subject = (template.subject || '')
       .replace(/{CLIENT_NAME}/g, client.fullName)
       .replace(/{REF_NO}/g, client.refNo)
       .replace(/{SERVICE_NAME}/g, serviceName)
       .replace(/{CURRENT_STAGE}/g, stageName)
       .replace(/{CRM_NAME}/g, crmBranding.name);
 
-    let body = template.bodyTemplate
+    let body = (template.bodyTemplate || '')
       .replace(/{CLIENT_NAME}/g, client.fullName)
       .replace(/{REF_NO}/g, client.refNo)
       .replace(/{SERVICE_NAME}/g, serviceName)
       .replace(/{CURRENT_STAGE}/g, stageName)
-      .replace(/{PASSPORT_NO}/g, client.passportNumber || 'N/A')
+      .replace(/{PASSPORT_NO}/g, client.passportNo || 'N/A')
       .replace(/{EMIRATES_ID}/g, client.emiratesId || 'Pending Issue')
       .replace(/{COMPANY_NAME}/g, client.companyName || 'ADCS Corporate Clients')
-      .replace(/{STAGE_REMARKS}/g, currentService?.notes || 'File in good standing with UAE General Directorate of Residency.')
-      .replace(/{ASSIGNED_PRO_NAME}/g, client.assignedEmployeeName || 'Corporate PRO Officer')
+      .replace(/{STAGE_REMARKS}/g, (currentService as any)?.notes || 'File in good standing with UAE General Directorate of Residency.')
+      .replace(/{ASSIGNED_PRO_NAME}/g, client.assignedEmployeeName || (client as any).assignedAdminName || 'Corporate PRO Officer')
       .replace(/{CRM_NAME}/g, crmBranding.name);
 
     // Add signature header and footer
-    const fullBody = `${template.headerText}\n\n${body}\n\n---\n${template.footerText}\n${crmBranding.name} • Direct: ${crmBranding.supportPhone} • ${crmBranding.website}`;
+    const fullBody = `${template.headerText || ''}\n\n${body}\n\n---\n${template.footerText || ''}\n${crmBranding.name} • ${crmBranding.supportEmail || 'support@adcs.ae'}`;
 
     // Return the prepared payload so the caller can trigger the confirmation dialog
     return {

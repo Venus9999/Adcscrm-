@@ -33,8 +33,8 @@ import { Lead, TaskItem, InternalNote } from '../../types/crm';
 interface LeadDetailModalProps {
   lead: Lead;
   onClose: () => void;
-  onOpenEdit: (lead: Lead) => void;
-  onOpenConvert: (lead: Lead) => void;
+  onOpenEdit?: (lead: Lead) => void;
+  onOpenConvert?: (lead: Lead) => void;
 }
 
 export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({

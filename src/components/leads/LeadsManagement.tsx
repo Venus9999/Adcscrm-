@@ -940,8 +940,8 @@ export const LeadsManagement: React.FC = () => {
         /* Kanban Board */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto pb-4">
           {kanbanColumns.map((col) => {
-            const colLeads = displayLeads.filter((l) => l.status === col.id);
-            const colValue = colLeads.reduce((acc, l) => acc + (l.estimatedValue || 0), 0);
+            const colLeads = (displayLeads || []).filter((l) => l && l.status === col.id);
+            const colValue = colLeads.reduce((acc, l) => acc + (l?.estimatedValue || 0), 0);
 
             return (
               <div

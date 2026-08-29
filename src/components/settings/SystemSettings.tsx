@@ -2328,7 +2328,7 @@ export const SystemSettings: React.FC = () => {
                 >
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.fullName} ({c.refNo}) — {c.services?.[0]?.categoryName || 'Residency'} ({c.email})
+                      {c.fullName} ({c.refNo}) — {c.services?.[0]?.serviceName || c.services?.[0]?.category || 'Residency'} ({c.email})
                     </option>
                   ))}
                 </select>

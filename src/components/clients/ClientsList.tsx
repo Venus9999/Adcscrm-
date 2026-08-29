@@ -41,7 +41,7 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   const activeEmployees = useMemo(() => {
-    return users.filter((u) => u.role === 'employee' || u.role === 'admin' || u.role === 'master');
+    return (users || []).filter((u) => u && (u.role === 'employee' || u.role === 'admin' || u.role === 'master'));
   }, [users]);
 
   useEffect(() => {
@@ -55,8 +55,8 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
   // Nationalities list
   const nationalities = useMemo(() => {
     const set = new Set<string>();
-    filteredClients.forEach((c) => {
-      if (c.nationality) set.add(c.nationality);
+    (filteredClients || []).forEach((c) => {
+      if (c && c.nationality) set.add(c.nationality);
     });
     return Array.from(set);
   }, [filteredClients]);
@@ -64,35 +64,40 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
   // Company map for search matching
   const companyMap = useMemo(() => {
     const map = new Map<string, string>();
-    companies.forEach((c) => map.set(c.id, c.name));
+    (companies || []).forEach((c) => {
+      if (c && c.id && c.name) map.set(c.id, c.name);
+    });
     return map;
   }, [companies]);
 
   // User map for search matching
   const userMap = useMemo(() => {
     const map = new Map<string, string>();
-    users.forEach((u) => map.set(u.id, u.name));
+    (users || []).forEach((u) => {
+      if (u && u.id && u.name) map.set(u.id, u.name);
+    });
     return map;
   }, [users]);
 
   // Filter clients
   const displayClients = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return filteredClients.filter((client) => {
-      const compName = (companyMap.get(client.companyId) || '').toLowerCase();
+    const q = (searchQuery || '').toLowerCase().trim();
+    return (filteredClients || []).filter((client) => {
+      if (!client) return false;
+      const compName = (client.companyId ? companyMap.get(client.companyId) || '' : '').toLowerCase();
       const assignedNames = (client.assignedEmployeeIds || [])
         .map((empId) => (userMap.get(empId) || '').toLowerCase())
         .join(' ');
-      const adminName = (userMap.get(client.assignedAdminId) || '').toLowerCase();
-      const serviceNames = (client.services || []).map((s) => s.serviceName.toLowerCase()).join(' ');
+      const adminName = (client.assignedAdminId ? userMap.get(client.assignedAdminId) || '' : '').toLowerCase();
+      const serviceNames = (client.services || []).map((s) => (s?.serviceName || '').toLowerCase()).join(' ');
       const tags = (client.tags || []).join(' ').toLowerCase();
 
       // Search
       const matchSearch =
         !q ||
-        client.fullName.toLowerCase().includes(q) ||
-        client.refNo.toLowerCase().includes(q) ||
-        client.passportNo.toLowerCase().includes(q) ||
+        (client.fullName && client.fullName.toLowerCase().includes(q)) ||
+        (client.refNo && client.refNo.toLowerCase().includes(q)) ||
+        (client.passportNo && client.passportNo.toLowerCase().includes(q)) ||
         client.emiratesId.toLowerCase().includes(q) ||
         client.mobile.includes(q) ||
         client.email.toLowerCase().includes(q) ||
@@ -239,8 +244,8 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
             }`}
           >
             <option value="all">All Employees</option>
-            {users
-              .filter((u) => u.role !== 'client')
+            {(users || [])
+              .filter((u) => u && u.role !== 'client')
               .map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name} ({u.role})

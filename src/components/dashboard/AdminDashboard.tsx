@@ -28,17 +28,17 @@ export const AdminDashboard: React.FC = () => {
     setSelectedClientId,
   } = useCRM();
 
-  const myCompany = companies.find((c) => c.id === currentUser.companyId) || companies[0];
+  const myCompany = (companies || []).find((c) => c.id === currentUser.companyId) || (companies || [])[0];
 
-  const totalClients = filteredClients.length;
-  const activeCases = filteredClients.reduce(
-    (acc, c) => acc + c.services.filter((s) => s.status === 'active').length,
+  const totalClients = (filteredClients || []).length;
+  const activeCases = (filteredClients || []).reduce(
+    (acc, c) => acc + ((c?.services || []).filter((s) => s?.status === 'active').length),
     0
   );
-  const totalRevenue = filteredInvoices.reduce((acc, i) => acc + i.amountPaid, 0);
-  const outstandingAmount = filteredInvoices.reduce((acc, i) => acc + i.balanceAmount, 0);
+  const totalRevenue = (filteredInvoices || []).reduce((acc, i) => acc + (i?.amountPaid || 0), 0);
+  const outstandingAmount = (filteredInvoices || []).reduce((acc, i) => acc + (i?.balanceAmount || 0), 0);
 
-  const branchEmployees = users.filter((u) => u.companyId === myCompany.id && u.role === 'employee');
+  const branchEmployees = (users || []).filter((u) => u && u.companyId === myCompany.id && u.role === 'employee');
 
   return (
     <div className="space-y-6">
@@ -164,7 +164,7 @@ export const AdminDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="text-sm divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredClients.slice(0, 5).map((client) => (
+                  {(filteredClients || []).slice(0, 5).map((client) => (
                     <tr
                       key={client.id}
                       onClick={() => {
@@ -178,7 +178,7 @@ export const AdminDashboard: React.FC = () => {
                         <p className="text-[11px] font-mono text-slate-400">{client.refNo || client.passportNumber}</p>
                       </td>
                       <td className="px-5 py-4 text-xs text-slate-600 dark:text-slate-300">
-                        {client.services[0]?.serviceName || 'Standard Processing'}
+                        {client?.services?.[0]?.serviceName || 'Standard Processing'}
                       </td>
                       <td className="px-5 py-4">
                         <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-md text-[10px] font-bold uppercase">
@@ -202,8 +202,8 @@ export const AdminDashboard: React.FC = () => {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {branchEmployees.map((emp) => {
-                const empClients = filteredClients.filter((c) => c.assignedEmployeeIds.includes(emp.id));
-                const empTasks = filteredTasks.filter((t) => t.assignedEmployeeId === emp.id);
+                const empClients = (filteredClients || []).filter((c) => c && ((c.assignedEmployeeIds && c.assignedEmployeeIds.includes(emp.id)) || c.assignedAdminId === emp.id || c.assignedEmployeeId === emp.id));
+                const empTasks = (filteredTasks || []).filter((t) => t && (t.assignedEmployeeId === emp.id || (t.assignedEmployeeIds && t.assignedEmployeeIds.includes(emp.id))));
 
                 return (
                   <div
@@ -238,19 +238,19 @@ export const AdminDashboard: React.FC = () => {
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-1 border-b border-slate-800">
                 <span className="text-slate-400">Company Name</span>
-                <span className="font-bold">{myCompany.name}</span>
+                <span className="font-bold">{myCompany?.name || 'Main Branch'}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800">
                 <span className="text-slate-400">Trade License</span>
-                <span className="font-mono">{myCompany.tradeLicenseNo}</span>
+                <span className="font-mono">{myCompany?.tradeLicenseNo || 'TL-2026-DXB'}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800">
                 <span className="text-slate-400">TRN Number</span>
-                <span className="font-mono">{myCompany.trn}</span>
+                <span className="font-mono">{myCompany?.trn || '100234567890003'}</span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-slate-400">Expiry Date</span>
-                <span className="font-semibold text-emerald-400">{myCompany.licenseExpiryDate}</span>
+                <span className="font-semibold text-emerald-400">{myCompany?.licenseExpiryDate || '2026-12-31'}</span>
               </div>
             </div>
           </div>

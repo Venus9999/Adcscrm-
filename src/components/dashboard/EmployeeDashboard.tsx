@@ -21,16 +21,17 @@ export const EmployeeDashboard: React.FC = () => {
   } = useCRM();
 
   // Employee's assigned clients
-  const myClients = clients.filter((c) => c.assignedEmployeeIds.includes(currentUser.id));
-  const myTasks = tasks.filter((t) => t.assignedEmployeeId === currentUser.id);
-  const pendingTasks = myTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled');
+  const myClients = (clients || []).filter((c) => c && ((c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) || c.assignedAdminId === currentUser?.id || c.assignedEmployeeId === currentUser?.id));
+  const myTasks = (tasks || []).filter((t) => t && (t.assignedEmployeeId === currentUser?.id || (t.assignedEmployeeIds && t.assignedEmployeeIds.includes(currentUser?.id))));
+  const pendingTasks = (myTasks || []).filter((t) => t && t.status !== 'completed' && t.status !== 'cancelled');
 
   // Rejected / Action required documents
-  const actionRequiredClients = myClients.filter(
+  const actionRequiredClients = (myClients || []).filter(
     (c) =>
-      c.currentStageId === 'stage-11' ||
-      c.currentStageId === 'stage-5' ||
-      c.currentStageId === 'stage-4'
+      c &&
+      (c.currentStageId === 'stage-11' ||
+        c.currentStageId === 'stage-5' ||
+        c.currentStageId === 'stage-4')
   );
 
   return (

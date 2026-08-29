@@ -1,0 +1,2391 @@
+{
+  "auditLogs": [
+    {
+      "action": "Client Self-Registration",
+      "details": "New client Harpreet (harhkh@gmail.com) registered online and initialized portal (CL-2026-8803)",
+      "id": "log-1788026883434-lf2c",
+      "module": "Security",
+      "timestamp": "2026-08-29T18:08:03.434Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "Visa Application Filed",
+      "details": "New visa application #VSA-2026-AE-6283 filed for client \"Test\" (United Arab Emirates (UAE) - 30 Days Tourist / Visit Visa). Fee: AED 507.5",
+      "id": "log-1788026839687-ggzo",
+      "module": "Services",
+      "timestamp": "2026-08-29T18:07:19.687Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "Lead Deleted",
+      "details": "Deleted lead record ID lead-1787852644199",
+      "id": "log-1788026611350-6uqp",
+      "module": "Leads",
+      "timestamp": "2026-08-29T18:03:31.350Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "Vendor Profile Created",
+      "details": "Created new partner/vendor \"Vicky\" (PRO Outsourcing)",
+      "id": "log-1787852748549-c8gg",
+      "module": "Vendors",
+      "timestamp": "2026-08-27T17:45:48.549Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "Lead Converted to Client",
+      "details": "Converted lead \"Test\" (LD-2026-3392) into active client profile (ADCS-2026-6835)",
+      "id": "log-1787852670331-1czu",
+      "module": "Leads",
+      "timestamp": "2026-08-27T17:44:30.331Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "Lead Updated",
+      "details": "Updated details for lead ID lead-1787852644199",
+      "id": "log-1787852658149-hd8q",
+      "module": "Leads",
+      "timestamp": "2026-08-27T17:44:18.149Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "Lead Created",
+      "details": "Created new inquiry / prospect: Test (10-Year Golden Visa (Investor / Executive / Specialist))",
+      "id": "log-1787852644199-zny7",
+      "module": "Leads",
+      "timestamp": "2026-08-27T17:44:04.199Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "User Secure Login",
+      "details": "User Alexander Vance (master) successfully authenticated",
+      "id": "log-1787852350123-68q7",
+      "module": "Security",
+      "timestamp": "2026-08-27T17:39:10.123Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    }
+  ],
+  "billingSettings": {
+    "address": "Suite 2404, Iris Bay Tower, Business Bay, P.O. Box 89211",
+    "bankDetails": {
+      "accountName": "ADCS Document Clearing LLC",
+      "accountNumber": "102938475601",
+      "bankName": "Emirates NBD PJSC (Corporate Banking Dubai)",
+      "iban": "AE290260000102938475601",
+      "swift": "EBILAEADXXX"
+    },
+    "city": "Dubai",
+    "companyName": "ADCS Document Clearing & Corporate Services LLC",
+    "country": "United Arab Emirates",
+    "currency": "AED",
+    "email": "finance@adcs.ae",
+    "invoiceFooterNote": "Thank you for choosing ADCS CRM. Cryptographically signed for Federal Tax Authority (FTA) compliance.",
+    "lastUpdated": "2026-08-27T00:00:00Z",
+    "phone": "+971 4 829 1100",
+    "showSignatory": true,
+    "showStamp": true,
+    "signatoryName": "Alexander Vance",
+    "signatorySignatureUrl": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 240 80\" width=\"240\" height=\"80\"><path d=\"M 20 50 Q 45 15, 65 45 T 105 35 T 135 55 T 165 28 Q 185 18, 205 38 T 225 28 M 35 58 C 75 68, 145 62, 215 45\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+    "signatoryTitle": "Managing Director & Authorized Signatory",
+    "stampText": "ADCS Document Clearing LLC - Official Verified Seal",
+    "stampUrl": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 200\" width=\"200\" height=\"200\"><circle cx=\"100\" cy=\"100\" r=\"92\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"3\" stroke-dasharray=\"4 2\"/><circle cx=\"100\" cy=\"100\" r=\"82\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"2\"/><circle cx=\"100\" cy=\"100\" r=\"54\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"1.5\"/><path id=\"textCircle\" d=\"M 30 100 A 70 70 0 1 1 170 100\" fill=\"none\"/><path id=\"bottomCircle\" d=\"M 170 100 A 70 70 0 0 1 30 100\" fill=\"none\"/><text fill=\"%231e3a8a\" font-size=\"9.5\" font-family=\"Arial, sans-serif\" font-weight=\"bold\" letter-spacing=\"1.5\"><textPath href=\"%23textCircle\" startOffset=\"50%\" text-anchor=\"middle\">★ ADCS CORPORATE CLEARANCE ★</textPath></text><text fill=\"%231e3a8a\" font-size=\"8.5\" font-family=\"Arial, sans-serif\" font-weight=\"bold\" letter-spacing=\"1.2\"><textPath href=\"%23bottomCircle\" startOffset=\"50%\" text-anchor=\"middle\">UAE GOVT RELATIONS &amp; PRO LLC</textPath></text><text x=\"100\" y=\"90\" text-anchor=\"middle\" fill=\"%231e3a8a\" font-size=\"10\" font-family=\"Arial, sans-serif\" font-weight=\"bold\">OFFICIAL SEAL</text><text x=\"100\" y=\"107\" text-anchor=\"middle\" fill=\"%23dc2626\" font-size=\"12\" font-family=\"Arial, sans-serif\" font-weight=\"900\" letter-spacing=\"1\">VERIFIED</text><text x=\"100\" y=\"122\" text-anchor=\"middle\" fill=\"%231e3a8a\" font-size=\"7.5\" font-family=\"monospace\">TRN: 10048291000003</text></svg>",
+    "tagline": "UAE Ministry, GDRFA & ICP Government Liaison Specialists",
+    "termsAndConditions": "All government pass-through fees are 0% VAT exempt. Professional typing and PRO representation are subject to 5% UAE standard VAT. Payment is due upon receipt of invoice.",
+    "tradeLicenseNo": "CN-8941029",
+    "tradingName": "ADCS Corporate Hub",
+    "trn": "10048291000003",
+    "updatedBy": "Alexander Vance (Master)",
+    "vatRateDefault": 5,
+    "website": "https://adcs.ae"
+  },
+  "clients": [
+    {
+      "assignedAdminId": "user-master",
+      "assignedEmployeeIds": [
+        "user-admin-1",
+        "user-emp-1"
+      ],
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "category": "individual",
+      "companyId": "comp-1",
+      "companyName": "Harpreet's Portfolio",
+      "createdAt": "2026-08-29T18:08:03.434Z",
+      "currentStageId": "stage-1",
+      "currentStageName": "New Inquiry",
+      "dob": "1990-01-01",
+      "email": "harhkh@gmail.com",
+      "emiratesId": "784-1990-1234567-1",
+      "emiratesIdExpiry": "2028-12-31",
+      "firstName": "Harpreet",
+      "fullName": "Harpreet",
+      "gender": "Male",
+      "id": "client-1788026883434",
+      "lastName": "",
+      "mobile": "058989899",
+      "nationality": "United Arab Emirates",
+      "notes": [
+        {
+          "createdAt": "2026-08-29T18:08:03.434Z",
+          "id": "note-1788026883434",
+          "text": "✨ Client created account online via Frontend Registration on 29/08/2026. Welcome to ADCS Corporate Services!",
+          "userId": "user-client-1788026883434",
+          "userName": "Harpreet",
+          "userRole": "client"
+        }
+      ],
+      "outstandingAmount": 0,
+      "paidAmount": 0,
+      "passportExpiry": "2030-12-31",
+      "passportNo": "P11148438",
+      "paymentStatus": "paid",
+      "phone": "058989899",
+      "refNo": "CL-2026-8803",
+      "residentialAddress": "Dubai, United Arab Emirates",
+      "status": "active",
+      "tags": [
+        "Online Registration",
+        "Self-Service Portal"
+      ],
+      "totalAmount": 0,
+      "type": "individual",
+      "updatedAt": "2026-08-29T18:08:03.434Z",
+      "whatsapp": "058989899"
+    },
+    {
+      "assignedAdminId": "user-admin-1",
+      "assignedEmployeeIds": [
+        "user-admin-1"
+      ],
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+      "companyId": "comp-1",
+      "createdAt": "2026-08-27T17:44:30.331Z",
+      "currentStageId": "stage-1",
+      "currentStageName": "New Inquiry",
+      "dob": "1985-05-15",
+      "email": "",
+      "emiratesId": "784-1985-9477313-1",
+      "emiratesIdExpiry": "2028-06-30",
+      "firstName": "Test",
+      "fullName": "Test",
+      "gender": "Male",
+      "id": "client-1787852670330",
+      "lastName": "Client",
+      "mobile": "+971 5",
+      "nationality": "United Arab Emirates",
+      "notes": [
+        {
+          "createdAt": "2026-08-27T17:44:30.331Z",
+          "id": "note-1787852670331-inv",
+          "text": "🧾 [Automated Invoicing] Tax Invoice #INV-2026-0001 generated for service \"10-Year Golden Visa (Investor / Executive / Specialist)\". Grand Total: AED 12,725 | Retainer Collected: AED 3,000 (Receipt Voucher #RCP-2026-2134)",
+          "userAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+          "userId": "user-master",
+          "userName": "Alexander Vance",
+          "userRole": "master"
+        }
+      ],
+      "outstandingAmount": 9725,
+      "paidAmount": 3000,
+      "passportExpiry": "2030-01-01",
+      "passportNo": "P81148841",
+      "paymentStatus": "partially_paid",
+      "refNo": "ADCS-2026-6835",
+      "residentialAddress": "Dubai, United Arab Emirates",
+      "services": [
+        {
+          "advancePaid": 3000,
+          "assignedEmployeeId": "user-admin-1",
+          "assignedEmployeeName": "Tariq Al-Mansoor",
+          "balance": 9725,
+          "category": "Visa Processing",
+          "clientId": "client-1787852670330",
+          "currentStageId": "stage-1",
+          "currentStageName": "New Inquiry",
+          "governmentFees": 3800,
+          "id": "srv-inst-1787852670330",
+          "invoiceId": "inv-1787852670330",
+          "invoiceNumber": "INV-2026-0001",
+          "price": 8500,
+          "referenceNumber": "SRV-ADCS-2026-6835",
+          "requiredDocs": [
+            {
+              "docName": "Original Passport & Copy (valid > 6 months)",
+              "isUploaded": false,
+              "status": "pending"
+            },
+            {
+              "docName": "Current UAE Visa / Entry Permit",
+              "isUploaded": false,
+              "status": "pending"
+            },
+            {
+              "docName": "Attested Highest Degree / Board Certificate",
+              "isUploaded": false,
+              "status": "pending"
+            },
+            {
+              "docName": "Bank Statements (Last 6 Months)",
+              "isUploaded": false,
+              "status": "pending"
+            },
+            {
+              "docName": "High-Resolution Passport Photo (White Background)",
+              "isUploaded": false,
+              "status": "pending"
+            },
+            {
+              "docName": "Health Insurance Card / Certificate",
+              "isUploaded": false,
+              "status": "pending"
+            }
+          ],
+          "serviceId": "srv-golden-visa",
+          "serviceName": "10-Year Golden Visa (Investor / Executive / Specialist)",
+          "stageHistory": [
+            {
+              "fromStage": "Lead Pipeline",
+              "id": "sh-1787852670331",
+              "remarks": "Converted from Lead pipeline to Active Dossier. Tax Invoice #INV-2026-0001 auto-generated.",
+              "serviceId": "srv-inst-1787852670330",
+              "timestamp": "2026-08-27T17:44:30.331Z",
+              "toStage": "New Inquiry",
+              "updatedByUserId": "user-master",
+              "updatedByUserName": "Alexander Vance",
+              "updatedByUserRole": "master"
+            }
+          ],
+          "startDate": "2026-08-27",
+          "status": "active",
+          "targetCompletionDate": "2026-09-10"
+        }
+      ],
+      "tags": [
+        "Website Portal",
+        "Converted Lead"
+      ],
+      "totalAmount": 12725,
+      "updatedAt": "2026-08-27T17:44:30.331Z",
+      "whatsapp": "+971 5"
+    }
+  ],
+  "companies": [
+    {
+      "activeServicesCount": 0,
+      "address": "Suite 2404, Iris Bay Tower, Business Bay, Dubai, UAE",
+      "adminId": "user-master",
+      "bankDetails": {
+        "accountName": "ADCS Document Clearing LLC",
+        "accountNumber": "102938475601",
+        "bankName": "Emirates NBD Business Banking",
+        "iban": "AE290260000102938475601",
+        "swift": "EBILAEADXXX"
+      },
+      "createdAt": "2024-01-01T00:00:00Z",
+      "currency": "AED",
+      "email": "info@adcs.ae",
+      "employeeIds": [
+        "user-admin-1",
+        "user-emp-1"
+      ],
+      "id": "comp-1",
+      "licenseExpiryDate": "2027-01-01",
+      "licenseIssueDate": "2024-01-01",
+      "logo": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=160&q=80",
+      "name": "ADCS Document Clearing & Corporate Services LLC",
+      "phone": "+971 4 829 1100",
+      "totalClientsCount": 1,
+      "tradeLicenseNo": "CN-8941029",
+      "trn": "100492817400003",
+      "whatsapp": "+971 50 829 1100"
+    }
+  ],
+  "crmBranding": {
+    "billingSettings": {
+      "address": "Suite 2404, Iris Bay Tower, Business Bay, P.O. Box 89211",
+      "bankDetails": {
+        "accountName": "ADCS Document Clearing LLC",
+        "accountNumber": "102938475601",
+        "bankName": "Emirates NBD PJSC (Corporate Banking Dubai)",
+        "iban": "AE290260000102938475601",
+        "swift": "EBILAEADXXX"
+      },
+      "city": "Dubai",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "country": "United Arab Emirates",
+      "currency": "AED",
+      "email": "finance@adcs.ae",
+      "invoiceFooterNote": "Thank you for choosing ADCS CRM. Cryptographically signed for Federal Tax Authority (FTA) compliance.",
+      "lastUpdated": "2026-08-27T00:00:00Z",
+      "phone": "+971 4 829 1100",
+      "showSignatory": true,
+      "showStamp": true,
+      "signatoryName": "Alexander Vance",
+      "signatorySignatureUrl": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 240 80\" width=\"240\" height=\"80\"><path d=\"M 20 50 Q 45 15, 65 45 T 105 35 T 135 55 T 165 28 Q 185 18, 205 38 T 225 28 M 35 58 C 75 68, 145 62, 215 45\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+      "signatoryTitle": "Managing Director & Authorized Signatory",
+      "stampText": "ADCS Document Clearing LLC - Official Verified Seal",
+      "stampUrl": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 200\" width=\"200\" height=\"200\"><circle cx=\"100\" cy=\"100\" r=\"92\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"3\" stroke-dasharray=\"4 2\"/><circle cx=\"100\" cy=\"100\" r=\"82\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"2\"/><circle cx=\"100\" cy=\"100\" r=\"54\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"1.5\"/><path id=\"textCircle\" d=\"M 30 100 A 70 70 0 1 1 170 100\" fill=\"none\"/><path id=\"bottomCircle\" d=\"M 170 100 A 70 70 0 0 1 30 100\" fill=\"none\"/><text fill=\"%231e3a8a\" font-size=\"9.5\" font-family=\"Arial, sans-serif\" font-weight=\"bold\" letter-spacing=\"1.5\"><textPath href=\"%23textCircle\" startOffset=\"50%\" text-anchor=\"middle\">★ ADCS CORPORATE CLEARANCE ★</textPath></text><text fill=\"%231e3a8a\" font-size=\"8.5\" font-family=\"Arial, sans-serif\" font-weight=\"bold\" letter-spacing=\"1.2\"><textPath href=\"%23bottomCircle\" startOffset=\"50%\" text-anchor=\"middle\">UAE GOVT RELATIONS &amp; PRO LLC</textPath></text><text x=\"100\" y=\"90\" text-anchor=\"middle\" fill=\"%231e3a8a\" font-size=\"10\" font-family=\"Arial, sans-serif\" font-weight=\"bold\">OFFICIAL SEAL</text><text x=\"100\" y=\"107\" text-anchor=\"middle\" fill=\"%23dc2626\" font-size=\"12\" font-family=\"Arial, sans-serif\" font-weight=\"900\" letter-spacing=\"1\">VERIFIED</text><text x=\"100\" y=\"122\" text-anchor=\"middle\" fill=\"%231e3a8a\" font-size=\"7.5\" font-family=\"monospace\">TRN: 10048291000003</text></svg>",
+      "tagline": "UAE Ministry, GDRFA & ICP Government Liaison Specialists",
+      "termsAndConditions": "All government pass-through fees are 0% VAT exempt. Professional typing and PRO representation are subject to 5% UAE standard VAT. Payment is due upon receipt of invoice.",
+      "tradeLicenseNo": "CN-8941029",
+      "tradingName": "ADCS Corporate Hub",
+      "trn": "10048291000003",
+      "updatedBy": "Alexander Vance (Master)",
+      "vatRateDefault": 5,
+      "website": "https://adcs.ae"
+    },
+    "logoUrl": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=160&q=80",
+    "name": "ADCS CRM",
+    "primaryColor": "#2563EB",
+    "shortName": "ADCS",
+    "tagline": "Corporate Clearance & PRO CRM",
+    "visaEmailTemplate": {
+      "bodyTemplate": "Dear {CLIENT_NAME},\n\nWe are pleased to provide an official status update regarding your visa and immigration application file with {CRM_NAME}.\n\n• Application Ref: {REF_NO}\n• Service: {SERVICE_NAME}\n• Current Stage Milestone: {CURRENT_STAGE}\n• Passport Number: {PASSPORT_NO}\n• Emirates ID Record: {EMIRATES_ID}\n• Entity / Branch: {COMPANY_NAME}\n\nProgress Summary & Notes:\n{STAGE_REMARKS}\n\nAction Required from Client:\nPlease review your documents on the Client Portal. If you have outstanding documents or medical attestations, please upload them via your secure portal or contact your dedicated PRO consultant directly.\n\nPRO Officer Contact:\n{ASSIGNED_PRO_NAME}\nGovernment Relations & Clearance Department\n{CRM_NAME}",
+      "footerText": "This is an automated verified notification from the UAE Corporate Clearance & Residency Management System. For urgent assistance, contact your dedicated PRO.",
+      "headerText": "United Arab Emirates Residency & GDRFA / ICP Clearance Notification",
+      "lastUpdated": "2026-08-27T00:00:00Z",
+      "senderEmail": "visa-clearance@adcs.ae",
+      "senderName": "ADCS Visa Clearance Desk",
+      "subject": "Official Visa Application Status & Clearance Notice - {REF_NO}",
+      "updatedBy": "Alexander Vance (Master)"
+    }
+  },
+  "currentUserId": "user-client-1788026883434",
+  "departments": [
+    {
+      "badgeBg": "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+      "badgeText": "Executive",
+      "code": "EXEC",
+      "color": "#3B82F6",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "description": "Executive management, strategy, compliance, and corporate directorate.",
+      "headOfDepartment": "Gurpreet Singh Kataria",
+      "headOfDepartmentId": "user-master",
+      "id": "dept-gov",
+      "isActive": true,
+      "name": "Executive Governance & Operations"
+    },
+    {
+      "badgeBg": "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800",
+      "badgeText": "Corporate PRO",
+      "code": "PRO",
+      "color": "#06B6D4",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "description": "UAE Ministry clearance, GDRFA, ICP, Chamber of Commerce, and Tasheel processing.",
+      "headOfDepartment": "Zayd Al-Mansoor",
+      "headOfDepartmentId": "user-admin",
+      "id": "dept-pro",
+      "isActive": true,
+      "name": "Corporate PRO & Government Relations"
+    },
+    {
+      "badgeBg": "bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+      "badgeText": "Visa & Immigration",
+      "code": "VISA",
+      "color": "#8B5CF6",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "description": "Golden visas, employment permits, Schengen, UK, US, and 190+ country travel visas.",
+      "headOfDepartment": "Fatima Al-Nuaimi",
+      "headOfDepartmentId": "user-emp-1",
+      "id": "dept-visa",
+      "isActive": true,
+      "name": "Visa & Worldwide Consular Processing"
+    },
+    {
+      "badgeBg": "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+      "badgeText": "Business Setup",
+      "code": "BIZ_SETUP",
+      "color": "#10B981",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "description": "Mainland LLC formation, Freezone incorporation, Trade License amendments and Ejari.",
+      "headOfDepartment": "Zayd Al-Mansoor",
+      "headOfDepartmentId": "user-admin",
+      "id": "dept-setup",
+      "isActive": true,
+      "name": "Business Setup & Commercial Licensing"
+    },
+    {
+      "badgeBg": "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+      "badgeText": "Finance & Tax",
+      "code": "ACCOUNTS",
+      "color": "#F59E0B",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "description": "FTA Corporate Tax, VAT returns, financial auditing, and client retainer ledgers.",
+      "headOfDepartment": "Gurpreet Singh Kataria",
+      "headOfDepartmentId": "user-master",
+      "id": "dept-accounts",
+      "isActive": true,
+      "name": "Accounting, VAT & Tax Compliance"
+    },
+    {
+      "badgeBg": "bg-pink-50 text-pink-700 dark:bg-pink-950/50 dark:text-pink-300 border-pink-200 dark:border-pink-800",
+      "badgeText": "Legal & MOFA",
+      "code": "LEGAL",
+      "color": "#EC4899",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "description": "MOFA, Embassy attestations, apostille, court legal translations, and power of attorney.",
+      "headOfDepartment": "Fatima Al-Nuaimi",
+      "headOfDepartmentId": "user-emp-1",
+      "id": "dept-legal",
+      "isActive": true,
+      "name": "Certificate Attestation & Legal Services"
+    }
+  ],
+  "hasCustomModifications": true,
+  "invoices": [
+    {
+      "amountPaid": 507.5,
+      "balanceAmount": 0,
+      "clientAddress": "Dubai, United Arab Emirates",
+      "clientEmail": "master@adcs.ae",
+      "clientId": "client-1787852670330",
+      "clientName": "Test",
+      "clientPassport": "P81148841",
+      "clientPhone": "+971 50 123 4567",
+      "companyId": "comp-1",
+      "companyName": "ADCS Corporate Services LLC",
+      "createdAt": "2026-08-29T18:07:19.686Z",
+      "dueDate": "2026-09-05",
+      "governmentFees": 350,
+      "grandTotal": 507.5,
+      "id": "inv-vsa-1788026839687",
+      "invoiceNumber": "INV-2026-7904",
+      "issueDate": "2026-08-29",
+      "issuedByUserId": "user-master",
+      "issuedByUserName": "Alexander Vance",
+      "items": [
+        {
+          "description": "United Arab Emirates (UAE) Official Consular & Government Fee",
+          "id": "item-gov-1788026839687",
+          "isGovernmentFee": true,
+          "quantity": 1,
+          "total": 350,
+          "unitPrice": 350
+        },
+        {
+          "description": "PRO Dossier Processing & Submission Service (Standard)",
+          "id": "item-srv-1788026839687",
+          "isGovernmentFee": false,
+          "quantity": 1,
+          "total": 150,
+          "unitPrice": 150
+        }
+      ],
+      "notes": "Full payment cleared online for United Arab Emirates (UAE) visa",
+      "paymentMethod": "Online Gateway",
+      "serviceName": "United Arab Emirates (UAE) 30 Days Tourist / Visit Visa (Standard)",
+      "status": "paid",
+      "subtotal": 150,
+      "transactionRef": "ONLINE-PAY-87540",
+      "vatAmount": 7.5,
+      "vatRate": 5
+    },
+    {
+      "amountPaid": 3000,
+      "balanceAmount": 9725,
+      "clientAddress": "Dubai, United Arab Emirates",
+      "clientEmail": "",
+      "clientId": "client-1787852670330",
+      "clientName": "Test",
+      "clientPhone": "+971 5",
+      "companyId": "comp-1",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "createdAt": "2026-08-27T17:44:30.331Z",
+      "dueDate": "2026-09-03",
+      "governmentFees": 3800,
+      "grandTotal": 12725,
+      "id": "inv-1787852670330",
+      "invoiceNumber": "INV-2026-0001",
+      "issueDate": "2026-08-27",
+      "issuedByUserId": "user-master",
+      "issuedByUserName": "Alexander Vance",
+      "items": [
+        {
+          "amount": 8500,
+          "description": "10-Year Golden Visa (Investor / Executive / Specialist) - Professional Fee",
+          "id": "item-1787852670331-1",
+          "qty": 1,
+          "unitPrice": 8500
+        },
+        {
+          "amount": 3800,
+          "description": "Government & Authority Clearance Fees (GV-10Y)",
+          "id": "item-1787852670331-2",
+          "isGovernmentFee": true,
+          "qty": 1,
+          "unitPrice": 3800
+        },
+        {
+          "amount": 425,
+          "description": "UAE Federal Tax (VAT 5%) on Professional Services",
+          "id": "item-1787852670331-3",
+          "qty": 1,
+          "unitPrice": 425
+        }
+      ],
+      "notes": "Auto-generated Tax Invoice upon converting Lead #LD-2026-3392 (10-Year Golden Visa (Investor / Executive / Specialist))",
+      "paidDate": "2026-08-27",
+      "paymentMethod": "Bank Transfer",
+      "receiptNumber": "RCP-2026-2134",
+      "serviceId": "srv-inst-1787852670330",
+      "serviceName": "10-Year Golden Visa (Investor / Executive / Specialist)",
+      "status": "partially_paid",
+      "subtotal": 8500,
+      "transactionRef": "REF-RCP-2026-2134",
+      "vatAmount": 425,
+      "vatRate": 5
+    }
+  ],
+  "isColdStart": false,
+  "lastUpdated": "2026-08-29T18:08:03.469Z",
+  "leadCategories": [
+    {
+      "badgeBg": "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+      "badgeText": "Golden Visa",
+      "code": "GOLDEN_VISA",
+      "color": "#2563EB",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Investors, Real Estate Buyers, Executives, Doctors, Talents",
+      "id": "cat-golden-visa",
+      "isDefault": true,
+      "isJobCategory": false,
+      "name": "10-Year Golden Visa"
+    },
+    {
+      "badgeBg": "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+      "badgeText": "Business Setup",
+      "code": "BIZ_SETUP",
+      "color": "#10B981",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Trade License Issuance, Mainland & Freezone Corporate Setup",
+      "id": "cat-biz-setup",
+      "isDefault": true,
+      "isJobCategory": false,
+      "name": "Business Setup / Mainland LLC"
+    },
+    {
+      "badgeBg": "bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+      "badgeText": "Work Permit",
+      "code": "WORK_PERMIT",
+      "color": "#8B5CF6",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "MOHRE Quotas, Offer Letters, Employment Visas, Labour Contracts",
+      "id": "cat-employment-visa",
+      "isDefault": true,
+      "isJobCategory": false,
+      "name": "Employment & Work Permit"
+    },
+    {
+      "badgeBg": "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+      "badgeText": "Job Application",
+      "code": "JOB_APPLICATION",
+      "color": "#F59E0B",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Candidate applications, staffing, job placement, and candidate sponsorship",
+      "id": "cat-job-application",
+      "isDefault": true,
+      "isJobCategory": true,
+      "name": "Job Application / Recruitment"
+    },
+    {
+      "badgeBg": "bg-pink-50 text-pink-700 dark:bg-pink-950/50 dark:text-pink-300 border-pink-200 dark:border-pink-800",
+      "badgeText": "Family Visa",
+      "code": "FAMILY_VISA",
+      "color": "#EC4899",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Spouse, Children, Parents residency sponsorship & Emirates ID",
+      "id": "cat-family-visa",
+      "isDefault": true,
+      "isJobCategory": false,
+      "name": "Family & Dependent Visa"
+    },
+    {
+      "badgeBg": "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800",
+      "badgeText": "PRO Services",
+      "code": "PRO_SERVICES",
+      "color": "#06B6D4",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Immigration clearance, Chamber of Commerce, Ministry approvals",
+      "id": "cat-pro-services",
+      "isDefault": true,
+      "isJobCategory": false,
+      "name": "Corporate PRO & Legal Clearance"
+    },
+    {
+      "badgeBg": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700",
+      "badgeText": "Attestation",
+      "code": "ATTESTATION",
+      "color": "#64748B",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "MOFA, Embassy, Degree, Birth & Marriage certificate attestation",
+      "id": "cat-attestation",
+      "isDefault": true,
+      "isJobCategory": false,
+      "name": "Certificate Attestation & Legalization"
+    }
+  ],
+  "leadSources": [
+    {
+      "code": "WEBSITE",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Direct contact form submission from official website",
+      "id": "src-website",
+      "isActive": true,
+      "isDefault": true,
+      "name": "Website Portal"
+    },
+    {
+      "code": "GOOGLE_ADS",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Search campaign & paid inbound traffic",
+      "id": "src-google-ads",
+      "isActive": true,
+      "isDefault": true,
+      "name": "Google Ads"
+    },
+    {
+      "code": "WALKIN",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Visited Dubai or Abu Dhabi office front desk",
+      "id": "src-walkin",
+      "isActive": true,
+      "isDefault": true,
+      "name": "Walk-in Client"
+    },
+    {
+      "code": "REFERRAL",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Referred by existing corporate clients or bank managers",
+      "id": "src-referral",
+      "isActive": true,
+      "isDefault": true,
+      "name": "Client & Partner Referral"
+    },
+    {
+      "code": "SOCIAL_MEDIA",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Instagram, LinkedIn & Facebook official channels",
+      "id": "src-social",
+      "isActive": true,
+      "isDefault": true,
+      "name": "Social Media"
+    },
+    {
+      "code": "PRO_NETWORK",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Inter-agency legal and government clearing partners",
+      "id": "src-pro-network",
+      "isActive": true,
+      "isDefault": true,
+      "name": "PRO Network & Legal Associates"
+    },
+    {
+      "code": "WHATSAPP_DIRECT",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Inbound chat to VIP WhatsApp support line",
+      "id": "src-whatsapp",
+      "isActive": true,
+      "isDefault": true,
+      "name": "WhatsApp Direct"
+    },
+    {
+      "code": "JOB_PORTAL",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Direct job candidate submissions & recruitment pipeline",
+      "id": "src-job-portal",
+      "isActive": true,
+      "isDefault": true,
+      "name": "Job Portal / Careers Page"
+    },
+    {
+      "code": "OTHER",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "description": "Offline exhibitions, phone direct, conferences",
+      "id": "src-other",
+      "isActive": true,
+      "isDefault": true,
+      "name": "Other Channels"
+    }
+  ],
+  "leadStages": [
+    {
+      "badgeBg": "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+      "badgeText": "New Inquiry",
+      "color": "#3B82F6",
+      "id": "stg-new",
+      "isDefault": true,
+      "name": "New Inquiry",
+      "statusKey": "new",
+      "stepNumber": 1
+    },
+    {
+      "badgeBg": "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+      "badgeText": "Contacted",
+      "color": "#F59E0B",
+      "id": "stg-contacted",
+      "isDefault": true,
+      "name": "Contacted & Vetted",
+      "statusKey": "contacted",
+      "stepNumber": 2
+    },
+    {
+      "badgeBg": "bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+      "badgeText": "Proposal Sent",
+      "color": "#8B5CF6",
+      "id": "stg-proposal",
+      "isDefault": true,
+      "name": "Proposal / Quote Sent",
+      "statusKey": "proposal_sent",
+      "stepNumber": 3
+    },
+    {
+      "badgeBg": "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+      "badgeText": "In Negotiation",
+      "color": "#6366F1",
+      "id": "stg-negotiation",
+      "isDefault": true,
+      "name": "In Negotiation",
+      "statusKey": "negotiation",
+      "stepNumber": 4
+    },
+    {
+      "badgeBg": "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+      "badgeText": "Converted",
+      "color": "#10B981",
+      "id": "stg-converted",
+      "isDefault": true,
+      "name": "Converted to Client",
+      "statusKey": "converted",
+      "stepNumber": 5
+    },
+    {
+      "badgeBg": "bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border-rose-200 dark:border-rose-800",
+      "badgeText": "Lost",
+      "color": "#EF4444",
+      "id": "stg-lost",
+      "isDefault": true,
+      "name": "Lost / Disqualified",
+      "statusKey": "lost",
+      "stepNumber": 6
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-1788026883434",
+      "linkTab": "clients",
+      "message": "Harpreet registered an online client account (CL-2026-8803).",
+      "read": false,
+      "relatedClientId": "client-1788026883434",
+      "targetRole": "admin",
+      "timestamp": "2026-08-29T18:08:03.434Z",
+      "title": "New Client Self-Registration",
+      "type": "system"
+    },
+    {
+      "id": "notif-vsa-cli-1788026839687",
+      "message": "Application #VSA-2026-AE-6283 for 30 Days Tourist / Visit Visa has been successfully registered. You can track real-time milestones and status on your portal.",
+      "read": false,
+      "timestamp": "2026-08-29T18:07:19.686Z",
+      "title": "Visa Application Submitted: 🇦🇪 United Arab Emirates (UAE)",
+      "type": "visa_application",
+      "userId": "client-1787852670330"
+    },
+    {
+      "id": "notif-vsa-adm-1788026839687",
+      "message": "Application #VSA-2026-AE-6283 filed. Speed: Standard. Total Fee: AED 507.5.",
+      "read": false,
+      "timestamp": "2026-08-29T18:07:19.686Z",
+      "title": "New Visa Application: Test (United Arab Emirates (UAE))",
+      "type": "visa_application",
+      "userId": "all_admins"
+    },
+    {
+      "id": "notif-1787852644199",
+      "linkTab": "leads",
+      "message": "New prospect Test (+971 5) assigned. Est: AED 8,500",
+      "read": false,
+      "targetRole": "employee",
+      "timestamp": "2026-08-27T17:44:04.199Z",
+      "title": "New Lead Assigned",
+      "type": "system"
+    }
+  ],
+  "roles": [
+    {
+      "badgeBg": "bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800",
+      "badgeText": "Master Admin",
+      "code": "master",
+      "color": "#8B5CF6",
+      "createdAt": "2022-01-01T00:00:00Z",
+      "description": "Full unrestricted governance, system-wide branding, company creation, audit oversight, and billing control.",
+      "id": "role-master",
+      "isSystem": true,
+      "name": "Master Administrator",
+      "permissions": {
+        "canAssignEmployees": true,
+        "canCreateClient": true,
+        "canCreateClients": true,
+        "canDeleteClient": true,
+        "canDeleteInvoices": true,
+        "canDeleteRecords": true,
+        "canEditInvoices": true,
+        "canEditStages": true,
+        "canExportData": true,
+        "canExportReports": true,
+        "canManageCompanies": true,
+        "canManageLeads": true,
+        "canManagePayments": true,
+        "canManageRoles": true,
+        "canManageTransactions": true,
+        "canManageUsers": true,
+        "canManageWorkflows": true,
+        "canViewAllCompanies": true,
+        "canViewFinancials": true
+      },
+      "roleType": "master",
+      "userCount": 1
+    },
+    {
+      "badgeBg": "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800",
+      "badgeText": "Branch Admin",
+      "code": "admin",
+      "color": "#3B82F6",
+      "createdAt": "2022-01-01T00:00:00Z",
+      "description": "Corporate branch administrator with authority to manage staff, clients, workflows, invoice adjustments, and payments.",
+      "id": "role-admin",
+      "isSystem": true,
+      "name": "Branch Operations Administrator",
+      "permissions": {
+        "canAssignEmployees": true,
+        "canCreateClient": true,
+        "canCreateClients": true,
+        "canDeleteClient": true,
+        "canDeleteInvoices": true,
+        "canDeleteRecords": true,
+        "canEditInvoices": true,
+        "canEditStages": true,
+        "canExportData": true,
+        "canExportReports": true,
+        "canManageCompanies": false,
+        "canManageLeads": true,
+        "canManagePayments": true,
+        "canManageRoles": true,
+        "canManageTransactions": true,
+        "canManageUsers": true,
+        "canManageWorkflows": true,
+        "canViewAllCompanies": false,
+        "canViewFinancials": true
+      },
+      "roleType": "admin",
+      "userCount": 2
+    },
+    {
+      "badgeBg": "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
+      "badgeText": "PRO Specialist",
+      "code": "pro_specialist",
+      "color": "#10B981",
+      "createdAt": "2022-04-01T00:00:00Z",
+      "description": "Field officer handling ICP/GDRFA, MOHRE, Tasheel, Amer, and typing submissions.",
+      "id": "role-pro-officer",
+      "isSystem": false,
+      "name": "Senior PRO & Government Relations Officer",
+      "permissions": {
+        "canAssignEmployees": false,
+        "canCreateClients": true,
+        "canDeleteInvoices": false,
+        "canDeleteRecords": false,
+        "canEditInvoices": false,
+        "canEditStages": true,
+        "canExportReports": false,
+        "canManageLeads": true,
+        "canManagePayments": false,
+        "canManageRoles": false,
+        "canManageTransactions": false,
+        "canManageUsers": false,
+        "canManageWorkflows": false,
+        "canViewAllCompanies": false
+      },
+      "roleType": "employee",
+      "userCount": 2
+    },
+    {
+      "badgeBg": "bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border-pink-300 dark:border-pink-800",
+      "badgeText": "Accountant",
+      "code": "accountant",
+      "color": "#EC4899",
+      "createdAt": "2022-01-10T00:00:00Z",
+      "description": "Responsible for VAT filings, customer invoices, corporate card reconciliations, and payment receipts.",
+      "id": "role-accountant",
+      "isSystem": false,
+      "name": "Chief Accountant & Finance Officer",
+      "permissions": {
+        "canAssignEmployees": false,
+        "canCreateClients": false,
+        "canDeleteInvoices": true,
+        "canDeleteRecords": true,
+        "canEditInvoices": true,
+        "canEditStages": false,
+        "canExportReports": true,
+        "canManageLeads": false,
+        "canManagePayments": true,
+        "canManageRoles": false,
+        "canManageTransactions": true,
+        "canManageUsers": false,
+        "canManageWorkflows": false,
+        "canViewAllCompanies": true,
+        "canViewFinancials": true
+      },
+      "roleType": "employee",
+      "userCount": 1
+    },
+    {
+      "badgeBg": "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800",
+      "badgeText": "Advisor",
+      "code": "immigration_advisor",
+      "color": "#F59E0B",
+      "createdAt": "2022-05-15T00:00:00Z",
+      "description": "Client onboarding specialist handling lead qualifications, quotations, and contract confirmations.",
+      "id": "role-immigration-advisor",
+      "isSystem": false,
+      "name": "Immigration & Business Setup Advisor",
+      "permissions": {
+        "canAssignEmployees": false,
+        "canCreateClients": true,
+        "canDeleteInvoices": false,
+        "canDeleteRecords": false,
+        "canEditInvoices": false,
+        "canEditStages": true,
+        "canExportReports": true,
+        "canManageLeads": true,
+        "canManagePayments": false,
+        "canManageRoles": false,
+        "canManageTransactions": false,
+        "canManageUsers": false,
+        "canManageWorkflows": false,
+        "canViewAllCompanies": false
+      },
+      "roleType": "employee",
+      "userCount": 1
+    },
+    {
+      "badgeBg": "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700",
+      "badgeText": "Client",
+      "code": "client",
+      "color": "#64748B",
+      "createdAt": "2022-01-01T00:00:00Z",
+      "description": "External client accessing secure dossier, document uploads, visa track status, and invoice payments.",
+      "id": "role-client",
+      "isSystem": true,
+      "name": "Client Portal User",
+      "permissions": {
+        "canAssignEmployees": false,
+        "canCreateClients": false,
+        "canDeleteInvoices": false,
+        "canDeleteRecords": false,
+        "canEditInvoices": false,
+        "canEditStages": false,
+        "canExportReports": false,
+        "canManageLeads": false,
+        "canManagePayments": false,
+        "canManageRoles": false,
+        "canManageTransactions": false,
+        "canManageUsers": false,
+        "canManageWorkflows": false,
+        "canViewAllCompanies": false
+      },
+      "roleType": "client",
+      "userCount": 1
+    }
+  ],
+  "serviceCategories": [
+    {
+      "category": "Visa Processing",
+      "code": "GV-10Y",
+      "defaultPrice": 8500,
+      "defaultStages": [
+        "stage-1",
+        "stage-3",
+        "stage-4",
+        "stage-6",
+        "stage-7",
+        "stage-8",
+        "stage-9",
+        "stage-10",
+        "stage-12",
+        "stage-13",
+        "stage-14"
+      ],
+      "description": "Comprehensive 10-Year UAE Residency Golden Visa nomination, nomination letter, ICP approval, and VIP medical.",
+      "estimatedDays": 14,
+      "governmentFees": 3800,
+      "id": "srv-golden-visa",
+      "name": "10-Year Golden Visa (Investor / Executive / Specialist)",
+      "requiredDocuments": [
+        "Original Passport & Copy (valid > 6 months)",
+        "Current UAE Visa / Entry Permit",
+        "Attested Highest Degree / Board Certificate",
+        "Bank Statements (Last 6 Months)",
+        "High-Resolution Passport Photo (White Background)",
+        "Health Insurance Card / Certificate"
+      ]
+    },
+    {
+      "category": "Visa Processing",
+      "code": "EMP-VISA",
+      "defaultPrice": 4200,
+      "defaultStages": [
+        "stage-1",
+        "stage-2",
+        "stage-4",
+        "stage-7",
+        "stage-8",
+        "stage-9",
+        "stage-10",
+        "stage-12",
+        "stage-13",
+        "stage-14"
+      ],
+      "description": "Quota approval, Offer Letter, Electronic Work Permit, Entry Permit, Medical Fitness Test, and Emirates ID biometric clearance.",
+      "estimatedDays": 10,
+      "governmentFees": 2450,
+      "id": "srv-emp-visa",
+      "name": "Employment Visa (MOHRE & GDRFA/ICP Processing)",
+      "requiredDocuments": [
+        "Valid Passport Copy",
+        "Attested Degree Certificate",
+        "Company Trade License & Establishment Card",
+        "Photograph (White Background)",
+        "Signed MOHRE Offer Letter"
+      ]
+    },
+    {
+      "category": "Visa Processing",
+      "code": "FAM-VISA",
+      "defaultPrice": 3500,
+      "defaultStages": [
+        "stage-1",
+        "stage-3",
+        "stage-4",
+        "stage-6",
+        "stage-7",
+        "stage-9",
+        "stage-10",
+        "stage-12",
+        "stage-13",
+        "stage-14"
+      ],
+      "description": "Sponsorship file opening, salary certificate attestation, Ejari tenancy contract verification, and residence stamping.",
+      "estimatedDays": 7,
+      "governmentFees": 1950,
+      "id": "srv-family-visa",
+      "name": "Family Residence Visa (Spouse & Children)",
+      "requiredDocuments": [
+        "Sponsor Passport, Visa & Emirates ID",
+        "Attested Marriage Certificate (Arabic translated)",
+        "Attested Birth Certificates of Dependents",
+        "Registered Ejari Tenancy Contract",
+        "Sponsor Salary Certificate & Bank Statement"
+      ]
+    },
+    {
+      "category": "Business Setup",
+      "code": "BIZ-SETUP",
+      "defaultPrice": 16500,
+      "defaultStages": [
+        "stage-1",
+        "stage-3",
+        "stage-4",
+        "stage-6",
+        "stage-7",
+        "stage-8",
+        "stage-9",
+        "stage-10",
+        "stage-12",
+        "stage-13",
+        "stage-14"
+      ],
+      "description": "Trade Name Reservation, Initial Approval, Memorandum of Association (MOA), Office Lease, and Trade License Issuance.",
+      "estimatedDays": 12,
+      "governmentFees": 12000,
+      "id": "srv-biz-setup",
+      "name": "Free Zone / Mainland LLC Business Setup",
+      "requiredDocuments": [
+        "Passports of all Shareholders/Partners",
+        "Proposed Business Activities & 3 Preferred Trade Names",
+        "Shareholder Emirates IDs (if UAE resident)",
+        "Power of Attorney / Board Resolution (if applicable)"
+      ]
+    },
+    {
+      "category": "Document Clearing",
+      "code": "LIC-RENEW",
+      "defaultPrice": 2800,
+      "defaultStages": [
+        "stage-1",
+        "stage-4",
+        "stage-6",
+        "stage-7",
+        "stage-8",
+        "stage-9",
+        "stage-10",
+        "stage-12",
+        "stage-13"
+      ],
+      "description": "Renewal voucher generation, Chamber of Commerce membership, Ejari tenancy extension, and economic department clearance.",
+      "estimatedDays": 4,
+      "governmentFees": 6200,
+      "id": "srv-trade-renewal",
+      "name": "Trade License Annual Renewal & Ejari Stamping",
+      "requiredDocuments": [
+        "Current Trade License Copy",
+        "Renewed Ejari Certificate & Tenancy Contract",
+        "Partners / Manager Passport Copies",
+        "Civil Defense / Municipality NOC (if required)"
+      ]
+    },
+    {
+      "category": "Attestation",
+      "code": "MOFA-ATT",
+      "defaultPrice": 1800,
+      "defaultStages": [
+        "stage-1",
+        "stage-4",
+        "stage-6",
+        "stage-7",
+        "stage-9",
+        "stage-10",
+        "stage-12",
+        "stage-14"
+      ],
+      "description": "Educational, Commercial or Personal document attestation via Notary, Ministry of Foreign Affairs, and UAE Embassy.",
+      "estimatedDays": 6,
+      "governmentFees": 750,
+      "id": "srv-doc-attestation",
+      "name": "Embassy & MOFA Document Attestation",
+      "requiredDocuments": [
+        "Original Certificate / Power of Attorney",
+        "Passport Copy of Document Owner"
+      ]
+    },
+    {
+      "category": "Visa Processing",
+      "code": "FREE-VISA",
+      "defaultPrice": 7200,
+      "defaultStages": [
+        "stage-1",
+        "stage-3",
+        "stage-4",
+        "stage-7",
+        "stage-9",
+        "stage-10",
+        "stage-12",
+        "stage-13",
+        "stage-14"
+      ],
+      "description": "Ministry of Human Resources Freelancer Permit, 5-Year Green Visa processing, and VIP medical clearance.",
+      "estimatedDays": 9,
+      "governmentFees": 3400,
+      "id": "srv-freelancer-visa",
+      "name": "Green Visa / Freelancer Permit & Residency",
+      "requiredDocuments": [
+        "Original Passport & Copy",
+        "Bachelor’s Degree in Specialized Field (Attested)",
+        "Proof of Freelance Income or Employment Contracts",
+        "Financial Proof / Bank Solvency"
+      ]
+    },
+    {
+      "category": "PRO Services",
+      "code": "STAT-CHG",
+      "defaultPrice": 1950,
+      "defaultStages": [
+        "stage-1",
+        "stage-4",
+        "stage-7",
+        "stage-8",
+        "stage-9",
+        "stage-10",
+        "stage-12",
+        "stage-13"
+      ],
+      "description": "Electronic status change without exiting the country, priority medical fitness VIP appointment, and biometric scheduling.",
+      "estimatedDays": 3,
+      "governmentFees": 1250,
+      "id": "srv-status-change",
+      "name": "In-Country Visa Status Change & Medical Fitness",
+      "requiredDocuments": [
+        "Current Tourist Visa or Cancelled Visa copy",
+        "New Entry Permit / Approval Letter",
+        "Original Passport"
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "badgeBg": "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+      "badgeText": "New Inquiry",
+      "category": "inquiry",
+      "color": "#6366F1",
+      "description": "Initial client contact received and qualification in progress",
+      "id": "stage-1",
+      "name": "New Inquiry",
+      "stepNumber": 1
+    },
+    {
+      "badgeBg": "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+      "badgeText": "Client Registered",
+      "category": "inquiry",
+      "color": "#3B82F6",
+      "description": "Client profile verified and created in system database",
+      "id": "stage-2",
+      "name": "Client Registered",
+      "stepNumber": 2
+    },
+    {
+      "badgeBg": "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
+      "badgeText": "Service Confirmed",
+      "category": "inquiry",
+      "color": "#0EA5E9",
+      "description": "Quotations approved, contract terms accepted, and service initiated",
+      "id": "stage-3",
+      "name": "Service Confirmed",
+      "stepNumber": 3
+    },
+    {
+      "badgeBg": "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+      "badgeText": "Documents Requested",
+      "category": "documentation",
+      "color": "#F59E0B",
+      "description": "Checklist of required passports, photos, certificates sent to client",
+      "id": "stage-4",
+      "name": "Documents Requested",
+      "requiresClientUpload": true,
+      "stepNumber": 4
+    },
+    {
+      "badgeBg": "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800",
+      "badgeText": "Documents Pending",
+      "category": "documentation",
+      "color": "#F97316",
+      "description": "Awaiting client to upload remaining mandatory files",
+      "id": "stage-5",
+      "name": "Documents Pending",
+      "requiresClientUpload": true,
+      "stepNumber": 5
+    },
+    {
+      "badgeBg": "bg-lime-50 dark:bg-lime-950/40 text-lime-700 dark:text-lime-300 border-lime-200 dark:border-lime-800",
+      "badgeText": "Documents Received",
+      "category": "documentation",
+      "color": "#84CC16",
+      "description": "All requested client files have been uploaded and queued",
+      "id": "stage-6",
+      "name": "Documents Received",
+      "stepNumber": 6
+    },
+    {
+      "badgeBg": "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+      "badgeText": "Under Review",
+      "category": "documentation",
+      "color": "#10B981",
+      "description": "PRO officers verifying document legibility, attestation, and format",
+      "id": "stage-7",
+      "name": "Documents Under Review",
+      "stepNumber": 7
+    },
+    {
+      "badgeBg": "bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border-pink-200 dark:border-pink-800",
+      "badgeText": "Payment Pending",
+      "category": "processing",
+      "color": "#EC4899",
+      "description": "Awaiting initial retainer or government fees clearance",
+      "id": "stage-8",
+      "name": "Payment Pending",
+      "requiresPaymentClearance": true,
+      "stepNumber": 8
+    },
+    {
+      "badgeBg": "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+      "badgeText": "Application Submitted",
+      "category": "processing",
+      "color": "#8B5CF6",
+      "description": "Official file created and lodged through governmental e-channel portals",
+      "id": "stage-9",
+      "name": "Application Submitted",
+      "stepNumber": 9
+    },
+    {
+      "badgeBg": "bg-fuchsia-50 dark:bg-fuchsia-950/40 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-200 dark:border-fuchsia-800",
+      "badgeText": "Authority Processing",
+      "category": "authority",
+      "color": "#A855F7",
+      "description": "Under active security vetting, GDRFA/ICP or Ministry review",
+      "id": "stage-10",
+      "name": "Government / Authority Processing",
+      "stepNumber": 10
+    },
+    {
+      "badgeBg": "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800",
+      "badgeText": "Action Required",
+      "category": "authority",
+      "color": "#E11D48",
+      "description": "Authority query or modification request issued; urgent action required",
+      "id": "stage-11",
+      "name": "Additional Documents Required",
+      "requiresClientUpload": true,
+      "stepNumber": 11
+    },
+    {
+      "badgeBg": "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700",
+      "badgeText": "Approved",
+      "category": "approval",
+      "color": "#059669",
+      "description": "Official governmental approval and entry permit/visa grant issued",
+      "id": "stage-12",
+      "name": "Approved",
+      "stepNumber": 12
+    },
+    {
+      "badgeBg": "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700",
+      "badgeText": "Completed",
+      "category": "completed",
+      "color": "#16A34A",
+      "description": "All work stages, stamping, medicals, and documentation finalized",
+      "id": "stage-13",
+      "name": "Completed",
+      "stepNumber": 13
+    },
+    {
+      "badgeBg": "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800",
+      "badgeText": "Delivered",
+      "category": "completed",
+      "color": "#0D9488",
+      "description": "Physical Emirates ID, stamped passport or e-visa handover completed",
+      "id": "stage-14",
+      "name": "Delivered to Client",
+      "stepNumber": 14
+    },
+    {
+      "badgeBg": "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+      "badgeText": "Rejected",
+      "category": "cancelled",
+      "color": "#DC2626",
+      "description": "Application rejected by government entity or compliance",
+      "id": "stage-15",
+      "name": "Rejected",
+      "stepNumber": 15
+    },
+    {
+      "badgeBg": "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700",
+      "badgeText": "Cancelled",
+      "category": "cancelled",
+      "color": "#6B7280",
+      "description": "Service cancelled per client request or expired inquiry",
+      "id": "stage-16",
+      "name": "Cancelled",
+      "stepNumber": 16
+    }
+  ],
+  "transactions": [
+    {
+      "amount": 507.5,
+      "category": "Visa Application Fee",
+      "clientId": "client-1787852670330",
+      "clientName": "Test",
+      "companyId": "comp-1",
+      "companyName": "ADCS Corporate Services LLC",
+      "createdAt": "2026-08-29T18:07:19.686Z",
+      "date": "2026-08-29",
+      "id": "tx-vsa-1788026839687",
+      "invoiceId": "inv-vsa-1788026839687",
+      "notes": "Initial payment received for United Arab Emirates (UAE) Visa (VSA-2026-AE-6283)",
+      "paymentMethod": "Online Gateway",
+      "recordedByUserId": "user-master",
+      "recordedByUserName": "Alexander Vance",
+      "referenceNumber": "ONLINE-PAY-87540",
+      "status": "completed",
+      "transactionNumber": "TXN-2026-65327",
+      "type": "service_fee"
+    },
+    {
+      "amount": 3000,
+      "category": "Lead Conversion Retainer Deposit",
+      "clientId": "client-1787852670330",
+      "clientName": "Test",
+      "companyId": "comp-1",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "createdAt": "2026-08-27T17:44:30.331Z",
+      "date": "2026-08-27",
+      "id": "tx-1787852670331",
+      "invoiceId": "inv-1787852670330",
+      "invoiceNumber": "INV-2026-0001",
+      "notes": "Advance payment collected upon converting Lead #LD-2026-3392 (Invoice #INV-2026-0001)",
+      "paymentMethod": "Bank Transfer",
+      "receiptNumber": "RCP-2026-2134",
+      "recordedByUserId": "user-master",
+      "recordedByUserName": "Alexander Vance",
+      "referenceNumber": "RCP-2026-2134",
+      "serviceId": "srv-inst-1787852670330",
+      "serviceName": "10-Year Golden Visa (Investor / Executive / Specialist)",
+      "status": "completed",
+      "transactionNumber": "TX-2026-7818",
+      "type": "deposit"
+    }
+  ],
+  "users": [
+    {
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "companyId": "comp-1",
+      "companyIds": [
+        "comp-1"
+      ],
+      "createdAt": "2026-08-29T18:08:03.434Z",
+      "email": "harhkh@gmail.com",
+      "id": "user-client-1788026883434",
+      "jobTitle": "Client",
+      "name": "Harpreet",
+      "password": "Adcs123",
+      "permissions": {
+        "canAssignEmployees": false,
+        "canAssignTasks": false,
+        "canCreateClients": false,
+        "canDeleteRecords": false,
+        "canEditStages": false,
+        "canEditWorkflows": false,
+        "canExportData": false,
+        "canExportReports": false,
+        "canManageBilling": true,
+        "canManageCompanies": false,
+        "canManagePayments": false,
+        "canManageUsers": false,
+        "canViewAllCompanies": false,
+        "canViewReports": false
+      },
+      "phone": "058989899",
+      "role": "client",
+      "status": "active",
+      "title": "Client / Account Holder"
+    },
+    {
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+      "bio": "Oversees multi-entity corporate operations, government clearing relations, and platform administration.",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "department": "Executive Governance",
+      "email": "master@adcs.ae",
+      "id": "user-master",
+      "lastLogin": "2026-08-27T00:00:00Z",
+      "name": "Alexander Vance",
+      "notificationsConfig": {
+        "emailAlerts": true,
+        "expiryAlerts": true,
+        "taskReminders": true,
+        "whatsappAlerts": true
+      },
+      "password": "Master@2026!",
+      "permissions": {
+        "canAssignEmployees": true,
+        "canCreateClients": true,
+        "canDeleteRecords": true,
+        "canEditStages": true,
+        "canExportReports": true,
+        "canManageLeads": true,
+        "canManagePayments": true,
+        "canManageTransactions": true,
+        "canViewAllCompanies": true
+      },
+      "phone": "+971 50 888 9900",
+      "role": "master",
+      "securityPin": "8899",
+      "status": "active",
+      "theme": "dark",
+      "title": "Managing Director & System Master"
+    }
+  ],
+  "vendors": [
+    {
+      "accountNumber": "",
+      "address": "Dubai, UAE",
+      "bankName": "Emirates NBD",
+      "category": "PRO Outsourcing",
+      "commissionRate": 5,
+      "companyId": "comp-1",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "contactPerson": "Vicky",
+      "createdAt": "2026-08-27T17:45:48.549Z",
+      "email": "vgf@gmail.com",
+      "iban": "",
+      "id": "vend-1787852748549",
+      "name": "Vicky",
+      "notes": "",
+      "phone": "+971 50",
+      "status": "active",
+      "tradeLicenseExpiry": "2028-12-31",
+      "tradeLicenseNo": "TL-677571"
+    }
+  ],
+  "visaApplications": [
+    {
+      "applicationNumber": "VSA-2026-AE-6283",
+      "assignedOfficerId": "user-emp-2",
+      "assignedOfficerName": "Farhan Akhtar (Senior PRO)",
+      "clientEmail": "master@adcs.ae",
+      "clientId": "client-1787852670330",
+      "clientName": "Test",
+      "clientNationality": "United Arab Emirates",
+      "clientPassportNo": "P81148841",
+      "clientPhone": "+971 50 123 4567",
+      "companyId": "comp-1",
+      "createdAt": "2026-08-29T18:07:19.686Z",
+      "currentStageTitle": "Document Dossier Verification & Intake",
+      "entryType": "Single Entry",
+      "estimatedCompletionDate": "2026-08-31T18:06:21.487Z",
+      "estimatedProcessingDays": 2,
+      "governmentFee": 350,
+      "id": "vsa-1788026839687-lr000v",
+      "invoiceId": "inv-vsa-1788026839687",
+      "notes": "Travel date: 2026-09-19. Processing: Standard. Applied via Client Portal.",
+      "paidAmount": 507.5,
+      "paymentStatus": "paid",
+      "processingSpeed": "Standard",
+      "progressPercentage": 25,
+      "serviceFee": 150,
+      "status": "documents_verification",
+      "stayDuration": "30 Days",
+      "submissionDate": "2026-08-29T18:07:19.686Z",
+      "targetCountry": "United Arab Emirates (UAE)",
+      "targetCountryCode": "AE",
+      "targetCountryFlag": "🇦🇪",
+      "targetRegion": "GCC & Middle East",
+      "timeline": [
+        {
+          "description": "Application initiated for United Arab Emirates (UAE) (30 Days Tourist / Visit Visa). Processing speed: Standard.",
+          "id": "vtl-1788026839687-1",
+          "stage": "submitted",
+          "status": "completed",
+          "timestamp": "2026-08-29T18:07:19.686Z",
+          "title": "Visa Application Filed Online",
+          "updatedBy": "Alexander Vance"
+        },
+        {
+          "actionRequired": "Assigned specialist reviewing uploaded dossier and embassy prerequisites.",
+          "description": "Application received by operations desk. Initial compliance check and biometrics schedule allocation in progress.",
+          "id": "vtl-1788026839687-2",
+          "stage": "documents_verification",
+          "status": "in_progress",
+          "timestamp": "2026-08-29T18:07:19.686Z",
+          "title": "Document Dossier Verification & Intake",
+          "updatedBy": "Operations Desk"
+        }
+      ],
+      "totalAmount": 507.5,
+      "travelDate": "2026-09-19",
+      "updatedAt": "2026-08-29T18:07:19.686Z",
+      "uploadedDocuments": [
+        {
+          "docCategory": "Passport",
+          "docName": "Passport Copy (Bio Page & Cover)",
+          "fileName": "Applicant_Passport_Bio.pdf",
+          "fileSize": "2.1 MB",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "id": "vdoc-1788026839685-0",
+          "status": "verified",
+          "uploadedAt": "2026-08-29T18:07:19.685Z"
+        }
+      ],
+      "validityDuration": "60 Days from issue",
+      "vatAmount": 7.5,
+      "visaCategory": "Tourist / Visit Visa",
+      "visaType": "30 Days Tourist / Visit Visa"
+    },
+    {
+      "applicationNumber": "VSA-2026-FR-0941",
+      "assignedOfficerAvatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
+      "assignedOfficerId": "user-emp-2",
+      "assignedOfficerName": "Farhan Akhtar (Senior PRO)",
+      "clientEmail": "alex.wright@quantumtech.ae",
+      "clientId": "client-1",
+      "clientName": "Alexander Wright",
+      "clientNationality": "British",
+      "clientPassportNo": "P89201948",
+      "clientPhone": "+971 50 123 4567",
+      "companyId": "comp-1",
+      "createdAt": "2026-08-27T10:30:00Z",
+      "currentStageTitle": "Embassy Consular Review & Security Clearance",
+      "embassyReferenceNo": "PARIS-CONS-DXB-948",
+      "entryType": "Multiple Entry",
+      "estimatedCompletionDate": "2026-09-05T00:00:00Z",
+      "estimatedProcessingDays": 7,
+      "governmentFee": 380,
+      "governmentReferenceNo": "FRA-VFS-2026-89211",
+      "id": "vsa-app-1001",
+      "invoiceId": "inv-101",
+      "notes": "Express processing requested. Client travelling to Paris on Sept 18 for high-level business summit.",
+      "paidAmount": 1136,
+      "paymentStatus": "paid",
+      "processingSpeed": "Express / VIP",
+      "progressPercentage": 65,
+      "serviceFee": 720,
+      "status": "embassy_processing",
+      "stayDuration": "90 Days within 180 Days",
+      "submissionDate": "2026-08-27T10:30:00Z",
+      "targetCountry": "France & Schengen Area",
+      "targetCountryCode": "FR",
+      "targetCountryFlag": "🇫🇷",
+      "targetRegion": "Europe & Schengen",
+      "timeline": [
+        {
+          "description": "Application submitted by client Alexander Wright for France Schengen Type C Visa.",
+          "id": "vtl-1",
+          "stage": "submitted",
+          "status": "completed",
+          "timestamp": "2026-08-27T10:30:00Z",
+          "title": "Visa Application Filed Online",
+          "updatedBy": "Client Portal (Alexander Wright)"
+        },
+        {
+          "description": "All 4 required documents (Passport, Bank Statement, AXA Insurance, Itinerary) verified by operations officer.",
+          "id": "vtl-2",
+          "stage": "documents_verification",
+          "status": "completed",
+          "timestamp": "2026-08-27T14:15:00Z",
+          "title": "Document Dossier Verification & Compliance Check",
+          "updatedBy": "Farhan Akhtar (Senior PRO)"
+        },
+        {
+          "description": "Full payment of AED 1,136 received via Credit Card online gateway.",
+          "id": "vtl-3",
+          "stage": "payment_completed",
+          "status": "completed",
+          "timestamp": "2026-08-27T14:30:00Z",
+          "title": "Payment Confirmed & Official Invoice Cleared",
+          "updatedBy": "Finance & Accounts Desk"
+        },
+        {
+          "description": "Applicant attended VFS Global France Visa Application Centre, Wafi Mall Dubai. Biometrics captured successfully.",
+          "id": "vtl-4",
+          "location": "VFS Global, Wafi Mall, Level 3, Dubai",
+          "stage": "biometrics_appointment",
+          "status": "completed",
+          "timestamp": "2026-08-28T09:00:00Z",
+          "title": "VFS Biometrics & Dossier Submission Completed",
+          "updatedBy": "Farhan Akhtar (Senior PRO)"
+        },
+        {
+          "actionRequired": "Awaiting consular decision notification. Expected within 3-5 business days.",
+          "description": "Dossier currently under active review by the Consulate General of France in Dubai.",
+          "id": "vtl-5",
+          "stage": "embassy_processing",
+          "status": "in_progress",
+          "timestamp": "2026-08-28T16:00:00Z",
+          "title": "Embassy Consular Review & Security Clearance",
+          "updatedBy": "French Consulate General Dubai"
+        }
+      ],
+      "totalAmount": 1136,
+      "travelDate": "2026-09-18",
+      "updatedAt": "2026-08-28T16:00:00Z",
+      "uploadedDocuments": [
+        {
+          "docCategory": "Passport",
+          "docName": "Passport Copy (All Pages)",
+          "fileName": "Alexander_Wright_Passport_UK.pdf",
+          "fileSize": "2.4 MB",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "id": "vdoc-1",
+          "status": "verified",
+          "uploadedAt": "2026-08-27T10:35:00Z"
+        },
+        {
+          "docCategory": "Salary Slip",
+          "docName": "6-Month Stamped Bank Statement",
+          "fileName": "ENBD_Bank_Statement_6M.pdf",
+          "fileSize": "3.1 MB",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "id": "vdoc-2",
+          "status": "verified",
+          "uploadedAt": "2026-08-27T10:38:00Z"
+        },
+        {
+          "docCategory": "Other",
+          "docName": "Schengen Travel Medical Insurance (€50,000)",
+          "fileName": "AXA_Schengen_Insurance_Policy.pdf",
+          "fileSize": "1.2 MB",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "id": "vdoc-3",
+          "status": "verified",
+          "uploadedAt": "2026-08-27T10:40:00Z"
+        },
+        {
+          "docCategory": "Application Form",
+          "docName": "Confirmed Flight & Hotel Vouchers (Paris)",
+          "fileName": "AirFrance_Booking_ParisHotel.pdf",
+          "fileSize": "1.5 MB",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "id": "vdoc-4",
+          "status": "verified",
+          "uploadedAt": "2026-08-27T10:42:00Z"
+        }
+      ],
+      "validityDuration": "Up to 2 Years",
+      "vatAmount": 36,
+      "visaCategory": "Tourist / Visit Visa",
+      "visaType": "Schengen Short-Stay Tourist Visa (Type C)"
+    },
+    {
+      "applicationNumber": "VSA-2026-AE-0812",
+      "approvalDate": "2026-08-27T19:30:00Z",
+      "assignedOfficerAvatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80",
+      "assignedOfficerId": "user-emp-1",
+      "assignedOfficerName": "Sarah Jenkins (Operations Manager)",
+      "clientEmail": "f.almansoor@horizoninvest.ae",
+      "clientId": "client-2",
+      "clientName": "Fatima Al-Mansoor",
+      "clientNationality": "Emirati",
+      "clientPassportNo": "K7829104",
+      "clientPhone": "+971 55 987 6543",
+      "companyId": "comp-1",
+      "createdAt": "2026-08-27T08:00:00Z",
+      "currentStageTitle": "UK ETA Granted & e-Visa Delivered",
+      "embassyReferenceNo": "UKVI-DXB-ETA-771",
+      "entryType": "Multiple Entry",
+      "estimatedCompletionDate": "2026-08-28T12:00:00Z",
+      "estimatedProcessingDays": 1,
+      "governmentFee": 75,
+      "governmentReferenceNo": "UK-ETA-2026-90284",
+      "id": "vsa-app-1002",
+      "issuedAt": "2026-08-27T19:30:00Z",
+      "issuedVisaNumber": "UK-ETA-9820-AE-2026",
+      "issuedVisaUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+      "notes": "Approved in 11 hours. Client notified via automated email and in-app alert.",
+      "paidAmount": 227.25,
+      "paymentStatus": "paid",
+      "processingSpeed": "Super Express (24h)",
+      "progressPercentage": 100,
+      "serviceFee": 145,
+      "status": "issued",
+      "stayDuration": "6 Months per visit",
+      "submissionDate": "2026-08-27T08:00:00Z",
+      "targetCountry": "United Kingdom (UK)",
+      "targetCountryCode": "GB",
+      "targetCountryFlag": "🇬🇧",
+      "targetRegion": "Europe & Schengen",
+      "timeline": [
+        {
+          "description": "Electronic Travel Authorisation submitted via official UK Home Office channel.",
+          "id": "vtl-10",
+          "stage": "submitted",
+          "status": "completed",
+          "timestamp": "2026-08-27T08:00:00Z",
+          "title": "UK ETA Application Submitted",
+          "updatedBy": "Sarah Jenkins"
+        },
+        {
+          "description": "UK Visas & Immigration automated algorithmic and border clearance completed.",
+          "id": "vtl-11",
+          "stage": "embassy_processing",
+          "status": "completed",
+          "timestamp": "2026-08-27T12:00:00Z",
+          "title": "Identity & Security Verification",
+          "updatedBy": "UK Visas and Immigration (UKVI)"
+        },
+        {
+          "description": "Valid for multiple entries over 2 years. Official UKVI confirmation certificate ready for download.",
+          "id": "vtl-12",
+          "referenceCode": "UK-ETA-9820-AE-2026",
+          "stage": "issued",
+          "status": "completed",
+          "timestamp": "2026-08-27T19:30:00Z",
+          "title": "UK ETA Officially Approved & e-Visa Issued",
+          "updatedBy": "UK Visas and Immigration (UKVI)"
+        }
+      ],
+      "totalAmount": 227.25,
+      "travelDate": "2026-09-02",
+      "updatedAt": "2026-08-27T19:30:00Z",
+      "uploadedDocuments": [
+        {
+          "docCategory": "Passport",
+          "docName": "Passport Bio Page",
+          "fileName": "Fatima_Passport_Bio.pdf",
+          "fileSize": "1.8 MB",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "id": "vdoc-10",
+          "status": "verified",
+          "uploadedAt": "2026-08-27T08:05:00Z"
+        }
+      ],
+      "validityDuration": "2 Years",
+      "vatAmount": 7.25,
+      "visaCategory": "Tourist / Visit Visa",
+      "visaType": "UK Electronic Travel Authorisation (ETA for GCC Nationals)"
+    },
+    {
+      "applicationNumber": "VSA-2026-SA-0442",
+      "assignedOfficerAvatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
+      "assignedOfficerId": "user-emp-2",
+      "assignedOfficerName": "Farhan Akhtar (Senior PRO)",
+      "clientEmail": "vikram.singhania@indusglobal.ae",
+      "clientId": "client-3",
+      "clientName": "Vikramaditya Singhania",
+      "clientNationality": "Indian",
+      "clientPassportNo": "Z9018247",
+      "clientPhone": "+971 52 345 6789",
+      "companyId": "comp-1",
+      "createdAt": "2026-08-28T11:00:00Z",
+      "currentStageTitle": "GCC Residency & Passport Verification",
+      "entryType": "Multiple Entry",
+      "estimatedCompletionDate": "2026-08-30T14:00:00Z",
+      "estimatedProcessingDays": 2,
+      "governmentFee": 550,
+      "governmentReferenceNo": "KSA-MOFA-2026-78901",
+      "id": "vsa-app-1003",
+      "notes": "Travelling for Riyadh Business Forum and Umrah in Makkah.",
+      "paidAmount": 739,
+      "paymentStatus": "paid",
+      "processingSpeed": "Standard",
+      "progressPercentage": 40,
+      "serviceFee": 180,
+      "status": "documents_verification",
+      "stayDuration": "Up to 90 Days per visit",
+      "submissionDate": "2026-08-28T11:00:00Z",
+      "targetCountry": "Saudi Arabia (KSA)",
+      "targetCountryCode": "SA",
+      "targetCountryFlag": "🇸🇦",
+      "targetRegion": "GCC & Middle East",
+      "timeline": [
+        {
+          "description": "Tourist & Umrah 1-Year Multiple entry visa selected by client Vikramaditya Singhania.",
+          "id": "vtl-20",
+          "stage": "submitted",
+          "status": "completed",
+          "timestamp": "2026-08-28T11:00:00Z",
+          "title": "KSA eVisa Application Initiated",
+          "updatedBy": "Client Portal"
+        },
+        {
+          "description": "Profession and UAE valid visa verified for instant Saudi MOFA online issuance.",
+          "id": "vtl-21",
+          "stage": "documents_verification",
+          "status": "completed",
+          "timestamp": "2026-08-28T14:30:00Z",
+          "title": "GCC Residence Eligibility Verified",
+          "updatedBy": "Farhan Akhtar (Senior PRO)"
+        },
+        {
+          "actionRequired": "Automated policy issuance in progress.",
+          "description": "Transmitting encrypted applicant payload to MOFA unified portal.",
+          "id": "vtl-22",
+          "stage": "embassy_processing",
+          "status": "in_progress",
+          "timestamp": "2026-08-29T08:00:00Z",
+          "title": "Submitting to Saudi Ministry of Foreign Affairs (MOFA)",
+          "updatedBy": "Farhan Akhtar (Senior PRO)"
+        }
+      ],
+      "totalAmount": 739,
+      "travelDate": "2026-09-10",
+      "updatedAt": "2026-08-29T08:00:00Z",
+      "uploadedDocuments": [
+        {
+          "docCategory": "Passport",
+          "docName": "Indian Passport Copy (Valid 2029)",
+          "fileName": "Vikram_Passport.pdf",
+          "fileSize": "2.0 MB",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "id": "vdoc-20",
+          "status": "verified",
+          "uploadedAt": "2026-08-28T11:05:00Z"
+        },
+        {
+          "docCategory": "Emirates ID",
+          "docName": "UAE Residence Visa & Emirates ID Copy",
+          "fileName": "UAE_Visa_EmiratesID.pdf",
+          "fileSize": "1.4 MB",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "id": "vdoc-21",
+          "status": "verified",
+          "uploadedAt": "2026-08-28T11:07:00Z"
+        }
+      ],
+      "validityDuration": "1 Year",
+      "vatAmount": 9,
+      "visaCategory": "Tourist / Visit Visa",
+      "visaType": "1-Year Multiple Entry Tourist & Umrah eVisa"
+    }
+  ],
+  "workflows": [
+    {
+      "badgeBg": "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
+      "category": "Visa Processing",
+      "code": "WF-GV",
+      "color": "#8B5CF6",
+      "createdAt": "2022-01-01T00:00:00Z",
+      "description": "Comprehensive 16-stage governmental milestone pipeline for UAE 10-Year Investor, Executive & Talent Golden Visas.",
+      "id": "wf-golden-visa",
+      "isDefault": true,
+      "name": "UAE Golden Visa & Residency Pipeline",
+      "serviceCategoryIds": [
+        "srv-golden-visa",
+        "srv-green-visa",
+        "srv-family-visa"
+      ],
+      "stages": [
+        {
+          "badgeBg": "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+          "badgeText": "New Inquiry",
+          "category": "inquiry",
+          "color": "#6366F1",
+          "description": "Initial client contact received and qualification in progress",
+          "id": "stage-1",
+          "name": "New Inquiry",
+          "stepNumber": 1
+        },
+        {
+          "badgeBg": "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+          "badgeText": "Client Registered",
+          "category": "inquiry",
+          "color": "#3B82F6",
+          "description": "Client profile verified and created in system database",
+          "id": "stage-2",
+          "name": "Client Registered",
+          "stepNumber": 2
+        },
+        {
+          "badgeBg": "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
+          "badgeText": "Service Confirmed",
+          "category": "inquiry",
+          "color": "#0EA5E9",
+          "description": "Quotations approved, contract terms accepted, and service initiated",
+          "id": "stage-3",
+          "name": "Service Confirmed",
+          "stepNumber": 3
+        },
+        {
+          "badgeBg": "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+          "badgeText": "Documents Requested",
+          "category": "documentation",
+          "color": "#F59E0B",
+          "description": "Checklist of required passports, photos, certificates sent to client",
+          "id": "stage-4",
+          "name": "Documents Requested",
+          "requiresClientUpload": true,
+          "stepNumber": 4
+        },
+        {
+          "badgeBg": "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800",
+          "badgeText": "Documents Pending",
+          "category": "documentation",
+          "color": "#F97316",
+          "description": "Awaiting client to upload remaining mandatory files",
+          "id": "stage-5",
+          "name": "Documents Pending",
+          "requiresClientUpload": true,
+          "stepNumber": 5
+        },
+        {
+          "badgeBg": "bg-lime-50 dark:bg-lime-950/40 text-lime-700 dark:text-lime-300 border-lime-200 dark:border-lime-800",
+          "badgeText": "Documents Received",
+          "category": "documentation",
+          "color": "#84CC16",
+          "description": "All requested client files have been uploaded and queued",
+          "id": "stage-6",
+          "name": "Documents Received",
+          "stepNumber": 6
+        },
+        {
+          "badgeBg": "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+          "badgeText": "Under Review",
+          "category": "documentation",
+          "color": "#10B981",
+          "description": "PRO officers verifying document legibility, attestation, and format",
+          "id": "stage-7",
+          "name": "Documents Under Review",
+          "stepNumber": 7
+        },
+        {
+          "badgeBg": "bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border-pink-200 dark:border-pink-800",
+          "badgeText": "Payment Pending",
+          "category": "processing",
+          "color": "#EC4899",
+          "description": "Awaiting initial retainer or government fees clearance",
+          "id": "stage-8",
+          "name": "Payment Pending",
+          "requiresPaymentClearance": true,
+          "stepNumber": 8
+        },
+        {
+          "badgeBg": "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+          "badgeText": "Application Submitted",
+          "category": "processing",
+          "color": "#8B5CF6",
+          "description": "Official file created and lodged through governmental e-channel portals",
+          "id": "stage-9",
+          "name": "Application Submitted",
+          "stepNumber": 9
+        },
+        {
+          "badgeBg": "bg-fuchsia-50 dark:bg-fuchsia-950/40 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-200 dark:border-fuchsia-800",
+          "badgeText": "Authority Processing",
+          "category": "authority",
+          "color": "#A855F7",
+          "description": "Under active security vetting, GDRFA/ICP or Ministry review",
+          "id": "stage-10",
+          "name": "Government / Authority Processing",
+          "stepNumber": 10
+        },
+        {
+          "badgeBg": "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800",
+          "badgeText": "Action Required",
+          "category": "authority",
+          "color": "#E11D48",
+          "description": "Authority query or modification request issued; urgent action required",
+          "id": "stage-11",
+          "name": "Additional Documents Required",
+          "requiresClientUpload": true,
+          "stepNumber": 11
+        },
+        {
+          "badgeBg": "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700",
+          "badgeText": "Approved",
+          "category": "approval",
+          "color": "#059669",
+          "description": "Official governmental approval and entry permit/visa grant issued",
+          "id": "stage-12",
+          "name": "Approved",
+          "stepNumber": 12
+        },
+        {
+          "badgeBg": "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700",
+          "badgeText": "Completed",
+          "category": "completed",
+          "color": "#16A34A",
+          "description": "All work stages, stamping, medicals, and documentation finalized",
+          "id": "stage-13",
+          "name": "Completed",
+          "stepNumber": 13
+        },
+        {
+          "badgeBg": "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800",
+          "badgeText": "Delivered",
+          "category": "completed",
+          "color": "#0D9488",
+          "description": "Physical Emirates ID, stamped passport or e-visa handover completed",
+          "id": "stage-14",
+          "name": "Delivered to Client",
+          "stepNumber": 14
+        },
+        {
+          "badgeBg": "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+          "badgeText": "Rejected",
+          "category": "cancelled",
+          "color": "#DC2626",
+          "description": "Application rejected by government entity or compliance",
+          "id": "stage-15",
+          "name": "Rejected",
+          "stepNumber": 15
+        },
+        {
+          "badgeBg": "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700",
+          "badgeText": "Cancelled",
+          "category": "cancelled",
+          "color": "#6B7280",
+          "description": "Service cancelled per client request or expired inquiry",
+          "id": "stage-16",
+          "name": "Cancelled",
+          "stepNumber": 16
+        }
+      ],
+      "updatedAt": "2026-08-25T08:00:00Z"
+    },
+    {
+      "badgeBg": "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
+      "category": "Business Setup",
+      "code": "WF-CORP-SETUP",
+      "color": "#0EA5E9",
+      "createdAt": "2022-03-10T00:00:00Z",
+      "description": "End-to-end corporate lifecycle: Initial trade name, DED initial approvals, MOA drafting, Ejari leasing, and Commercial License issuance.",
+      "id": "wf-business-setup",
+      "isDefault": false,
+      "name": "Mainland & Freezone Company Formation",
+      "serviceCategoryIds": [
+        "srv-mainland-llc",
+        "srv-freezone-setup"
+      ],
+      "stages": [
+        {
+          "badgeBg": "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+          "badgeText": "Consultation",
+          "category": "inquiry",
+          "color": "#6366F1",
+          "description": "Business activity selection, legal structure analysis, and passport KYC vetting.",
+          "id": "stg-bs-1",
+          "name": "Initial Consultation & KYC",
+          "stepNumber": 1,
+          "workflowId": "wf-business-setup"
+        },
+        {
+          "badgeBg": "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+          "badgeText": "Name Reservation",
+          "category": "processing",
+          "color": "#3B82F6",
+          "description": "Submitting 3 trade name choices to Department of Economy & Tourism (DET / DED).",
+          "id": "stg-bs-2",
+          "name": "Trade Name Reservation",
+          "stepNumber": 2,
+          "workflowId": "wf-business-setup"
+        },
+        {
+          "badgeBg": "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
+          "badgeText": "Initial Approval",
+          "category": "authority",
+          "color": "#0EA5E9",
+          "description": "Governmental security screening and business approval certificate issued.",
+          "id": "stg-bs-3",
+          "name": "Initial Approval Certificate",
+          "stepNumber": 3,
+          "workflowId": "wf-business-setup"
+        },
+        {
+          "badgeBg": "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+          "badgeText": "MOA Notarization",
+          "category": "documentation",
+          "color": "#F59E0B",
+          "description": "Memorandum of Association drafting, digital signing, and Dubai Court notary attestation.",
+          "id": "stg-bs-4",
+          "name": "MOA & LSA Drafting & Notarization",
+          "requiresClientUpload": true,
+          "stepNumber": 4,
+          "workflowId": "wf-business-setup"
+        },
+        {
+          "badgeBg": "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800",
+          "badgeText": "Ejari Registration",
+          "category": "documentation",
+          "color": "#F97316",
+          "description": "Tenancy agreement verification and Ejari / Tawtheeq registration.",
+          "id": "stg-bs-5",
+          "name": "Commercial Office Lease & Ejari",
+          "stepNumber": 5,
+          "workflowId": "wf-business-setup"
+        },
+        {
+          "badgeBg": "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+          "badgeText": "Trade License Ready",
+          "category": "approval",
+          "color": "#10B981",
+          "description": "Settlement of DED payment voucher and official Trade License generation.",
+          "id": "stg-bs-6",
+          "name": "Payment & License Issuance",
+          "requiresPaymentClearance": true,
+          "stepNumber": 6,
+          "workflowId": "wf-business-setup"
+        },
+        {
+          "badgeBg": "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+          "badgeText": "Immigration File",
+          "category": "processing",
+          "color": "#8B5CF6",
+          "description": "Immigration establishment card and Ministry of Human Resources quota registration.",
+          "id": "stg-bs-7",
+          "name": "Establishment Card & MOHRE File",
+          "stepNumber": 7,
+          "workflowId": "wf-business-setup"
+        },
+        {
+          "badgeBg": "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700",
+          "badgeText": "Bank Onboarding",
+          "category": "completed",
+          "color": "#16A34A",
+          "description": "Introduction to Tier-1 UAE banking partners and corporate IBAN opening.",
+          "id": "stg-bs-8",
+          "name": "Corporate Bank Account Assistance",
+          "stepNumber": 8,
+          "workflowId": "wf-business-setup"
+        }
+      ],
+      "updatedAt": "2026-08-25T08:00:00Z"
+    },
+    {
+      "badgeBg": "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+      "category": "PRO Services",
+      "code": "WF-EMP-VISA",
+      "color": "#10B981",
+      "createdAt": "2022-04-15T00:00:00Z",
+      "description": "MOHRE job quota, electronic work permit, Tawjeeh session, medical fitness examination, biometric Emirates ID, and residency stamping.",
+      "id": "wf-employment-visa",
+      "isDefault": false,
+      "name": "Employment Visa & Work Permit Pipeline",
+      "serviceCategoryIds": [
+        "srv-emp-visa",
+        "srv-pro-retainer"
+      ],
+      "stages": [
+        {
+          "badgeBg": "bg-indigo-50 text-indigo-700 border-indigo-200",
+          "badgeText": "MOHRE Offer",
+          "category": "inquiry",
+          "color": "#6366F1",
+          "description": "Standard MOHRE electronic employment contract signed by employer and candidate.",
+          "id": "stg-ev-1",
+          "name": "MOHRE Job Offer & Quota Verification",
+          "stepNumber": 1,
+          "workflowId": "wf-employment-visa"
+        },
+        {
+          "badgeBg": "bg-blue-50 text-blue-700 border-blue-200",
+          "badgeText": "E-Permit Submittal",
+          "category": "processing",
+          "color": "#3B82F6",
+          "description": "Lodging electronic work permit application via Tasheel.",
+          "id": "stg-ev-2",
+          "name": "Work Permit Application (E-Permit)",
+          "stepNumber": 2,
+          "workflowId": "wf-employment-visa"
+        },
+        {
+          "badgeBg": "bg-sky-50 text-sky-700 border-sky-200",
+          "badgeText": "Entry Permit / In-Country",
+          "category": "authority",
+          "color": "#0EA5E9",
+          "description": "GDRFA electronic entry permit generated or in-country status change amended.",
+          "id": "stg-ev-3",
+          "name": "Entry Permit Issued / Status Change",
+          "stepNumber": 3,
+          "workflowId": "wf-employment-visa"
+        },
+        {
+          "badgeBg": "bg-amber-50 text-amber-700 border-amber-200",
+          "badgeText": "Medical & Biometrics",
+          "category": "documentation",
+          "color": "#F59E0B",
+          "description": "DHA / DOH VIP medical blood & X-Ray test and ICP finger-scan appointment.",
+          "id": "stg-ev-4",
+          "name": "Medical Fitness Exam & Biometrics",
+          "requiresClientUpload": true,
+          "stepNumber": 4,
+          "workflowId": "wf-employment-visa"
+        },
+        {
+          "badgeBg": "bg-pink-50 text-pink-700 border-pink-200",
+          "badgeText": "ILOE & Labor Contract",
+          "category": "processing",
+          "color": "#EC4899",
+          "description": "Final submission of signed labor contract and ILOE job loss insurance.",
+          "id": "stg-ev-5",
+          "name": "MOHRE Labor Contract & Insurance",
+          "stepNumber": 5,
+          "workflowId": "wf-employment-visa"
+        },
+        {
+          "badgeBg": "bg-green-100 text-green-800 border-green-300",
+          "badgeText": "Delivered",
+          "category": "completed",
+          "color": "#16A34A",
+          "description": "Digital residency permit active and physical Emirates ID delivered via Empost.",
+          "id": "stg-ev-6",
+          "name": "Residency Visa Stamped & EID Dispatched",
+          "stepNumber": 6,
+          "workflowId": "wf-employment-visa"
+        }
+      ],
+      "updatedAt": "2026-08-25T08:00:00Z"
+    },
+    {
+      "badgeBg": "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+      "category": "Attestation",
+      "code": "WF-MOFA-ATT",
+      "color": "#F59E0B",
+      "createdAt": "2022-06-01T00:00:00Z",
+      "description": "Degree, birth, marriage certificate legalization through home country embassies, UAE Ministry of Foreign Affairs (MOFA), and sworn legal translation.",
+      "id": "wf-legal-attestation",
+      "isDefault": false,
+      "name": "MOFA & Legal Document Attestation",
+      "serviceCategoryIds": [
+        "srv-mofa-attestation"
+      ],
+      "stages": [
+        {
+          "badgeBg": "bg-indigo-50 text-indigo-700",
+          "badgeText": "Intake",
+          "category": "inquiry",
+          "color": "#6366F1",
+          "description": "Secure physical document handover and tracking barcode assignment.",
+          "id": "stg-att-1",
+          "name": "Original Document Received & Cataloged",
+          "stepNumber": 1,
+          "workflowId": "wf-legal-attestation"
+        },
+        {
+          "badgeBg": "bg-blue-50 text-blue-700",
+          "badgeText": "Embassy Seal",
+          "category": "authority",
+          "color": "#3B82F6",
+          "description": "Submitting original certificate to foreign embassy in Abu Dhabi/Dubai.",
+          "id": "stg-att-2",
+          "name": "Embassy / Consulate Verification",
+          "stepNumber": 2,
+          "workflowId": "wf-legal-attestation"
+        },
+        {
+          "badgeBg": "bg-emerald-50 text-emerald-700",
+          "badgeText": "MOFA Attested",
+          "category": "approval",
+          "color": "#10B981",
+          "description": "UAE Ministry of Foreign Affairs official digital QR code verification stamp.",
+          "id": "stg-att-3",
+          "name": "MOFA Electronic Stamp Clearance",
+          "stepNumber": 3,
+          "workflowId": "wf-legal-attestation"
+        },
+        {
+          "badgeBg": "bg-purple-50 text-purple-700",
+          "badgeText": "Sworn Translation",
+          "category": "processing",
+          "color": "#8B5CF6",
+          "description": "Certified Arabic/English translation bearing court-registered sworn translator stamp.",
+          "id": "stg-att-4",
+          "name": "Ministry of Justice Legal Translation",
+          "stepNumber": 4,
+          "workflowId": "wf-legal-attestation"
+        },
+        {
+          "badgeBg": "bg-green-100 text-green-800",
+          "badgeText": "Completed",
+          "category": "completed",
+          "color": "#16A34A",
+          "description": "Sealed attested documents securely handed over to client or corporate HR.",
+          "id": "stg-att-5",
+          "name": "Client Handover & Courier Delivery",
+          "stepNumber": 5,
+          "workflowId": "wf-legal-attestation"
+        }
+      ],
+      "updatedAt": "2026-08-25T08:00:00Z"
+    }
+  ],
+  "leads": [],
+  "tasks": [],
+  "documents": []
+}

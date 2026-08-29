@@ -134,13 +134,10 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
   // Handle Send Email Notification
   const handleSendEmail = async () => {
     setIsSendingEmail(true);
-    await sendVisaStatusEmail(
-      application.clientEmail,
-      application.clientName,
+    sendVisaStatusEmail(
+      application.clientId || application.id,
       `${application.targetCountryFlag || ''} ${application.targetCountry} Visa (#${application.applicationNumber})`,
-      application.currentStageTitle || application.status,
-      application.assignedOfficerName || 'Immigration Officer',
-      application.timeline[application.timeline.length - 1]?.description
+      application.timeline?.[application.timeline.length - 1]?.description
     );
     setIsSendingEmail(false);
     setEmailSentSuccess(true);

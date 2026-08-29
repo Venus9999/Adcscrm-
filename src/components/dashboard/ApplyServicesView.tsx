@@ -230,22 +230,11 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
     const totalAmount = calculateTotal(activeServiceModal);
 
     try {
-      const res = await applyForService(client.id, {
-        serviceName: activeServiceModal.name,
-        serviceCategory: activeServiceModal.category,
-        notes: clientNotes.trim() || `Self-service application for ${activeServiceModal.name}`,
-        amount: totalAmount,
-        paidNow: payNow,
-        applicantPassport: applicantPassport.trim(),
-        applicantNationality: applicantNationality.trim(),
-        departmentId: chosenDepartment?.id,
-        options: {
-          selectedOptions,
-          govFee: activeServiceModal.govFee,
-          basePrice: activeServiceModal.basePrice,
-          processingTime: activeServiceModal.processingTime,
-        },
-      });
+      const res = await applyForService(
+        activeServiceModal.id,
+        clientNotes.trim() || `Self-service application for ${activeServiceModal.name} (${applicantPassport ? `Passport: ${applicantPassport}` : ''})`,
+        client.companyId
+      );
 
       setIsSubmitting(false);
 
@@ -543,9 +532,9 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
                       <span>Selected Upgrades ({selectedOptions.length}):</span>
                       <span>
                         AED{' '}
-                        {activeServiceModal.options
-                          .filter((o) => selectedOptions.includes(o.id))
-                          .reduce((sum, o) => sum + o.price, 0)
+                        {(activeServiceModal.options || [])
+                          .filter((o) => o && selectedOptions.includes(o.id))
+                          .reduce((sum, o) => sum + (o?.price || 0), 0)
                           .toLocaleString()}
                       </span>
                     </div>

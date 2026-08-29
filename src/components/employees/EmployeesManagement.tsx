@@ -711,7 +711,7 @@ export const EmployeesManagement: React.FC = () => {
                         </button>
                       )}
 
-                      {(currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'branch_manager') && (
+                      {(currentUser.role === 'master' || currentUser.role === 'admin' || (currentUser.role as any) === 'branch_manager') && (
                         <button
                           onClick={() => {
                             setSelectedUser(user);

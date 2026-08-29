@@ -31,12 +31,12 @@ export const MasterDashboard: React.FC = () => {
   } = useCRM();
 
   // Metrics
-  const totalClients = clients.length;
-  const activeServices = clients.reduce((acc, c) => acc + c.services.filter((s) => s.status === 'active').length, 0);
-  const totalRevenue = invoices.reduce((acc, i) => acc + i.amountPaid, 0);
-  const totalOutstanding = invoices.reduce((acc, i) => acc + i.balanceAmount, 0);
-  const pendingTasks = tasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled').length;
-  const urgentExpiries = expiringDocuments.filter((e) => e.isUrgent).length;
+  const totalClients = (clients || []).length;
+  const activeServices = (clients || []).reduce((acc, c) => acc + ((c?.services || []).filter((s) => s?.status === 'active').length), 0);
+  const totalRevenue = (invoices || []).reduce((acc, i) => acc + (i?.amountPaid || 0), 0);
+  const totalOutstanding = (invoices || []).reduce((acc, i) => acc + (i?.balanceAmount || 0), 0);
+  const pendingTasks = (tasks || []).filter((t) => t && t.status !== 'completed' && t.status !== 'cancelled').length;
+  const urgentExpiries = (expiringDocuments || []).filter((e) => e && e.isUrgent).length;
 
   return (
     <div className="space-y-6">
@@ -164,9 +164,9 @@ export const MasterDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="text-sm divide-y divide-slate-100 dark:divide-slate-800">
-                {clients.slice(0, 5).map((client) => {
-                  const stageObj = stages.find((s) => s.id === client.currentStageId) || stages[0];
-                  const primaryService = client.services[0]?.serviceName || 'Residency Visa Application';
+                {(clients || []).slice(0, 5).map((client) => {
+                  const stageObj = (stages || []).find((s) => s.id === client.currentStageId) || stages?.[0] || { stepNumber: 1, name: 'Processing', badgeBg: 'bg-blue-100 text-blue-800' };
+                  const primaryService = client?.services?.[0]?.serviceName || 'Residency Visa Application';
 
                   return (
                     <tr

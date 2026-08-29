@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Trash2, Bug } from 'lucide-react';
 
 interface Props {
@@ -11,17 +11,20 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  public override state: State = {
-    hasError: false,
-    error: null,
-  };
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  public override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error in component tree:', error, errorInfo);
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Uncaught error caught by ErrorBoundary:', error, errorInfo);
   }
 
   private handleReload = () => {
@@ -33,12 +36,13 @@ export class ErrorBoundary extends Component<Props, State> {
       localStorage.removeItem('adcs_crm_db_v3');
       localStorage.removeItem('adcs_crm_db_v2');
       localStorage.removeItem('adcs_crm_db');
+      localStorage.removeItem('adcs_crm_auth_session_v2');
       sessionStorage.clear();
     } catch {}
     window.location.reload();
   };
 
-  public override render() {
+  public render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6 select-none">
@@ -90,3 +94,4 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+

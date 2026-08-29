@@ -68,20 +68,35 @@ export interface InvoiceBillingSettings {
   tradingName: string;
   tagline: string;
   trn: string; // Tax Registration Number / VAT ID
+  trnNumber?: string;
   tradeLicenseNo: string;
   address: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  poBox?: string;
   city: string;
   country: string;
   phone: string;
   email: string;
   website: string;
   vatRateDefault: number;
+  vatRate?: number;
+  vatPercentage?: number;
   currency: string;
   bankDetails: BankDetails;
+  bankName?: string;
+  bankBranch?: string;
+  accountName?: string;
+  iban?: string;
+  swiftCode?: string;
+  accountNumber?: string;
   signatoryName: string;
   signatoryTitle: string;
+  authorizedSignatoryName?: string;
+  authorizedSignatoryTitle?: string;
   signatorySignatureUrl: string;
   stampUrl: string;
+  companyStampUrl?: string;
   stampText?: string;
   showSignatory: boolean;
   showStamp: boolean;
@@ -90,16 +105,43 @@ export interface InvoiceBillingSettings {
   showSignatureOnInvoice?: boolean;
   termsAndConditions: string;
   invoiceFooterNote: string;
+  footerNotes?: string;
+  signatory?: {
+    name?: string;
+    title?: string;
+    designation?: string;
+    signatureUrl?: string;
+    signatureImageUrl?: string;
+    fontFamily?: string;
+    type?: string;
+    showSignature?: boolean;
+  };
+  stamp?: {
+    shape?: string;
+    text?: string;
+    stampLabel?: string;
+    stampSubtext?: string;
+    subText?: string;
+    color?: string;
+    imageUrl?: string;
+    stampImageUrl?: string;
+    showStamp?: boolean;
+  };
   lastUpdated?: string;
   updatedBy?: string;
 }
 
 export interface CRMBranding {
   name: string;
+  companyName?: string;
   shortName?: string;
   tagline: string;
   logoUrl: string;
   primaryColor?: string;
+  supportEmail?: string;
+  supportPhone?: string;
+  website?: string;
+  footerText?: string;
   visaEmailTemplate: VisaEmailTemplate;
   billingSettings?: InvoiceBillingSettings;
 }
@@ -115,7 +157,7 @@ export interface User {
   companyId?: string; // empty if master user
   companyIds?: string[];
   avatar: string;
-  title: string;
+  title?: string;
   jobTitle?: string;
   department?: string;
   status: 'active' | 'suspended' | 'inactive';
@@ -206,7 +248,7 @@ export interface Department {
   companyId?: string;
   headOfDepartment?: string;
   headOfDepartmentId?: string;
-  color: string;
+  color?: string;
   badgeBg?: string;
   badgeText?: string;
   employeeCount?: number;
@@ -322,8 +364,8 @@ export interface InternalNote {
   userRole: UserRole;
   userAvatar?: string;
   text: string;
-  type?: 'internal' | 'client_outreach' | 'whatsapp' | 'email' | 'call' | 'followup';
-  sentVia?: 'whatsapp' | 'email' | 'system';
+  type?: 'internal' | 'client_outreach' | 'whatsapp' | 'email' | 'call' | 'followup' | 'note' | 'client_message' | 'meeting' | 'call_log' | string;
+  sentVia?: 'whatsapp' | 'email' | 'system' | string;
   taggedUserIds?: string[];
   createdAt: string;
 }
@@ -346,6 +388,8 @@ export interface ClientService {
   serviceId: string;
   serviceName: string;
   category: string;
+  categoryName?: string;
+  notes?: string;
   price: number;
   governmentFees: number;
   advancePaid: number;
@@ -373,6 +417,7 @@ export interface ClientService {
 export interface Client {
   id: string;
   refNo: string;
+  fileNumber?: string;
   firstName: string;
   lastName: string;
   fullName: string;
@@ -380,6 +425,7 @@ export interface Client {
   dob: string;
   gender: 'Male' | 'Female' | 'Other';
   passportNo: string;
+  passportNumber?: string;
   passportExpiry: string;
   emiratesId: string;
   emiratesIdExpiry: string;
@@ -400,7 +446,9 @@ export interface Client {
   vendorName?: string;
   referredBy?: string;
   assignedAdminId: string;
+  assignedEmployeeId?: string;
   assignedEmployeeIds: string[];
+  assignedEmployeeName?: string;
   createdByUserId?: string;
   services: ClientService[];
   currentStageId: string;
@@ -413,6 +461,7 @@ export interface Client {
   createdAt: string;
   updatedAt: string;
   notes: InternalNote[];
+  notesText?: string;
   calls: CallLog[];
   tags: string[];
 }
@@ -459,11 +508,13 @@ export interface TaskItem {
   serviceId?: string;
   serviceName?: string;
   assignedEmployeeId: string;
+  assignedEmployeeIds?: string[];
   assignedEmployeeName: string;
-  assignedEmployeeAvatar: string;
+  assignedEmployeeAvatar?: string;
+  assignedToUserId?: string;
   priority: TaskPriority;
   status: TaskStatus;
-  startDate: string;
+  startDate?: string;
   dueDate: string;
   reminderDate?: string;
   completedAt?: string;
@@ -562,7 +613,7 @@ export interface LeadCategory {
 export interface LeadSource {
   id: string;
   name: string;
-  code: string;
+  code?: string;
   description?: string;
   icon?: string;
   isActive: boolean;
@@ -573,11 +624,12 @@ export interface LeadSource {
 export interface LeadStage {
   id: string;
   name: string;
-  stepNumber: number;
+  stepNumber?: number;
+  order?: number;
   color: string;
-  badgeBg: string;
-  badgeText: string;
-  statusKey: string;
+  badgeBg?: string;
+  badgeText?: string;
+  statusKey?: string;
   description?: string;
   isDefault?: boolean;
 }
@@ -618,6 +670,8 @@ export interface Lead {
   createdByName?: string;
   notes?: string;
   notesList?: InternalNote[];
+  notesLog?: any[];
+  tasks?: any[];
   tags?: string[];
   followUpDate?: string;
   convertedClientId?: string;
@@ -662,10 +716,11 @@ export interface Transaction {
   receiptNumber?: string;
   receiptUrl?: string;
   date: string;
-  status: 'completed' | 'pending' | 'cancelled';
+  status: 'completed' | 'pending' | 'cancelled' | 'reversed' | 'failed';
   notes?: string;
   recordedByUserId: string;
   recordedByUserName: string;
+  recordedByName?: string;
   createdAt: string;
 }
 

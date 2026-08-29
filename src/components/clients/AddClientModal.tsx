@@ -134,7 +134,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
     }
   };
 
-  const branchEmployees = users.filter((u) => u.companyId === formData.companyId && u.role === 'employee');
+  const branchEmployees = (users || []).filter((u) => u && u.companyId === formData.companyId && u.role === 'employee');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
@@ -238,8 +238,8 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                   onChange={(e) => setFormData({ ...formData, assignedEmployeeIds: [e.target.value] })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 >
-                  {users
-                    .filter((u) => u.role === 'employee' || u.role === 'admin' || u.role === 'master')
+                  {(users || [])
+                    .filter((u) => u && (u.role === 'employee' || u.role === 'admin' || u.role === 'master'))
                     .map((e) => (
                       <option key={e.id} value={e.id}>
                         {e.name} ({e.role.toUpperCase()})

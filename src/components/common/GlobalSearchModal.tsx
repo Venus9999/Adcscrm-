@@ -61,22 +61,27 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   // Helper map for company names
   const companyMap = useMemo(() => {
     const map = new Map<string, string>();
-    companies.forEach((c) => map.set(c.id, c.name));
+    (companies || []).forEach((c) => {
+      if (c && c.id && c.name) map.set(c.id, c.name);
+    });
     return map;
   }, [companies]);
 
   // Helper map for user names
   const userMap = useMemo(() => {
     const map = new Map<string, string>();
-    users.forEach((u) => map.set(u.id, u.name));
+    (users || []).forEach((u) => {
+      if (u && u.id && u.name) map.set(u.id, u.name);
+    });
     return map;
   }, [users]);
 
-  const cleanQuery = query.trim().toLowerCase();
+  const cleanQuery = (query || '').trim().toLowerCase();
 
   // Matched Clients
   const matchedClients = useMemo(() => {
-    return clients.filter((c) => {
+    return (clients || []).filter((c) => {
+      if (!c) return false;
       // Company filter
       if (selectedCompanyFilter !== 'all' && c.companyId !== selectedCompanyFilter) return false;
 
@@ -91,24 +96,24 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
       if (!cleanQuery) return selectedCompanyFilter !== 'all' || selectedEmployeeFilter !== 'all';
 
-      const compName = (companyMap.get(c.companyId) || '').toLowerCase();
+      const compName = (c.companyId ? companyMap.get(c.companyId) || '' : '').toLowerCase();
       const assignedNames = (c.assignedEmployeeIds || [])
         .map((empId) => (userMap.get(empId) || '').toLowerCase())
         .join(' ');
-      const adminName = (userMap.get(c.assignedAdminId) || '').toLowerCase();
-      const serviceNames = (c.services || []).map((s) => s.serviceName.toLowerCase()).join(' ');
+      const adminName = (c.assignedAdminId ? userMap.get(c.assignedAdminId) || '' : '').toLowerCase();
+      const serviceNames = (c.services || []).map((s) => (s?.serviceName || '').toLowerCase()).join(' ');
       const tags = (c.tags || []).join(' ').toLowerCase();
 
       return (
-        c.fullName.toLowerCase().includes(cleanQuery) ||
-        c.refNo.toLowerCase().includes(cleanQuery) ||
-        c.passportNo.toLowerCase().includes(cleanQuery) ||
-        c.emiratesId.toLowerCase().includes(cleanQuery) ||
-        c.mobile.includes(cleanQuery) ||
-        c.whatsapp?.includes(cleanQuery) ||
-        c.email.toLowerCase().includes(cleanQuery) ||
-        c.nationality.toLowerCase().includes(cleanQuery) ||
-        c.currentStageName?.toLowerCase().includes(cleanQuery) ||
+        (c.fullName && c.fullName.toLowerCase().includes(cleanQuery)) ||
+        (c.refNo && c.refNo.toLowerCase().includes(cleanQuery)) ||
+        (c.passportNo && c.passportNo.toLowerCase().includes(cleanQuery)) ||
+        (c.emiratesId && c.emiratesId.toLowerCase().includes(cleanQuery)) ||
+        (c.mobile && c.mobile.includes(cleanQuery)) ||
+        (c.whatsapp && c.whatsapp.includes(cleanQuery)) ||
+        (c.email && c.email.toLowerCase().includes(cleanQuery)) ||
+        (c.nationality && c.nationality.toLowerCase().includes(cleanQuery)) ||
+        (c.currentStageName && c.currentStageName.toLowerCase().includes(cleanQuery)) ||
         compName.includes(cleanQuery) ||
         assignedNames.includes(cleanQuery) ||
         adminName.includes(cleanQuery) ||
@@ -120,7 +125,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   // Matched Leads
   const matchedLeads = useMemo(() => {
-    return leads.filter((l) => {
+    return (leads || []).filter((l) => {
+      if (!l) return false;
       // Company / Branch filter
       if (selectedCompanyFilter !== 'all' && l.companyId !== selectedCompanyFilter) return false;
 
@@ -129,15 +135,15 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
       if (!cleanQuery) return selectedCompanyFilter !== 'all' || selectedEmployeeFilter !== 'all';
 
-      const compName = (companyMap.get(l.companyId) || l.branchName || '').toLowerCase();
-      const empName = (l.assignedEmployeeName || userMap.get(l.assignedEmployeeId) || '').toLowerCase();
+      const compName = (l.companyId ? companyMap.get(l.companyId) || l.branchName || '' : l.branchName || '').toLowerCase();
+      const empName = (l.assignedEmployeeName || (l.assignedEmployeeId ? userMap.get(l.assignedEmployeeId) || '' : '')).toLowerCase();
       const tags = (l.tags || []).join(' ').toLowerCase();
 
       return (
-        l.name.toLowerCase().includes(cleanQuery) ||
-        l.refNo.toLowerCase().includes(cleanQuery) ||
+        (l.name && l.name.toLowerCase().includes(cleanQuery)) ||
+        (l.refNo && l.refNo.toLowerCase().includes(cleanQuery)) ||
         (l.companyName && l.companyName.toLowerCase().includes(cleanQuery)) ||
-        l.phone.includes(cleanQuery) ||
+        (l.phone && l.phone.includes(cleanQuery)) ||
         (l.whatsapp && l.whatsapp.includes(cleanQuery)) ||
         (l.email && l.email.toLowerCase().includes(cleanQuery)) ||
         (l.serviceInterested && l.serviceInterested.toLowerCase().includes(cleanQuery)) ||
@@ -158,7 +164,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   // Matched Employees / Users
   const matchedEmployees = useMemo(() => {
-    return users.filter((u) => {
+    return (users || []).filter((u) => {
+      if (!u) return false;
       // Company filter
       if (selectedCompanyFilter !== 'all') {
         const isInCompany = u.companyId === selectedCompanyFilter || u.companyIds?.includes(selectedCompanyFilter);
@@ -173,10 +180,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       const compName = (u.companyId ? companyMap.get(u.companyId) || '' : '').toLowerCase();
 
       return (
-        u.name.toLowerCase().includes(cleanQuery) ||
-        u.email.toLowerCase().includes(cleanQuery) ||
-        u.phone.includes(cleanQuery) ||
-        u.role.toLowerCase().includes(cleanQuery) ||
+        (u.name && u.name.toLowerCase().includes(cleanQuery)) ||
+        (u.email && u.email.toLowerCase().includes(cleanQuery)) ||
+        (u.phone && u.phone.includes(cleanQuery)) ||
+        (u.role && u.role.toLowerCase().includes(cleanQuery)) ||
         (u.title && u.title.toLowerCase().includes(cleanQuery)) ||
         (u.jobTitle && u.jobTitle.toLowerCase().includes(cleanQuery)) ||
         (u.department && u.department.toLowerCase().includes(cleanQuery)) ||
@@ -187,9 +194,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   // Matched Documents
   const matchedDocs = useMemo(() => {
-    return documents.filter((d) => {
+    return (documents || []).filter((d) => {
+      if (!d) return false;
       // Check linked client's company or employee if client exists
-      const linkedClient = clients.find((c) => c.id === d.clientId);
+      const linkedClient = (clients || []).find((c) => c && c.id === d.clientId);
       if (selectedCompanyFilter !== 'all' && linkedClient && linkedClient.companyId !== selectedCompanyFilter) {
         return false;
       }
@@ -209,8 +217,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       const uploaderName = (d.uploadedByName || '').toLowerCase();
 
       return (
-        d.name.toLowerCase().includes(cleanQuery) ||
-        d.category.toLowerCase().includes(cleanQuery) ||
+        (d.name && d.name.toLowerCase().includes(cleanQuery)) ||
+        (d.category && d.category.toLowerCase().includes(cleanQuery)) ||
         clientName.includes(cleanQuery) ||
         uploaderName.includes(cleanQuery) ||
         (d.remarks && d.remarks.toLowerCase().includes(cleanQuery))
@@ -220,9 +228,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   // Matched Invoices
   const matchedInvoices = useMemo(() => {
-    return invoices.filter((i) => {
+    return (invoices || []).filter((i) => {
+      if (!i) return false;
       // Check linked client's company
-      const linkedClient = clients.find((c) => c.id === i.clientId);
+      const linkedClient = (clients || []).find((c) => c && c.id === i.clientId);
       if (selectedCompanyFilter !== 'all' && linkedClient && linkedClient.companyId !== selectedCompanyFilter) {
         return false;
       }
@@ -241,18 +250,19 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       const issuerName = (i.issuedByUserName || '').toLowerCase();
 
       return (
-        i.invoiceNumber.toLowerCase().includes(cleanQuery) ||
+        (i.invoiceNumber && i.invoiceNumber.toLowerCase().includes(cleanQuery)) ||
         clientName.includes(cleanQuery) ||
         (i.receiptNumber && i.receiptNumber.toLowerCase().includes(cleanQuery)) ||
         issuerName.includes(cleanQuery) ||
-        i.status.toLowerCase().includes(cleanQuery)
+        (i.status && i.status.toLowerCase().includes(cleanQuery))
       );
     });
   }, [invoices, clients, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery]);
 
   // Matched Tasks
   const matchedTasks = useMemo(() => {
-    return tasks.filter((t) => {
+    return (tasks || []).filter((t) => {
+      if (!t) return false;
       // Company filter
       if (selectedCompanyFilter !== 'all' && t.companyId && t.companyId !== selectedCompanyFilter) {
         return false;
@@ -265,25 +275,26 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
       if (!cleanQuery) return selectedCompanyFilter !== 'all' || selectedEmployeeFilter !== 'all';
 
-      const empName = (t.assignedEmployeeName || userMap.get(t.assignedEmployeeId) || '').toLowerCase();
+      const empName = (t.assignedEmployeeName || (t.assignedEmployeeId ? userMap.get(t.assignedEmployeeId) || '' : '')).toLowerCase();
       const clientName = (t.clientName || '').toLowerCase();
       const leadName = (t.leadName || '').toLowerCase();
 
       return (
-        t.title.toLowerCase().includes(cleanQuery) ||
+        (t.title && t.title.toLowerCase().includes(cleanQuery)) ||
         (t.description && t.description.toLowerCase().includes(cleanQuery)) ||
         clientName.includes(cleanQuery) ||
         leadName.includes(cleanQuery) ||
         empName.includes(cleanQuery) ||
-        t.status.toLowerCase().includes(cleanQuery) ||
-        t.priority.toLowerCase().includes(cleanQuery)
+        (t.status && t.status.toLowerCase().includes(cleanQuery)) ||
+        (t.priority && t.priority.toLowerCase().includes(cleanQuery))
       );
     });
   }, [tasks, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, userMap]);
 
   // Matched Companies
   const matchedCompanies = useMemo(() => {
-    return companies.filter((c) => {
+    return (companies || []).filter((c) => {
+      if (!c) return false;
       if (selectedCompanyFilter !== 'all' && c.id !== selectedCompanyFilter) return false;
       if (
         selectedEmployeeFilter !== 'all' &&
@@ -297,9 +308,9 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       if (!cleanQuery) return selectedCompanyFilter !== 'all' || selectedEmployeeFilter !== 'all';
 
       return (
-        c.name.toLowerCase().includes(cleanQuery) ||
-        c.tradeLicenseNo.toLowerCase().includes(cleanQuery) ||
-        c.trn.includes(cleanQuery) ||
+        (c.name && c.name.toLowerCase().includes(cleanQuery)) ||
+        (c.tradeLicenseNo && c.tradeLicenseNo.toLowerCase().includes(cleanQuery)) ||
+        (c.trn && c.trn.includes(cleanQuery)) ||
         (c.city && c.city.toLowerCase().includes(cleanQuery)) ||
         (c.address && c.address.toLowerCase().includes(cleanQuery)) ||
         (c.phone && c.phone.includes(cleanQuery)) ||
@@ -310,7 +321,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   // Matched Vendors
   const matchedVendors = useMemo(() => {
-    return vendors.filter((v) => {
+    return (vendors || []).filter((v) => {
+      if (!v) return false;
       if (selectedCompanyFilter !== 'all' && v.companyId && v.companyId !== selectedCompanyFilter) {
         return false;
       }
@@ -318,7 +330,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       if (!cleanQuery) return selectedCompanyFilter !== 'all' || selectedEmployeeFilter !== 'all';
 
       return (
-        v.name.toLowerCase().includes(cleanQuery) ||
+        (v.name && v.name.toLowerCase().includes(cleanQuery)) ||
         (v.category && v.category.toLowerCase().includes(cleanQuery)) ||
         (v.contactPerson && v.contactPerson.toLowerCase().includes(cleanQuery)) ||
         (v.phone && v.phone.includes(cleanQuery)) ||

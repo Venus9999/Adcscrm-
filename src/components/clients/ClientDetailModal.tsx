@@ -179,17 +179,17 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
   });
 
   if (!clientId) return null;
-  const client = clients.find((c) => c.id === clientId);
+  const client = (clients || []).find((c) => c && c.id === clientId);
   if (!client) return null;
 
-  const clientDocs = documents.filter((d) => d.clientId === client.id);
-  const clientInvoices = invoices.filter((i) => i.clientId === client.id);
-  const clientTransactions = transactions.filter((t) => t.clientId === client.id);
-  const clientTasks = tasks.filter((t) => t.clientId === client.id);
-  const company = companies.find((c) => c.id === client.companyId);
-  const vendor = vendors.find((v) => v.id === client.vendorId);
+  const clientDocs = (documents || []).filter((d) => d && d.clientId === client.id);
+  const clientInvoices = (invoices || []).filter((i) => i && i.clientId === client.id);
+  const clientTransactions = (transactions || []).filter((t) => t && t.clientId === client.id);
+  const clientTasks = (tasks || []).filter((t) => t && t.clientId === client.id);
+  const company = (companies || []).find((c) => c && c.id === client.companyId);
+  const vendor = (vendors || []).find((v) => v && v.id === client.vendorId);
 
-  const activeService = client.services.find((s) => s.id === selectedServiceId) || client.services[0];
+  const activeService = (client.services || []).find((s) => s && s.id === selectedServiceId) || (client.services || [])[0];
 
   const handleOpenEditClientModal = () => {
     setEditFormData({
@@ -201,7 +201,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
       whatsapp: client.whatsapp,
       nationality: client.nationality || 'United Arab Emirates',
       gender: (client.gender as 'Male' | 'Female' | 'Other') || 'Male',
-      status: client.status || 'active',
+      status: (client.status as 'active' | 'completed' | 'on_hold' | 'cancelled') || 'active',
       passportNo: client.passportNo,
       passportExpiry: client.passportExpiry,
       emiratesId: client.emiratesId || '',

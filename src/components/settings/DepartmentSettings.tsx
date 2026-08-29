@@ -122,7 +122,7 @@ export const DepartmentSettings: React.FC = () => {
       .filter(Boolean);
 
     if (editingDept) {
-      const res = updateDepartment(editingDept.id, {
+      updateDepartment(editingDept.id, {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
         companyId: formData.companyId,
@@ -133,15 +133,11 @@ export const DepartmentSettings: React.FC = () => {
         tags,
       });
 
-      if (res.success) {
-        setNotice({ type: 'success', text: `Department "${formData.name}" updated successfully.` });
-        setShowModal(false);
-        setTimeout(() => setNotice(null), 3000);
-      } else {
-        setNotice({ type: 'error', text: res.error || 'Failed to update department.' });
-      }
+      setNotice({ type: 'success', text: `Department "${formData.name}" updated successfully.` });
+      setShowModal(false);
+      setTimeout(() => setNotice(null), 3000);
     } else {
-      const res = addDepartment({
+      addDepartment({
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase() || `DEP-${Date.now().toString().slice(-4)}`,
         companyId: formData.companyId,
@@ -152,13 +148,9 @@ export const DepartmentSettings: React.FC = () => {
         tags,
       });
 
-      if (res.success) {
-        setNotice({ type: 'success', text: `Department "${formData.name}" created successfully.` });
-        setShowModal(false);
-        setTimeout(() => setNotice(null), 3000);
-      } else {
-        setNotice({ type: 'error', text: res.error || 'Failed to create department.' });
-      }
+      setNotice({ type: 'success', text: `Department "${formData.name}" created successfully.` });
+      setShowModal(false);
+      setTimeout(() => setNotice(null), 3000);
     }
   };
 
@@ -168,14 +160,10 @@ export const DepartmentSettings: React.FC = () => {
       return;
     }
 
-    const res = deleteDepartment(id);
-    if (res.success) {
-      setNotice({ type: 'success', text: 'Department deleted successfully.' });
-      setDeleteConfirmId(null);
-      setTimeout(() => setNotice(null), 3000);
-    } else {
-      setNotice({ type: 'error', text: res.error || 'Failed to delete department.' });
-    }
+    deleteDepartment(id);
+    setNotice({ type: 'success', text: 'Department deleted successfully.' });
+    setDeleteConfirmId(null);
+    setTimeout(() => setNotice(null), 3000);
   };
 
   return (
