@@ -646,7 +646,7 @@ export interface AuditLogEntry {
   userRole: UserRole;
   userEmail: string;
   action: string;
-  module: 'Clients' | 'Companies' | 'Vendors' | 'Services' | 'Stages' | 'Documents' | 'Tasks' | 'Payments' | 'Users' | 'Settings' | 'Leads' | 'Transactions' | 'Profile' | 'Security' | 'Authentication';
+  module: 'Clients' | 'Companies' | 'Vendors' | 'Services' | 'Stages' | 'Documents' | 'Tasks' | 'Payments' | 'Users' | 'Settings' | 'Leads' | 'Transactions' | 'Profile' | 'Security' | 'Authentication' | 'Visa Services';
   details: string;
   timestamp: string;
   ipAddress?: string;
@@ -658,9 +658,111 @@ export interface NotificationItem {
   targetRole?: UserRole;
   title: string;
   message: string;
-  type: 'stage_update' | 'expiry_alert' | 'payment_due' | 'task_deadline' | 'document_upload' | 'assignment' | 'system';
+  type: 'stage_update' | 'expiry_alert' | 'payment_due' | 'task_deadline' | 'document_upload' | 'assignment' | 'system' | 'visa_application' | 'visa_status_update';
   linkTab?: string;
   relatedClientId?: string;
+  relatedVisaAppId?: string;
   read: boolean;
   timestamp: string;
+}
+
+export type VisaApplicationStatus = 
+  | 'submitted'
+  | 'documents_verification'
+  | 'payment_completed'
+  | 'embassy_processing'
+  | 'biometrics_appointment'
+  | 'approved'
+  | 'issued'
+  | 'rejected'
+  | 'on_hold';
+
+export interface VisaTimelineEvent {
+  id: string;
+  title: string;
+  description: string;
+  stage: VisaApplicationStatus;
+  timestamp: string;
+  updatedBy: string;
+  status: 'completed' | 'in_progress' | 'pending';
+  actionRequired?: string;
+  referenceCode?: string;
+  location?: string;
+}
+
+export interface VisaUploadedDoc {
+  id: string;
+  docName: string;
+  docCategory: string;
+  fileUrl: string;
+  fileName: string;
+  fileSize: string;
+  uploadedAt: string;
+  status: 'pending' | 'verified' | 'rejected';
+  remarks?: string;
+}
+
+export interface VisaApplication {
+  id: string;
+  applicationNumber: string; // e.g. "VSA-2026-AE-0891"
+  clientId: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientPassportNo: string;
+  clientNationality: string;
+  companyId?: string;
+  
+  // Destination Country & Program
+  targetCountry: string;
+  targetCountryCode: string;
+  targetCountryFlag: string;
+  targetRegion: 'GCC & Middle East' | 'Europe & Schengen' | 'Americas' | 'Asia-Pacific' | 'Africa & Global';
+  visaCategory: string; // "Tourist / Visit Visa", "Golden / Investor Visa", "Work / Employment Permit", "Business Visa", "Student Visa", "Digital Nomad"
+  visaType: string; // "30 Days Single Entry", "90 Days Multiple Entry", "2-Year Residence", "5-Year Golden", etc.
+  entryType: 'Single Entry' | 'Multiple Entry';
+  validityDuration: string;
+  stayDuration: string;
+  
+  // Processing speed & schedule
+  processingSpeed: 'Standard' | 'Express / VIP' | 'Super Express (24h)';
+  estimatedProcessingDays: number;
+  estimatedCompletionDate: string;
+  travelDate?: string;
+  submissionDate: string;
+  approvalDate?: string;
+  expiryDate?: string;
+  
+  // Current Status & Progress Bar
+  status: VisaApplicationStatus;
+  progressPercentage: number; // 0 - 100
+  currentStageTitle: string;
+  governmentReferenceNo?: string;
+  embassyReferenceNo?: string;
+  assignedOfficerId?: string;
+  assignedOfficerName?: string;
+  assignedOfficerAvatar?: string;
+  
+  // Pricing & Payments
+  governmentFee: number;
+  serviceFee: number;
+  vatAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  paymentStatus: 'unpaid' | 'paid' | 'partially_paid';
+  invoiceId?: string;
+  
+  // Documents & Timeline
+  uploadedDocuments: VisaUploadedDoc[];
+  timeline: VisaTimelineEvent[];
+  notes?: string;
+  specialInstructions?: string;
+  
+  // Issued e-Visa info
+  issuedVisaUrl?: string;
+  issuedVisaNumber?: string;
+  issuedAt?: string;
+  
+  createdAt: string;
+  updatedAt: string;
 }

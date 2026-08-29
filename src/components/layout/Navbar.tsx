@@ -24,6 +24,8 @@ import {
   Mail,
   Cloud,
   Database,
+  Globe,
+  Plane,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
@@ -65,6 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     expiringDocuments,
     taskDueReminders,
     triggerTaskReminderNotification,
+    visaApplications,
     logout,
     isSavingToServer,
     serverSyncStatus,
@@ -371,6 +374,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-slate-200 dark:border-slate-800 py-1 z-50 animate-in fade-in">
                   <button
                     onClick={() => {
+                      setActiveTab('visa');
+                      setShowQuickAddDropdown(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <Globe className="w-4 h-4 text-indigo-600" />
+                    <span>Apply for Worldwide Visa (190+ Countries)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
                       onOpenAddClient();
                       setShowQuickAddDropdown(false);
                     }}
@@ -416,6 +430,23 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
           )}
+
+          {/* Worldwide Visas Shortcut */}
+          <button
+            onClick={() => setActiveTab('visa')}
+            className="p-2 rounded-md transition-all border flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-850 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 shadow-2xs cursor-pointer"
+            title="Worldwide Visa Services & Consular Processing (190+ Countries)"
+          >
+            <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden md:inline font-bold">
+              Worldwide Visas
+            </span>
+            {visaApplications.length > 0 && (
+              <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-indigo-600 text-white font-bold">
+                {visaApplications.length}
+              </span>
+            )}
+          </button>
 
           {/* Gmail Communications Shortcut */}
           <button

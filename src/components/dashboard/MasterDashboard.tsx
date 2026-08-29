@@ -11,6 +11,8 @@ import {
   ChevronRight,
   Layers,
   Sparkles,
+  Globe,
+  Plane,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 
@@ -22,6 +24,7 @@ export const MasterDashboard: React.FC = () => {
     tasks,
     stages,
     expiringDocuments,
+    visaApplications,
     setActiveTab,
     setSelectedCompanyId,
     setSelectedClientId,
@@ -97,6 +100,36 @@ export const MasterDashboard: React.FC = () => {
               {expiringDocuments.length} in 180d
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Worldwide Visas & Consular Operations Callout Banner */}
+      <div className="rounded-xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-5 border border-slate-800 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
+            <Globe className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-bold tracking-tight">Worldwide Visa & Consular Services Hub</h3>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30">
+                190+ Countries
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Manage client applications, consular embassy filing milestones, VFS biometrics, and fee billing across Schengen, UK, US, GCC, and more.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => setActiveTab('visa')}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Open Visa Services ({visaApplications.length} Cases)</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 

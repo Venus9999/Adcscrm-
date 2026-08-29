@@ -15,9 +15,15 @@ import {
   ExternalLink,
   ChevronRight,
   HelpCircle,
+  Globe,
+  Plus,
+  Eye,
+  Plane,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
-import { ClientService, DocumentItem } from '../../types/crm';
+import { ClientService, DocumentItem, VisaApplication } from '../../types/crm';
+import { VisaApplicationModal } from '../visa/VisaApplicationModal';
+import { VisaTimelineModal } from '../visa/VisaTimelineModal';
 
 export const ClientPortal: React.FC = () => {
   const {
@@ -31,6 +37,7 @@ export const ClientPortal: React.FC = () => {
     sendMessage,
     createInvoice,
     recordPayment,
+    visaApplications,
   } = useCRM();
 
   // Pick client profile corresponding to current logged-in user or first client
@@ -39,12 +46,16 @@ export const ClientPortal: React.FC = () => {
     clients.find((c) => c.id === 'client-1') ||
     clients[0];
 
-  const [activeTab, setActiveTab] = useState<'tracker' | 'documents' | 'payments' | 'messages'>('tracker');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'visa_services' | 'documents' | 'payments' | 'messages'>('tracker');
   const [selectedServiceIndex, setSelectedServiceIndex] = useState(0);
   const [chatMessage, setChatMessage] = useState('');
   const [uploadCategory, setUploadCategory] = useState<DocumentItem['category']>('Passport');
   const [uploadFileName, setUploadFileName] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
+
+  // Visa Modals state
+  const [showVisaApplyModal, setShowVisaApplyModal] = useState(false);
+  const [selectedVisaTimelineApp, setSelectedVisaTimelineApp] = useState<VisaApplication | null>(null);
 
   if (!client) {
     return <div className="p-8 text-center text-slate-500">No client profile found.</div>;
@@ -54,6 +65,9 @@ export const ClientPortal: React.FC = () => {
   const clientDocs = documents.filter((d) => d.clientId === client.id);
   const clientInvoices = invoices.filter((i) => i.clientId === client.id);
   const clientMessages = messages.filter((m) => m.conversationId === client.id);
+  const clientVisaApps = visaApplications.filter(
+    (v) => v.clientId === client.id || v.clientEmail.toLowerCase() === client.email.toLowerCase()
+  );
 
   // Calculate workflow stage index
   const currentStageIndex = stages.findIndex((s) => s.id === client.currentStageId);
@@ -121,7 +135,14 @@ export const ClientPortal: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 bg-slate-800/80 p-3 rounded-md border border-slate-700">
-            <div className="text-right">
+            <button
+              onClick={() => setShowVisaApplyModal(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-md text-xs transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Apply for Visa (190+ Countries)</span>
+            </button>
+            <div className="text-right pl-2 border-l border-slate-700">
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Outstanding Balance</div>
               <div className="text-xl font-bold text-emerald-400">
                 AED {client.outstandingAmount.toLocaleString()}
@@ -149,7 +170,18 @@ export const ClientPortal: React.FC = () => {
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>Application Tracker</span>
+            <span>Residency Tracker</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('visa_services')}
+            className={`px-3.5 py-2 rounded-md transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'visa_services'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>Worldwide Visas ({clientVisaApps.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('documents')}
@@ -346,6 +378,146 @@ export const ClientPortal: React.FC = () => {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Tab: Worldwide Visa Services */}
+      {activeTab === 'visa_services' && (
+        <div className="space-y-6">
+          {/* Header & Quick Action */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 rounded-2xl p-6 sm:p-7 text-white border border-slate-800 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-blue-400" />
+                <h2 className="text-lg font-bold tracking-tight text-white">
+                  Worldwide Travel & Visa Applications
+                </h2>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                Track your active visa applications for 190+ countries in real-time, view live milestone progress bars, and download issued entry permits.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowVisaApplyModal(true)}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-md shadow-blue-500/25 self-start sm:self-auto cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Apply for New Country Visa</span>
+            </button>
+          </div>
+
+          {/* Visa Applications Grid */}
+          {clientVisaApps.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center space-y-4">
+              <div className="w-14 h-14 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center mx-auto">
+                <Plane className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  No Active Worldwide Visa Applications
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                  You can apply for tourist, business, Schengen, UK, US, and worldwide visas directly from your portal.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowVisaApplyModal(true)}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20"
+              >
+                Start New Visa Application
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {clientVisaApps.map((app) => {
+                const latestMilestone = app.timeline[app.timeline.length - 1];
+                return (
+                  <div
+                    key={app.id}
+                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs hover:shadow-md transition-all space-y-4"
+                  >
+                    {/* Country & Visa title */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-3xl">{app.targetCountryFlag || '🌍'}</span>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                              {app.targetCountry}
+                            </h3>
+                            <span className="text-xs font-mono text-slate-400 font-semibold">
+                              #{app.applicationNumber}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium">
+                            {app.visaType} ({app.processingSpeed})
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                        {app.currentStageTitle || app.status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="space-y-1.5 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px]">
+                          Milestone Progress
+                        </span>
+                        <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                          {app.progressPercentage}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            app.status === 'issued' || app.status === 'approved'
+                              ? 'bg-emerald-500'
+                              : 'bg-blue-600'
+                          }`}
+                          style={{ width: `${Math.max(5, app.progressPercentage)}%` }}
+                        />
+                      </div>
+                      {latestMilestone?.description && (
+                        <p className="text-[11px] text-slate-500 pt-1 truncate">
+                          {latestMilestone.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Meta info */}
+                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Travel Date:</span>
+                        <span className="font-semibold">{app.travelDate || 'Flexible'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Paid Status:</span>
+                        <span className="font-semibold capitalize text-emerald-600 dark:text-emerald-400">
+                          {app.paymentStatus} (AED {app.totalAmount.toLocaleString()})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* View timeline button */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400">
+                        Officer: <strong className="text-slate-600 dark:text-slate-300">{app.assignedOfficerName || 'Immigration PRO'}</strong>
+                      </span>
+                      <button
+                        onClick={() => setSelectedVisaTimelineApp(app)}
+                        className="px-3.5 py-1.5 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 text-blue-600 dark:text-blue-300 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View Live Timeline</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -616,6 +788,26 @@ export const ClientPortal: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Worldwide Visa Application Modal */}
+      {showVisaApplyModal && (
+        <VisaApplicationModal
+          isOpen={showVisaApplyModal}
+          onClose={() => setShowVisaApplyModal(false)}
+          preSelectedClientId={client.id}
+        />
+      )}
+
+      {/* Visa Timeline & Dossier Modal */}
+      {selectedVisaTimelineApp && (
+        <VisaTimelineModal
+          isOpen={Boolean(selectedVisaTimelineApp)}
+          onClose={() => setSelectedVisaTimelineApp(null)}
+          application={
+            visaApplications.find((a) => a.id === selectedVisaTimelineApp.id) || selectedVisaTimelineApp
+          }
+        />
       )}
     </div>
   );

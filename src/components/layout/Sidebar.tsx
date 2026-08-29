@@ -21,6 +21,7 @@ import {
   Handshake,
   LogOut,
   Mail,
+  Globe,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 
@@ -43,6 +44,7 @@ export const Sidebar: React.FC = () => {
     messages,
     invoices,
     leads,
+    visaApplications,
     setSelectedClientId,
     crmBranding,
     logout,
@@ -55,6 +57,9 @@ export const Sidebar: React.FC = () => {
   const unpaidInvoicesCount = invoices.filter((i) => i.status === 'unpaid' || i.status === 'partially_paid').length;
   const urgentExpiriesCount = expiringDocuments.filter((e) => e.isUrgent).length;
   const newLeadsCount = leads.filter((l) => l.status === 'new').length;
+  const activeVisaCount = visaApplications.filter(
+    (v) => v.status !== 'issued' && v.status !== 'rejected'
+  ).length;
 
   const masterControlItems: SidebarNavItem[] = [
     {
@@ -103,6 +108,14 @@ export const Sidebar: React.FC = () => {
       label: 'Vendors & Partners',
       icon: Handshake,
       allowedRoles: ['master', 'admin', 'employee'],
+    },
+    {
+      id: 'visa',
+      label: 'Worldwide Visas',
+      icon: Globe,
+      badge: activeVisaCount > 0 ? activeVisaCount : undefined,
+      badgeColor: 'bg-indigo-600 text-white',
+      allowedRoles: ['master', 'admin', 'employee', 'client'],
     },
     {
       id: 'pipeline',

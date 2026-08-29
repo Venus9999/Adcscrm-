@@ -28,6 +28,7 @@ import { TransactionsManagement } from './components/transactions/TransactionsMa
 import { EmployeesManagement } from './components/employees/EmployeesManagement';
 import { UserProfileSettings } from './components/settings/UserProfileSettings';
 import { VendorsManagement } from './components/vendors/VendorsManagement';
+import { VisaServicesManager } from './components/visa/VisaServicesManager';
 import { LoginScreen } from './components/auth/LoginScreen';
 
 const AppContent: React.FC = () => {
@@ -89,6 +90,10 @@ const AppContent: React.FC = () => {
 
       case 'pipeline':
         return <WorkStagesPipeline onOpenClientDetail={(id) => setSelectedClientId(id)} />;
+
+      case 'visa':
+      case 'visas':
+        return <VisaServicesManager />;
 
       case 'services':
         return <ServicesCatalog />;

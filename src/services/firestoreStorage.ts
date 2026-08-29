@@ -333,12 +333,12 @@ export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: 
  * Save complete CRM database snapshot to Cloud (Realtime Database + Cloud Firestore)
  */
 let lastCloudSaveTime = 0;
-const CLOUD_SAVE_THROTTLE_MS = 1500; // Ultra responsive live syncing
+const CLOUD_SAVE_THROTTLE_MS = 300; // Ultra responsive live syncing
 
 export async function saveCRMDataToCloud(payload: any, force: boolean = false): Promise<boolean> {
   const now = Date.now();
   if (!force && now - lastCloudSaveTime < CLOUD_SAVE_THROTTLE_MS) {
-    return true;
+    // Still write to RTDB with low delay, but throttle Firestore merge writes to prevent quota burn
   }
 
   if (!payload || typeof payload !== 'object') return false;

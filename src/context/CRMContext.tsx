@@ -34,6 +34,10 @@ import {
   LeadSource,
   LeadStage,
   TaskDueReminder,
+  VisaApplication,
+  VisaApplicationStatus,
+  VisaTimelineEvent,
+  VisaUploadedDoc,
 } from '../types/crm';
 import {
   INITIAL_COMPANIES,
@@ -57,6 +61,7 @@ import {
   INITIAL_LEAD_CATEGORIES,
   INITIAL_LEAD_SOURCES,
   INITIAL_LEAD_STAGES,
+  INITIAL_VISA_APPLICATIONS,
 } from '../data/initialData';
 
 interface DuplicateCheckResult {
@@ -246,6 +251,36 @@ interface CRMContextType {
   exportCRMData: () => string;
   importCRMData: (jsonData: string) => boolean;
 
+  // Global Visa Services (Worldwide)
+  visaApplications: VisaApplication[];
+  filteredVisaApplications: VisaApplication[];
+  applyForVisaService: (
+    applicationData: Omit<VisaApplication, 'id' | 'applicationNumber' | 'submissionDate' | 'status' | 'progressPercentage' | 'currentStageTitle' | 'timeline' | 'createdAt' | 'updatedAt' | 'paidAmount' | 'paymentStatus'>,
+    options?: {
+      autoInvoice?: boolean;
+      initialPayment?: {
+        amount?: number;
+        method?: Invoice['paymentMethod'];
+        reference?: string;
+        notes?: string;
+      };
+    }
+  ) => { success: boolean; application?: VisaApplication; invoice?: Invoice; error?: string };
+  updateVisaApplication: (id: string, updates: Partial<VisaApplication>) => void;
+  updateVisaApplicationStatus: (
+    id: string,
+    status: VisaApplicationStatus,
+    remarks?: string,
+    actionRequired?: string,
+    location?: string,
+    officerName?: string,
+    issuedVisaUrl?: string,
+    issuedVisaNumber?: string
+  ) => void;
+  addVisaTimelineMilestone: (id: string, milestone: Omit<VisaTimelineEvent, 'id' | 'timestamp'>) => void;
+  uploadVisaDocument: (appId: string, doc: Omit<VisaUploadedDoc, 'id' | 'uploadedAt' | 'status'>) => void;
+  deleteVisaApplication: (id: string) => void;
+
   // Filtered views helpers
   filteredClients: Client[];
   filteredVendors: Vendor[];
@@ -286,6 +321,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [leadSources, setLeadSources] = useState<LeadSource[]>(INITIAL_LEAD_SOURCES);
   const [leadStages, setLeadStages] = useState<LeadStage[]>(INITIAL_LEAD_STAGES);
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
+  const [visaApplications, setVisaApplications] = useState<VisaApplication[]>(INITIAL_VISA_APPLICATIONS);
 
   // CRM Branding & Billing Settings (Admin & Master)
   const [crmBranding, setCrmBranding] = useState<CRMBranding>(DEFAULT_CRM_BRANDING);
@@ -400,6 +436,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTransactions(parsed.transactions);
     } else if (parsed.transactions) {
       setTransactions(INITIAL_TRANSACTIONS);
+    }
+    if (parsed.visaApplications && Array.isArray(parsed.visaApplications) && parsed.visaApplications.length > 0) {
+      setVisaApplications(parsed.visaApplications);
+    } else {
+      setVisaApplications(INITIAL_VISA_APPLICATIONS);
     }
     if (parsed.crmBranding) {
       setCrmBranding(parsed.crmBranding);
@@ -663,6 +704,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       leadSources,
       leadStages,
       transactions,
+      visaApplications,
       crmBranding,
       billingSettings,
       lastUpdated: nowIso,
@@ -748,6 +790,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     leadSources,
     leadStages,
     transactions,
+    visaApplications,
     crmBranding,
     billingSettings,
   ]);
@@ -3639,7 +3682,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
 
       hasUserEditedRef.current = true;
-      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
 
       setUsers((prev) => {
         const next = [...prev, newUser];
@@ -3648,8 +3692,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (saved) {
             const parsed = JSON.parse(saved);
             parsed.users = next;
-            parsed.lastUpdated = new Date().toISOString();
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+            // Immediately broadcast across tabs
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({
+                type: 'CRM_TAB_UPDATE',
+                snapshot: parsed,
+              });
+            }
+
+            // Immediately force persist to Cloud Realtime Database and Server API
+            saveCRMDataToCloud(parsed, true).catch(() => {});
+            fetch('/api/crm/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(parsed),
+            }).catch(() => {});
           }
         } catch {}
         return next;
@@ -3664,7 +3725,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateUser = useCallback(
     (id: string, updates: Partial<User>) => {
       hasUserEditedRef.current = true;
-      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
 
       setUsers((prev) => {
         const next = prev.map((u) => {
@@ -3694,8 +3756,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (saved) {
             const parsed = JSON.parse(saved);
             parsed.users = next;
-            parsed.lastUpdated = new Date().toISOString();
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+            // Immediately broadcast across tabs
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({
+                type: 'CRM_TAB_UPDATE',
+                snapshot: parsed,
+              });
+            }
+
+            // Immediately force persist to Cloud Realtime Database and Server API
+            saveCRMDataToCloud(parsed, true).catch(() => {});
+            fetch('/api/crm/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(parsed),
+            }).catch(() => {});
           }
         } catch {}
 
@@ -3709,8 +3788,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteCompany = useCallback(
     (id: string) => {
       hasUserEditedRef.current = true;
-      lastAppliedRemoteIsoRef.current = new Date().toISOString();
-      setCompanies((prev) => prev.filter((c) => c.id !== id));
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      setCompanies((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.companies = next;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            saveCRMDataToCloud(parsed, true).catch(() => {});
+          }
+        } catch {}
+        return next;
+      });
       recordAuditLog('Company Deleted', 'Companies', `Permanently deleted company / branch ID ${id}`);
     },
     [recordAuditLog]
@@ -4229,6 +4323,411 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  // ==========================================
+  // GLOBAL VISA SERVICES & WORKFLOW MANAGEMENT
+  // ==========================================
+
+  const applyForVisaService = useCallback(
+    (
+      applicationData: Omit<
+        VisaApplication,
+        | 'id'
+        | 'applicationNumber'
+        | 'submissionDate'
+        | 'status'
+        | 'progressPercentage'
+        | 'currentStageTitle'
+        | 'timeline'
+        | 'createdAt'
+        | 'updatedAt'
+        | 'paidAmount'
+        | 'paymentStatus'
+      >,
+      options?: {
+        autoInvoice?: boolean;
+        initialPayment?: {
+          amount?: number;
+          method?: Invoice['paymentMethod'];
+          reference?: string;
+          notes?: string;
+        };
+      }
+    ) => {
+      try {
+        hasUserEditedRef.current = true;
+        lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+        const timestamp = new Date().toISOString();
+        const year = new Date().getFullYear();
+        const countryCode = applicationData.targetCountryCode || 'GEN';
+        const randomDigits = Math.floor(1000 + Math.random() * 9000);
+        const appNumber = `VSA-${year}-${countryCode.toUpperCase()}-${randomDigits}`;
+        const appId = `vsa-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+        // Initial timeline events
+        const initialTimeline: VisaTimelineEvent[] = [
+          {
+            id: `vtl-${Date.now()}-1`,
+            title: 'Visa Application Filed Online',
+            description: `Application initiated for ${applicationData.targetCountry} (${applicationData.visaType}). Processing speed: ${applicationData.processingSpeed}.`,
+            stage: 'submitted',
+            timestamp,
+            updatedBy: currentUser.name || applicationData.clientName || 'Applicant',
+            status: 'completed',
+          },
+          {
+            id: `vtl-${Date.now()}-2`,
+            title: 'Document Dossier Verification & Intake',
+            description: `Application received by operations desk. Initial compliance check and biometrics schedule allocation in progress.`,
+            stage: 'documents_verification',
+            timestamp,
+            updatedBy: 'Operations Desk',
+            status: 'in_progress',
+            actionRequired: 'Assigned specialist reviewing uploaded dossier and embassy prerequisites.',
+          },
+        ];
+
+        const isAdvancePaid = Boolean(options?.initialPayment && (options.initialPayment.amount ?? 0) > 0);
+        const paidAmount = isAdvancePaid ? options!.initialPayment!.amount! : 0;
+        const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+          paidAmount >= applicationData.totalAmount
+            ? 'paid'
+            : paidAmount > 0
+            ? 'partially_paid'
+            : 'unpaid';
+
+        // Auto-generate invoice if requested
+        let generatedInvoice: Invoice | undefined;
+        if (options?.autoInvoice !== false) {
+          const invId = `inv-vsa-${Date.now()}`;
+          const invNumber = `INV-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+          generatedInvoice = {
+            id: invId,
+            invoiceNumber: invNumber,
+            clientId: applicationData.clientId,
+            clientName: applicationData.clientName,
+            clientEmail: applicationData.clientEmail,
+            clientPhone: applicationData.clientPhone || '+971 50 000 0000',
+            clientAddress: 'Dubai, United Arab Emirates',
+            clientPassport: applicationData.clientPassportNo,
+            companyId: applicationData.companyId || currentUser.companyId || 'comp-1',
+            companyName: 'ADCS Corporate Services LLC',
+            serviceName: `${applicationData.targetCountry} ${applicationData.visaType} (${applicationData.processingSpeed})`,
+            subtotal: applicationData.serviceFee,
+            vatRate: 5,
+            vatAmount: applicationData.vatAmount,
+            governmentFees: applicationData.governmentFee,
+            grandTotal: applicationData.totalAmount,
+            amountPaid: paidAmount,
+            balanceAmount: applicationData.totalAmount - paidAmount,
+            status: paymentStatus,
+            issueDate: timestamp.split('T')[0],
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            paymentMethod: 'Online Gateway',
+            transactionRef: options?.initialPayment?.reference || `VSA-PAY-${randomDigits}`,
+            notes: options?.initialPayment?.notes || `Visa processing payment for ${appNumber}`,
+            items: [
+              {
+                id: `item-gov-${Date.now()}`,
+                description: `${applicationData.targetCountry} Official Consular & Government Fee`,
+                quantity: 1,
+                unitPrice: applicationData.governmentFee,
+                total: applicationData.governmentFee,
+                isGovernmentFee: true,
+              },
+              {
+                id: `item-srv-${Date.now()}`,
+                description: `PRO Dossier Processing & Submission Service (${applicationData.processingSpeed})`,
+                quantity: 1,
+                unitPrice: applicationData.serviceFee,
+                total: applicationData.serviceFee,
+                isGovernmentFee: false,
+              },
+            ],
+            issuedByUserId: currentUser.id,
+            issuedByUserName: currentUser.name,
+            createdAt: timestamp,
+          };
+          setInvoices((prev) => [generatedInvoice!, ...prev]);
+
+          if (isAdvancePaid) {
+            const tx: Transaction = {
+              id: `tx-vsa-${Date.now()}`,
+              transactionNumber: `TXN-${year}-${Math.floor(10000 + Math.random() * 90000)}`,
+              clientId: applicationData.clientId,
+              clientName: applicationData.clientName,
+              companyId: applicationData.companyId || 'comp-1',
+              companyName: 'ADCS Corporate Services LLC',
+              type: 'service_fee',
+              category: 'Visa Application Fee',
+              amount: paidAmount,
+              paymentMethod: 'Online Gateway',
+              referenceNumber: options?.initialPayment?.reference || `VSA-PAY-${randomDigits}`,
+              invoiceId: invId,
+              date: timestamp.split('T')[0],
+              status: 'completed',
+              notes: `Initial payment received for ${applicationData.targetCountry} Visa (${appNumber})`,
+              recordedByUserId: currentUser.id,
+              recordedByUserName: currentUser.name,
+              createdAt: timestamp,
+            };
+            setTransactions((prev) => [tx, ...prev]);
+          }
+        }
+
+        const newApplication: VisaApplication = {
+          ...applicationData,
+          id: appId,
+          applicationNumber: appNumber,
+          submissionDate: timestamp,
+          status: 'documents_verification',
+          progressPercentage: 25,
+          currentStageTitle: 'Document Dossier Verification & Intake',
+          timeline: initialTimeline,
+          paidAmount,
+          paymentStatus,
+          invoiceId: generatedInvoice?.id,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+
+        setVisaApplications((prev) => [newApplication, ...prev]);
+
+        // Notifications
+        const clientNotif: NotificationItem = {
+          id: `notif-vsa-cli-${Date.now()}`,
+          userId: applicationData.clientId,
+          title: `Visa Application Submitted: ${applicationData.targetCountryFlag || ''} ${applicationData.targetCountry}`,
+          message: `Application #${appNumber} for ${applicationData.visaType} has been successfully registered. You can track real-time milestones and status on your portal.`,
+          type: 'visa_application',
+          read: false,
+          timestamp,
+        };
+
+        const adminNotif: NotificationItem = {
+          id: `notif-vsa-adm-${Date.now()}`,
+          userId: 'all_admins',
+          title: `New Visa Application: ${applicationData.clientName} (${applicationData.targetCountry})`,
+          message: `Application #${appNumber} filed. Speed: ${applicationData.processingSpeed}. Total Fee: AED ${applicationData.totalAmount.toLocaleString()}.`,
+          type: 'visa_application',
+          read: false,
+          timestamp,
+        };
+
+        setNotifications((prev) => [clientNotif, adminNotif, ...prev]);
+
+        recordAuditLog(
+          'Visa Application Filed',
+          'Services',
+          `New visa application #${appNumber} filed for client "${applicationData.clientName}" (${applicationData.targetCountry} - ${applicationData.visaType}). Fee: AED ${applicationData.totalAmount}`
+        );
+
+        try {
+          confetti({
+            particleCount: 80,
+            spread: 70,
+            origin: { y: 0.6 },
+          });
+        } catch {}
+
+        return {
+          success: true,
+          application: newApplication,
+          invoice: generatedInvoice,
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          error: err?.message || 'Failed to submit visa application',
+        };
+      }
+    },
+    [currentUser, recordAuditLog]
+  );
+
+  const updateVisaApplication = useCallback(
+    (id: string, updates: Partial<VisaApplication>) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      setVisaApplications((prev) =>
+        prev.map((app) => (app.id === id ? { ...app, ...updates, updatedAt: new Date().toISOString() } : app))
+      );
+    },
+    []
+  );
+
+  const updateVisaApplicationStatus = useCallback(
+    (
+      id: string,
+      status: VisaApplicationStatus,
+      remarks?: string,
+      actionRequired?: string,
+      location?: string,
+      officerName?: string,
+      issuedVisaUrl?: string,
+      issuedVisaNumber?: string
+    ) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const timestamp = new Date().toISOString();
+
+      const stageInfo: Record<VisaApplicationStatus, { title: string; progress: number; defaultDesc: string }> = {
+        submitted: { title: 'Application Submitted', progress: 15, defaultDesc: 'Application formally registered.' },
+        documents_verification: { title: 'Document Verification & Intake', progress: 35, defaultDesc: 'Dossier documents verified for compliance.' },
+        payment_completed: { title: 'Government & Service Fees Paid', progress: 50, defaultDesc: 'All application and consular fees cleared.' },
+        biometrics_appointment: { title: 'Biometrics & Consulate Appointment', progress: 65, defaultDesc: 'Biometrics capture and physical file intake.' },
+        embassy_processing: { title: 'Consulate / Embassy Active Processing', progress: 80, defaultDesc: 'Consular officer security clearance and background verification.' },
+        approved: { title: 'Visa Application Approved', progress: 95, defaultDesc: 'Official approval granted by foreign mission authorities.' },
+        issued: { title: 'Visa Officially Issued & Delivered', progress: 100, defaultDesc: 'Official visa / electronic entry permit generated.' },
+        rejected: { title: 'Application Refused / Returned', progress: 100, defaultDesc: 'Consular decision returned as refused.' },
+        on_hold: { title: 'Application On Hold / Additional Info Required', progress: 50, defaultDesc: 'Additional documentation or clarification requested.' },
+      };
+
+      const info = stageInfo[status] || { title: status, progress: 50, defaultDesc: remarks || '' };
+
+      setVisaApplications((prev) =>
+        prev.map((app) => {
+          if (app.id !== id) return app;
+
+          const updatedTimeline = [
+            ...app.timeline.map((event) => (event.status === 'in_progress' ? { ...event, status: 'completed' as const } : event)),
+            {
+              id: `vtl-${Date.now()}`,
+              title: info.title,
+              description: remarks || info.defaultDesc,
+              stage: status,
+              timestamp,
+              updatedBy: officerName || currentUser.name || 'Immigration Desk',
+              status: (status === 'issued' || status === 'approved' || status === 'rejected' ? 'completed' : 'in_progress') as any,
+              actionRequired,
+              location,
+              referenceCode: issuedVisaNumber || app.governmentReferenceNo,
+            },
+          ];
+
+          return {
+            ...app,
+            status,
+            progressPercentage: info.progress,
+            currentStageTitle: info.title,
+            timeline: updatedTimeline,
+            issuedVisaUrl: issuedVisaUrl || app.issuedVisaUrl,
+            issuedVisaNumber: issuedVisaNumber || app.issuedVisaNumber,
+            issuedAt: status === 'issued' ? timestamp : app.issuedAt,
+            approvalDate: status === 'approved' || status === 'issued' ? timestamp : app.approvalDate,
+            rejectionReason: status === 'rejected' ? remarks : app.rejectionReason,
+            updatedAt: timestamp,
+          };
+        })
+      );
+
+      // Create instant push notifications for client and staff
+      const targetApp = visaApplications.find((a) => a.id === id);
+      if (targetApp) {
+        const notif: NotificationItem = {
+          id: `notif-vsa-upd-${Date.now()}`,
+          userId: targetApp.clientId,
+          title: `Visa Status Update: ${targetApp.targetCountryFlag || ''} ${targetApp.targetCountry} (#${targetApp.applicationNumber})`,
+          message: `Stage updated to: "${info.title}". ${remarks ? remarks : ''}`,
+          type: 'visa_status_update',
+          read: false,
+          timestamp,
+        };
+        setNotifications((prev) => [notif, ...prev]);
+
+        recordAuditLog(
+          'Visa Status Updated',
+          'Services',
+          `Visa application #${targetApp.applicationNumber} status changed to "${info.title}" by ${currentUser.name}`
+        );
+
+        if (status === 'issued' || status === 'approved') {
+          try {
+            confetti({
+              particleCount: 100,
+              spread: 80,
+              origin: { y: 0.5 },
+            });
+          } catch {}
+        }
+      }
+    },
+    [currentUser, visaApplications, recordAuditLog]
+  );
+
+  const addVisaTimelineMilestone = useCallback(
+    (id: string, milestone: Omit<VisaTimelineEvent, 'id' | 'timestamp'>) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const timestamp = new Date().toISOString();
+
+      const newEvent: VisaTimelineEvent = {
+        ...milestone,
+        id: `vtl-custom-${Date.now()}`,
+        timestamp,
+      };
+
+      setVisaApplications((prev) =>
+        prev.map((app) => {
+          if (app.id !== id) return app;
+          return {
+            ...app,
+            timeline: [...app.timeline, newEvent],
+            updatedAt: timestamp,
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const uploadVisaDocument = useCallback(
+    (appId: string, doc: Omit<VisaUploadedDoc, 'id' | 'uploadedAt' | 'status'>) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const timestamp = new Date().toISOString();
+
+      const newDoc: VisaUploadedDoc = {
+        ...doc,
+        id: `vdoc-${Date.now()}`,
+        uploadedAt: timestamp,
+        status: 'verified',
+      };
+
+      setVisaApplications((prev) =>
+        prev.map((app) => {
+          if (app.id !== appId) return app;
+          return {
+            ...app,
+            uploadedDocuments: [...(app.uploadedDocuments || []), newDoc],
+            updatedAt: timestamp,
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const deleteVisaApplication = useCallback(
+    (id: string) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      const target = visaApplications.find((a) => a.id === id);
+      setVisaApplications((prev) => prev.filter((a) => a.id !== id));
+
+      if (target) {
+        recordAuditLog(
+          'Visa Application Deleted',
+          'Services',
+          `Deleted visa application #${target.applicationNumber} for ${target.clientName}`
+        );
+      }
+    },
+    [visaApplications, recordAuditLog]
+  );
+
   // Computed Filtered Views (Dynamic Staff/Employee Filtering and Branch Awareness)
   const isEmployeeRole = currentUser.role === 'employee';
 
@@ -4499,6 +4998,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return reminders.sort((a, b) => a.daysLeft - b.daysLeft);
   }, [filteredTasks]);
 
+  const filteredVisaApplications = React.useMemo(() => {
+    return visaApplications.filter((vsa) => {
+      if (selectedCompanyId !== 'all' && vsa.companyId && vsa.companyId !== selectedCompanyId) return false;
+
+      if (selectedEmployeeId !== 'all') {
+        return vsa.assignedOfficerId === selectedEmployeeId;
+      }
+
+      if (isEmployeeRole) {
+        const isAssigned = vsa.assignedOfficerId === currentUser.id;
+        const isSameBranch = currentUser.companyId ? vsa.companyId === currentUser.companyId : false;
+        return isAssigned || isSameBranch || true;
+      }
+
+      return true;
+    });
+  }, [visaApplications, selectedCompanyId, selectedEmployeeId, isEmployeeRole, currentUser]);
+
   return (
     <CRMContext.Provider
       value={{
@@ -4549,6 +5066,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         leadSources,
         leadStages,
         transactions,
+        visaApplications,
 
         addRole,
         updateRole,
@@ -4615,6 +5133,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateLeadStage,
         deleteLeadStage,
 
+        // Global Visa Services
+        applyForVisaService,
+        updateVisaApplication,
+        updateVisaApplicationStatus,
+        addVisaTimelineMilestone,
+        uploadVisaDocument,
+        deleteVisaApplication,
+
         sendMessage,
         markMessagesAsRead,
 
@@ -4653,6 +5179,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         filteredDocuments,
         filteredLeads,
         filteredTransactions,
+        filteredVisaApplications,
         expiringDocuments,
         taskDueReminders,
       }}
