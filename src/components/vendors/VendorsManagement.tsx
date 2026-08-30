@@ -42,6 +42,7 @@ export const VendorsManagement: React.FC = () => {
     filteredVendors,
     companies,
     clients,
+    users,
     addVendor,
     updateVendor,
     deleteVendor,
@@ -78,7 +79,10 @@ export const VendorsManagement: React.FC = () => {
     accountNumber: '',
     commissionRate: 5,
     notes: '',
+    assignedEmployeeIds: [] as string[],
   });
+
+  const employeeUsers = (users || []).filter((u) => u.role === 'employee' || u.role === 'admin');
 
   const handleOpenAddModal = () => {
     setEditingVendor(null);
@@ -98,6 +102,7 @@ export const VendorsManagement: React.FC = () => {
       accountNumber: '',
       commissionRate: 5,
       notes: '',
+      assignedEmployeeIds: [],
     });
     setShowAddModal(true);
   };
@@ -105,6 +110,7 @@ export const VendorsManagement: React.FC = () => {
   const handleOpenEditModal = (vendor: Vendor, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setEditingVendor(vendor);
+    const existingEmpIds = vendor.assignedEmployeeIds || (vendor.assignedEmployeeId ? [vendor.assignedEmployeeId] : []);
     setFormData({
       name: vendor.name,
       category: vendor.category,
@@ -121,6 +127,7 @@ export const VendorsManagement: React.FC = () => {
       accountNumber: vendor.accountNumber || '',
       commissionRate: vendor.commissionRate || 0,
       notes: vendor.notes || '',
+      assignedEmployeeIds: existingEmpIds,
     });
     setShowAddModal(true);
   };
@@ -133,6 +140,8 @@ export const VendorsManagement: React.FC = () => {
     }
 
     const company = companies.find((c) => c.id === formData.companyId);
+    const assignedEmps = employeeUsers.filter((u) => formData.assignedEmployeeIds.includes(u.id));
+    const assignedEmployeeNames = assignedEmps.map((u) => u.name);
 
     if (editingVendor) {
       updateVendor(editingVendor.id, {
@@ -152,12 +161,20 @@ export const VendorsManagement: React.FC = () => {
         accountNumber: formData.accountNumber.trim(),
         commissionRate: Number(formData.commissionRate),
         notes: formData.notes.trim(),
+        assignedEmployeeIds: formData.assignedEmployeeIds,
+        assignedEmployeeNames: assignedEmployeeNames,
+        assignedEmployeeId: formData.assignedEmployeeIds[0] || undefined,
+        assignedEmployeeName: assignedEmployeeNames[0] || undefined,
       });
       if (viewingVendor?.id === editingVendor.id) {
         setViewingVendor({
           ...editingVendor,
           ...formData,
           companyName: company?.name || 'ADCS Master Group',
+          assignedEmployeeIds: formData.assignedEmployeeIds,
+          assignedEmployeeNames: assignedEmployeeNames,
+          assignedEmployeeId: formData.assignedEmployeeIds[0] || undefined,
+          assignedEmployeeName: assignedEmployeeNames[0] || undefined,
         });
       }
     } else {
@@ -178,6 +195,10 @@ export const VendorsManagement: React.FC = () => {
         accountNumber: formData.accountNumber.trim(),
         commissionRate: Number(formData.commissionRate),
         notes: formData.notes.trim(),
+        assignedEmployeeIds: formData.assignedEmployeeIds,
+        assignedEmployeeNames: assignedEmployeeNames,
+        assignedEmployeeId: formData.assignedEmployeeIds[0] || undefined,
+        assignedEmployeeName: assignedEmployeeNames[0] || undefined,
       });
     }
 
@@ -382,6 +403,21 @@ export const VendorsManagement: React.FC = () => {
                     <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span className="truncate">Branch: {vendor.companyName}</span>
                   </div>
+
+                  {/* Assigned Staff tags */}
+                  {vendor.assignedEmployeeNames && vendor.assignedEmployeeNames.length > 0 && (
+                    <div className="pt-1 flex flex-wrap items-center gap-1">
+                      <span className="text-[10px] text-slate-400 font-semibold">Assigned Staff:</span>
+                      {vendor.assignedEmployeeNames.map((name, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                        >
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -401,8 +437,14 @@ export const VendorsManagement: React.FC = () => {
       {displayVendors.length === 0 && (
         <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
           <Handshake className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">No Vendors Found</h3>
-          <p className="text-xs text-slate-500 mt-1">Register external partners, typing centers, and agencies.</p>
+          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+            {currentUser.role === 'employee' ? 'No Assigned Vendors' : 'No Vendors Found'}
+          </h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            {currentUser.role === 'employee'
+              ? 'You do not have any vendors assigned to your account. Vendor access is assigned by your Master or Admin administrator.'
+              : 'Register external partners, typing centers, and subcontractor agencies.'}
+          </p>
         </div>
       )}
 
@@ -723,6 +765,61 @@ export const VendorsManagement: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Employee Assignment (Visible to Master & Admin) */}
+              {canManage && (
+                <div className="p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-blue-900 dark:text-blue-300">
+                      Assigned Employee Access
+                    </label>
+                    <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                      {formData.assignedEmployeeIds.length} selected
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Select the specific employees authorized to view and interact with this vendor profile.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-36 overflow-y-auto">
+                    {employeeUsers.map((emp) => {
+                      const isChecked = formData.assignedEmployeeIds.includes(emp.id);
+                      return (
+                        <label
+                          key={emp.id}
+                          className={`flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-blue-600 text-white border-blue-600 font-semibold shadow-xs'
+                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={isChecked}
+                            onChange={() => {
+                              setFormData((prev) => {
+                                const exists = prev.assignedEmployeeIds.includes(emp.id);
+                                return {
+                                  ...prev,
+                                  assignedEmployeeIds: exists
+                                    ? prev.assignedEmployeeIds.filter((id) => id !== emp.id)
+                                    : [...prev.assignedEmployeeIds, emp.id],
+                                };
+                              });
+                            }}
+                          />
+                          <div className={`w-4 h-4 rounded flex items-center justify-center text-[10px] border ${
+                            isChecked ? 'bg-white text-blue-600 border-white font-bold' : 'border-slate-300 dark:border-slate-700'
+                          }`}>
+                            {isChecked && '✓'}
+                          </div>
+                          <span className="truncate">{emp.name} ({emp.role})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Internal Notes & Special Agreement</label>

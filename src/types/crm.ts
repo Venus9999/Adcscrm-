@@ -168,6 +168,7 @@ export interface User {
   signature?: string;
   signatureUrl?: string;
   notificationsConfig?: UserNotificationsConfig;
+  assignedVendorIds?: string[];
   createdAt: string;
   lastLogin?: string;
 }
@@ -188,6 +189,10 @@ export interface Vendor {
   tradeLicenseExpiry?: string;
   companyId?: string; // which company/branch or undefined for global
   companyName?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeIds?: string[];
+  assignedEmployeeName?: string;
+  assignedEmployeeNames?: string[];
   status: 'active' | 'suspended' | 'inactive';
   bankName?: string;
   iban?: string;

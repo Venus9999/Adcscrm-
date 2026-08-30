@@ -315,6 +315,8 @@ export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: 
           leadCategories: settingsData.leadCategories || [],
           leadSources: settingsData.leadSources || [],
           leadStages: settingsData.leadStages || [],
+          visaApplications: settingsData.visaApplications || [],
+          visaCountryCatalog: settingsData.visaCountryCatalog || [],
           crmBranding: settingsData.crmBranding,
           billingSettings: settingsData.billingSettings,
         };

@@ -43,6 +43,8 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
     currentUser,
   } = useCRM();
 
+  const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
+
   const [activeView, setActiveView] = useState<'board' | 'matrix'>('board');
   const [selectedServiceFilter, setSelectedServiceFilter] = useState('all');
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all');
@@ -98,6 +100,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
   };
 
   const handleOpenAddStage = () => {
+    if (!isAdminOrMaster) return;
     setStageName('');
     setStageStepNumber(stages.length + 1);
     setStageCategory('processing');
@@ -109,6 +112,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
   };
 
   const handleOpenEditStage = (st: WorkStage) => {
+    if (!isAdminOrMaster) return;
     setSelectedStage(st);
     setStageName(st.name);
     setStageStepNumber(st.stepNumber);
@@ -121,6 +125,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
   };
 
   const handleOpenDeleteStage = (st: WorkStage) => {
+    if (!isAdminOrMaster) return;
     setSelectedStage(st);
     setShowDeleteStageModal(true);
   };
@@ -226,31 +231,33 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
 
         {/* Action Controls & Filters */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* View switcher */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-            <button
-              onClick={() => setActiveView('board')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeView === 'board'
-                  ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Pipeline Board
-            </button>
-            <button
-              onClick={() => setActiveView('matrix')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeView === 'matrix'
-                  ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Stage Configuration ({stages.length})
-            </button>
-          </div>
+          {/* View switcher - Stage Configuration is only accessible to Admin & Master */}
+          {isAdminOrMaster ? (
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+              <button
+                onClick={() => setActiveView('board')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeView === 'board'
+                    ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Pipeline Board
+              </button>
+              <button
+                onClick={() => setActiveView('matrix')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeView === 'matrix'
+                    ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Stage Configuration ({stages.length})
+              </button>
+            </div>
+          ) : null}
 
-          {currentUser.role !== 'client' && (
+          {isAdminOrMaster && (
             <button
               onClick={handleOpenAddStage}
               className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-colors"
@@ -442,7 +449,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
                         {stageClients.length}
                       </span>
 
-                      {currentUser.role !== 'client' && (
+                      {isAdminOrMaster && (
                         <div className="flex items-center">
                           <button
                             onClick={() => handleOpenEditStage(stage)}
