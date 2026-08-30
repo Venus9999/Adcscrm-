@@ -328,7 +328,7 @@ export const LoginScreen: React.FC = () => {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="user@adcs.ae"
+                        placeholder="name@company.com"
                         className="w-full pl-10 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
                       />
                     </div>
@@ -645,7 +645,7 @@ export const LoginScreen: React.FC = () => {
                     required
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    placeholder="e.g. master@adcs.ae or your corporate email"
+                    placeholder="e.g. your registered corporate email"
                     className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
                   />
                 </div>
