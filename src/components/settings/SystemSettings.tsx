@@ -98,13 +98,19 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
   const isMaster = currentUser.role === 'master';
   const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync'>(
+    (initialTab === 'lead_config' || initialTab === 'departments') && !isAdminOrMaster ? 'branding' : initialTab
+  );
 
   React.useEffect(() => {
     if (initialTab) {
-      setActiveTab(initialTab);
+      if ((initialTab === 'lead_config' || initialTab === 'departments') && !isAdminOrMaster) {
+        setActiveTab('branding');
+      } else {
+        setActiveTab(initialTab);
+      }
     }
-  }, [initialTab]);
+  }, [initialTab, isAdminOrMaster]);
   
   // Billing Settings Form State
   const [billingForm, setBillingForm] = useState<InvoiceBillingSettings>(billingSettings);
@@ -487,31 +493,33 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
           {!isAdminOrMaster && <Lock className="w-3 h-3 text-slate-400" />}
         </button>
 
-        <button
-          onClick={() => setActiveTab('departments')}
-          className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'departments'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Building2 className="w-3.5 h-3.5" />
-          <span>Departments ({(departments || []).length})</span>
-          {!isAdminOrMaster && <Lock className="w-3 h-3 text-slate-400" />}
-        </button>
+        {isAdminOrMaster && (
+          <button
+            onClick={() => setActiveTab('departments')}
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === 'departments'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Departments ({(departments || []).length})</span>
+          </button>
+        )}
 
-        <button
-          onClick={() => setActiveTab('lead_config')}
-          className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'lead_config'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Tag className="w-3.5 h-3.5" />
-          <span>Lead Categories & Channels ({leadCategories?.length || 0})</span>
-          {!isAdminOrMaster && <Lock className="w-3 h-3 text-slate-400" />}
-        </button>
+        {isAdminOrMaster && (
+          <button
+            onClick={() => setActiveTab('lead_config')}
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === 'lead_config'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>Lead Categories & Channels ({leadCategories?.length || 0})</span>
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('branding')}
@@ -832,7 +840,89 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
               </div>
             </div>
 
-            {/* Section 3: Authorized Signatory & Official Company Stamp */}
+            {/* Section 3: Nomod Online Payment Gateway & Checkout Configuration */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  <span>Nomod Online Payment Gateway & Instant Checkout</span>
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
+                    Direct API Active
+                  </span>
+                  <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                    Live Mode
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-500">
+                Configure your Nomod Live API credentials to accept instant credit/debit card payments, Apple Pay, Google Pay, and UAE local debit cards with automated receipt creation.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Nomod Secret Live API Key (Bearer Token) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      disabled={!isAdminOrMaster}
+                      value={billingForm.nomodApiKey || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY'}
+                      onChange={(e) => setBillingForm({ ...billingForm, nomodApiKey: e.target.value })}
+                      placeholder="sk_live_..."
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-slate-100 disabled:opacity-60"
+                    />
+                    <div className="absolute right-2.5 top-2.5 flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                        Configured
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Used securely server-side to generate instant payment links and verify authorizations.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Default Settlement Currency
+                  </label>
+                  <select
+                    disabled={!isAdminOrMaster}
+                    value={billingForm.nomodCurrencyDefault || 'AED'}
+                    onChange={(e) => setBillingForm({ ...billingForm, nomodCurrencyDefault: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-bold disabled:opacity-60"
+                  >
+                    <option value="AED">AED - United Arab Emirates Dirham</option>
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="SAR">SAR - Saudi Riyal</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="GBP">GBP - British Pound</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Checkout Feature Status
+                  </label>
+                  <div className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold">Enable Instant Checkout</span>
+                    <input
+                      type="checkbox"
+                      disabled={!isAdminOrMaster}
+                      checked={billingForm.nomodEnabled ?? true}
+                      onChange={(e) => setBillingForm({ ...billingForm, nomodEnabled: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 rounded-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Authorized Signatory & Official Company Stamp */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-xs">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">

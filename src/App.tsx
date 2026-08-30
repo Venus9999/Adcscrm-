@@ -139,11 +139,17 @@ const AppContent: React.FC = () => {
 
       case 'departments':
       case 'department':
+        if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+          return <MasterDashboard />;
+        }
         return <DepartmentSettings />;
 
       case 'categories':
       case 'lead_config':
       case 'lead-categories':
+        if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+          return <MasterDashboard />;
+        }
         return <SystemSettings initialTab="lead_config" />;
 
       case 'billing':

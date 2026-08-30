@@ -101,13 +101,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       id: 'departments',
       label: 'Departments & Units',
       icon: Layers,
-      allowedRoles: ['master', 'admin', 'employee'],
+      allowedRoles: ['master', 'admin'],
     },
     {
       id: 'categories',
       label: 'Categories & Lead Config',
       icon: Tag,
-      allowedRoles: ['master', 'admin', 'employee'],
+      allowedRoles: ['master', 'admin'],
     },
     {
       id: 'users',

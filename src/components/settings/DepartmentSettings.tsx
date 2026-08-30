@@ -33,9 +33,7 @@ export const DepartmentSettings: React.FC = () => {
 
   const canManage =
     currentUser.role === 'master' ||
-    currentUser.role === 'admin' ||
-    currentUser.role === 'employee' ||
-    Boolean(currentUser.permissions?.canManageSystemSettings);
+    currentUser.role === 'admin';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState('all');

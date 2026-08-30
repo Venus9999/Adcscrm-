@@ -30,6 +30,7 @@ import { useCRM } from '../../context/CRMContext';
 import { Invoice, InvoiceLineItem, Transaction, TransactionType, PaymentMethodType } from '../../types/crm';
 import { InvoicePrintModal } from './InvoicePrintModal';
 import { BillingSettingsModal } from './BillingSettingsModal';
+import { NomodCheckoutModal } from '../payment/NomodCheckoutModal';
 
 export const InvoicesPayments: React.FC = () => {
   const {
@@ -67,6 +68,8 @@ export const InvoicesPayments: React.FC = () => {
   const [showTxReceiptModal, setShowTxReceiptModal] = useState(false);
   const [showEditTxModal, setShowEditTxModal] = useState(false);
   const [showBillingModal, setShowBillingModal] = useState(false);
+  const [showNomodModal, setShowNomodModal] = useState(false);
+  const [nomodCheckoutInvoice, setNomodCheckoutInvoice] = useState<Invoice | null>(null);
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null);
   const [activeTx, setActiveTx] = useState<Transaction | null>(null);
@@ -642,6 +645,21 @@ export const InvoicesPayments: React.FC = () => {
                               title="Edit Invoice Details & Line Items"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Nomod Instant Checkout Button */}
+                          {inv.balanceAmount > 0 && (
+                            <button
+                              onClick={() => {
+                                setNomodCheckoutInvoice(inv);
+                                setShowNomodModal(true);
+                              }}
+                              className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                              title="Checkout with Nomod (Cards, Apple Pay, Google Pay, UAE Jaywan Debit)"
+                            >
+                              <CreditCard className="w-3 h-3" />
+                              <span>Pay via Nomod</span>
                             </button>
                           )}
 
@@ -1848,6 +1866,36 @@ export const InvoicesPayments: React.FC = () => {
         <BillingSettingsModal
           isOpen={showBillingModal}
           onClose={() => setShowBillingModal(false)}
+        />
+      )}
+
+      {/* Nomod Instant Checkout Modal */}
+      {showNomodModal && nomodCheckoutInvoice && (
+        <NomodCheckoutModal
+          isOpen={showNomodModal}
+          onClose={() => {
+            setShowNomodModal(false);
+            setNomodCheckoutInvoice(null);
+          }}
+          amount={nomodCheckoutInvoice.balanceAmount}
+          currency={billingSettings?.currency || 'AED'}
+          serviceTitle={nomodCheckoutInvoice.serviceName}
+          applicationNumber={nomodCheckoutInvoice.invoiceNumber}
+          customerName={nomodCheckoutInvoice.clientName}
+          customerEmail={nomodCheckoutInvoice.clientEmail}
+          customerPhone={nomodCheckoutInvoice.clientPhone}
+          onPaymentSuccess={(result) => {
+            // Record payment on invoice
+            recordPayment(
+              nomodCheckoutInvoice.id,
+              result.amount,
+              'Credit Card',
+              result.reference,
+              `Nomod Live Gateway Settlement: Auth ${result.authCode || 'N/A'}, Card: ${result.cardBrand || 'Card'} ending ${result.last4 || '****'}`
+            );
+            setShowNomodModal(false);
+            setNomodCheckoutInvoice(null);
+          }}
         />
       )}
     </div>

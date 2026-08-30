@@ -23,7 +23,7 @@ interface BillingSettingsModalProps {
 
 export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOpen, onClose }) => {
   const { billingSettings, updateBillingSettings, resetBillingSettingsToDefault } = useCRM();
-  const [activeTab, setActiveTab] = useState<'company' | 'bank' | 'signatory' | 'policy'>('company');
+  const [activeTab, setActiveTab] = useState<'company' | 'bank' | 'nomod' | 'signatory' | 'policy'>('company');
   const [formData, setFormData] = useState<InvoiceBillingSettings>({ ...billingSettings });
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -207,6 +207,18 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
           >
             <CreditCard className="w-3.5 h-3.5" />
             <span>Bank Settlement</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('nomod')}
+            className={`px-3 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'nomod'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Nomod Checkout API</span>
           </button>
 
           <button
@@ -472,6 +484,69 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   placeholder="AE44 0260 0001 2345 6789 012"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-900 dark:text-white"
                 />
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Nomod Online Payment Gateway */}
+          {activeTab === 'nomod' && (
+            <div className="space-y-4">
+              <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block text-blue-950 dark:text-blue-100 font-bold">Nomod Live Gateway Active</strong>
+                  Accept instant direct card payments (Visa, Mastercard, Apple Pay, Google Pay, UAE Jaywan Debit) with automated invoice settlement.
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Nomod Live Secret API Key (Bearer Token) *
+                </label>
+                <input
+                  type="password"
+                  value={formData.nomodApiKey || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY'}
+                  onChange={(e) => setFormData({ ...formData, nomodApiKey: e.target.value })}
+                  placeholder="sk_live_..."
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-semibold"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Used by server-side endpoints to initiate live checkout links and verify settlements.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Settlement Currency
+                  </label>
+                  <select
+                    value={formData.nomodCurrencyDefault || 'AED'}
+                    onChange={(e) => setFormData({ ...formData, nomodCurrencyDefault: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-bold"
+                  >
+                    <option value="AED">AED (UAE Dirham)</option>
+                    <option value="USD">USD (US Dollar)</option>
+                    <option value="SAR">SAR (Saudi Riyal)</option>
+                    <option value="EUR">EUR (Euro)</option>
+                    <option value="GBP">GBP (British Pound)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Gateway Status
+                  </label>
+                  <div className="p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <span className="text-xs font-semibold">Enable Live Checkout</span>
+                    <input
+                      type="checkbox"
+                      checked={formData.nomodEnabled ?? true}
+                      onChange={(e) => setFormData({ ...formData, nomodEnabled: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 rounded-sm"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}

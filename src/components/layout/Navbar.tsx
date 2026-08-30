@@ -485,27 +485,31 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
 
-                  <button
-                    onClick={() => {
-                      setActiveTab('departments');
-                      setShowQuickAddDropdown(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                  >
-                    <Layers className="w-4 h-4 text-purple-600" />
-                    <span>Manage Departments & Units</span>
-                  </button>
+                  {(currentUser.role === 'master' || currentUser.role === 'admin') && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setActiveTab('departments');
+                          setShowQuickAddDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <Layers className="w-4 h-4 text-purple-600" />
+                        <span>Manage Departments & Units</span>
+                      </button>
 
-                  <button
-                    onClick={() => {
-                      setActiveTab('categories');
-                      setShowQuickAddDropdown(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                  >
-                    <Tag className="w-4 h-4 text-rose-600" />
-                    <span>Lead Categories & Channels</span>
-                  </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('categories');
+                          setShowQuickAddDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <Tag className="w-4 h-4 text-rose-600" />
+                        <span>Lead Categories & Channels</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

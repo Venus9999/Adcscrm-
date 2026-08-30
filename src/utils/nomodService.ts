@@ -89,21 +89,24 @@ export async function verifyNomodPayment(
   paymentId: string,
   reference: string,
   amount: number,
-  customerName: string
+  customerName: string,
+  apiKey?: string
 ): Promise<NomodPaymentResult> {
   try {
     const res = await fetch('/api/nomod/verify-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentId, reference, amount, customerName }),
+      body: JSON.stringify({ paymentId, reference, amount, customerName, apiKey }),
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.result) {
         return data.result;
       }
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Nomod verification endpoint fallback:', err);
+  }
 
   // Standard verified result format matching Nomod API specifications
   const now = new Date().toISOString();

@@ -1460,9 +1460,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  // Departments Management
+  // Departments Management (Master & Admin only)
   const addDepartment = useCallback(
     (deptData: Omit<Department, 'id' | 'createdAt'>): Department => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        throw new Error('Unauthorized: Employees cannot create or manage departments.');
+      }
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
@@ -1476,11 +1479,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       recordAuditLog('Department Created', 'Settings', `Created department "${newDept.name}" (${newDept.code})`);
       return newDept;
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
   const updateDepartment = useCallback(
     (id: string, updates: Partial<Department>) => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        throw new Error('Unauthorized: Employees cannot edit or manage departments.');
+      }
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
@@ -1505,11 +1511,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       recordAuditLog('Department Updated', 'Settings', `Updated department ID ${id}`);
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
   const deleteDepartment = useCallback(
     (id: string) => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        throw new Error('Unauthorized: Employees cannot delete departments.');
+      }
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
@@ -1521,7 +1530,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return (prev || []).filter((d) => d && d.id !== id);
       });
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
   // Frontend Client Self-Registration
@@ -4297,9 +4306,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [leads, selectedCompanyId, companies, serviceCategories, users, stages, currentUser, setClients, setLeads, addTransaction, recordAuditLog]
   );
 
-  // Lead Categories Management
+  // Lead Categories Management (Master & Admin only)
   const addLeadCategory = useCallback(
     (catData: Omit<LeadCategory, 'id' | 'createdAt'>): LeadCategory => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        throw new Error('Unauthorized: Employees cannot create or manage lead categories.');
+      }
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
@@ -4312,11 +4324,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       recordAuditLog('Lead Category Created', 'Leads', `Created lead category "${newCat.name}" (Code: ${newCat.code})`);
       return newCat;
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
   const updateLeadCategory = useCallback(
     (id: string, updates: Partial<LeadCategory>) => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        throw new Error('Unauthorized: Employees cannot edit or manage lead categories.');
+      }
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
@@ -4341,18 +4356,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       recordAuditLog('Lead Category Updated', 'Leads', `Updated lead category ID ${id}`);
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
   const deleteLeadCategory = useCallback(
     (id: string) => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        throw new Error('Unauthorized: Employees cannot delete lead categories.');
+      }
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
       setLeadCategories((prev) => (prev || []).filter((cat) => cat && cat.id !== id));
       recordAuditLog('Lead Category Deleted', 'Leads', `Deleted lead category ID ${id}`);
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
   // Lead Sources / Channels Management
