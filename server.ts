@@ -56,6 +56,7 @@ async function startServer() {
           usersCount: data.users?.length || 0,
           clientsCount: data.clients?.length || 0,
           leadsCount: data.leads?.length || 0,
+          departmentsCount: data.departments?.length || 0,
           invoicesCount: data.invoices?.length || 0,
           tasksCount: data.tasks?.length || 0,
         });
@@ -75,6 +76,12 @@ async function startServer() {
       if (fs.existsSync(STORE_FILE)) {
         const raw = fs.readFileSync(STORE_FILE, 'utf-8');
         const data = JSON.parse(raw);
+        // Ensure critical array keys are always arrays
+        if (!data.leads || !Array.isArray(data.leads)) data.leads = [];
+        if (!data.departments || !Array.isArray(data.departments)) data.departments = [];
+        if (!data.leadCategories || !Array.isArray(data.leadCategories)) data.leadCategories = [];
+        if (!data.leadSources || !Array.isArray(data.leadSources)) data.leadSources = [];
+        if (!data.leadStages || !Array.isArray(data.leadStages)) data.leadStages = [];
         return res.json({ success: true, data, hasData: true });
       }
       return res.json({ success: true, data: null, hasData: false });
@@ -93,20 +100,39 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Invalid payload format' });
       }
 
-      // Ensure timestamp exists
-      if (!payload.lastUpdated) {
-        payload.lastUpdated = new Date().toISOString();
+      // Read existing data if available to avoid key wiping
+      let existing: any = {};
+      if (fs.existsSync(STORE_FILE)) {
+        try {
+          existing = JSON.parse(fs.readFileSync(STORE_FILE, 'utf-8')) || {};
+        } catch {}
       }
+
+      // Defensive merge: if incoming payload omits critical arrays when existing had data, preserve existing
+      const merged = {
+        ...existing,
+        ...payload,
+        leads: payload.leads !== undefined ? (Array.isArray(payload.leads) ? payload.leads : []) : (existing.leads || []),
+        departments: payload.departments !== undefined ? (Array.isArray(payload.departments) ? payload.departments : []) : (existing.departments || []),
+        leadCategories: payload.leadCategories !== undefined ? (Array.isArray(payload.leadCategories) ? payload.leadCategories : []) : (existing.leadCategories || []),
+        leadSources: payload.leadSources !== undefined ? (Array.isArray(payload.leadSources) ? payload.leadSources : []) : (existing.leadSources || []),
+        leadStages: payload.leadStages !== undefined ? (Array.isArray(payload.leadStages) ? payload.leadStages : []) : (existing.leadStages || []),
+        users: payload.users !== undefined ? (Array.isArray(payload.users) ? payload.users : []) : (existing.users || []),
+        companies: payload.companies !== undefined ? (Array.isArray(payload.companies) ? payload.companies : []) : (existing.companies || []),
+        lastUpdated: payload.lastUpdated || new Date().toISOString(),
+      };
 
       // Write to temp file then rename for atomic safe write
       const tempFile = `${STORE_FILE}.tmp.${Date.now()}`;
-      fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2), 'utf-8');
+      fs.writeFileSync(tempFile, JSON.stringify(merged, null, 2), 'utf-8');
       fs.renameSync(tempFile, STORE_FILE);
 
       return res.json({
         success: true,
-        savedAt: payload.lastUpdated,
-        usersCount: payload.users?.length || 0,
+        savedAt: merged.lastUpdated,
+        leadsCount: merged.leads?.length || 0,
+        usersCount: merged.users?.length || 0,
+        departmentsCount: merged.departments?.length || 0,
         message: 'CRM database snapshot safely persisted to server disk',
       });
     } catch (err: any) {

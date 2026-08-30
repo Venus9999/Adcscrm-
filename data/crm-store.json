@@ -1,51 +1,189 @@
 {
-  "auditLogs": [],
+  "auditLogs": [
+    {
+      "action": "Worldwide Visa Country Deleted",
+      "details": "Deleted country Oman (OM) from worldwide visa directory.",
+      "id": "log-1788064899761-rf22",
+      "module": "Services",
+      "timestamp": "2026-08-30T04:41:39.761Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userRole": "master"
+    },
+    {
+      "action": "Worldwide Visa Country Deleted",
+      "details": "Deleted country Saudi Arabia (KSA) (SA) from worldwide visa directory.",
+      "id": "log-1788064897628-7d1m",
+      "module": "Services",
+      "timestamp": "2026-08-30T04:41:37.628Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userRole": "master"
+    },
+    {
+      "action": "Worldwide Visa Country Deleted",
+      "details": "Deleted country United Arab Emirates (UAE) (AE) from worldwide visa directory.",
+      "id": "log-1788064895181-bxyz",
+      "module": "Services",
+      "timestamp": "2026-08-30T04:41:35.182Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userRole": "master"
+    },
+    {
+      "action": "Visa Application Deleted",
+      "details": "Deleted visa application #VSA-2026-SA-0442 for Vikramaditya Singhania",
+      "id": "log-1788064886698-ze8l",
+      "module": "Services",
+      "timestamp": "2026-08-30T04:41:26.698Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userRole": "master"
+    },
+    {
+      "action": "Visa Application Deleted",
+      "details": "Deleted visa application #VSA-2026-AE-0812 for Fatima Al-Mansoor",
+      "id": "log-1788064885545-b8ga",
+      "module": "Services",
+      "timestamp": "2026-08-30T04:41:25.545Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userRole": "master"
+    },
+    {
+      "action": "Visa Application Deleted",
+      "details": "Deleted visa application #VSA-2026-FR-0941 for Alexander Wright",
+      "id": "log-1788064883878-9qwy",
+      "module": "Services",
+      "timestamp": "2026-08-30T04:41:23.878Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userRole": "master"
+    },
+    {
+      "action": "User Secure Login",
+      "details": "User Gurpreet Singh Kataria (master) successfully authenticated",
+      "id": "log-1788064778678-iogr",
+      "module": "Security",
+      "timestamp": "2026-08-30T04:39:38.678Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userRole": "master"
+    },
+    {
+      "action": "User Profile Updated",
+      "details": "User updated their account profile settings",
+      "id": "log-1788060918833-oomx",
+      "module": "Profile",
+      "timestamp": "2026-08-30T03:35:18.833Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "Company Updated",
+      "details": "Updated company profile for comp-1",
+      "id": "log-1788060711981-ewxm",
+      "module": "Companies",
+      "timestamp": "2026-08-30T03:31:51.981Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "Billing Settings Updated",
+      "details": "Admin/Master (Alexander Vance) updated invoice & billing settings (ADCS Document Clearing Services )",
+      "id": "log-1788060543833-1ysr",
+      "module": "Settings",
+      "timestamp": "2026-08-30T03:29:03.833Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    },
+    {
+      "action": "User Account Created",
+      "details": "Created user Muhammad Tahir (EMPLOYEE)",
+      "id": "log-1788060402783-5eaq",
+      "module": "Users",
+      "timestamp": "2026-08-30T03:26:42.783Z",
+      "userEmail": "master@adcs.ae",
+      "userId": "user-master",
+      "userName": "Alexander Vance",
+      "userRole": "master"
+    }
+  ],
   "billingSettings": {
-    "address": "Suite 2404, Iris Bay Tower, Business Bay, P.O. Box 89211",
+    "address": "224, 2nd floor Aura Xavier Building, Al Souk Al Kabeer",
     "bankDetails": {
-      "accountName": "ADCS Document Clearing LLC",
+      "accountName": "ADCS Document Clearing Services",
       "accountNumber": "102938475601",
-      "bankName": "Emirates NBD PJSC (Corporate Banking Dubai)",
+      "bankName": "WIO",
       "iban": "AE290260000102938475601",
       "swift": "EBILAEADXXX"
     },
     "city": "Dubai",
-    "companyName": "ADCS Document Clearing & Corporate Services LLC",
+    "companyName": "ADCS Document Clearing Services ",
     "country": "United Arab Emirates",
     "currency": "AED",
     "email": "finance@adcs.ae",
     "invoiceFooterNote": "Thank you for choosing ADCS CRM. Cryptographically signed for Federal Tax Authority (FTA) compliance.",
     "lastUpdated": "2026-08-27T00:00:00Z",
-    "phone": "+971 4 829 1100",
+    "phone": "+971 45794245",
     "showSignatory": true,
     "showStamp": true,
+    "signatory": {
+      "designation": "Managing Director & Authorized Signatory",
+      "name": "Gurpreet Singh Kataria",
+      "showSignature": true
+    },
     "signatoryName": "Alexander Vance",
     "signatorySignatureUrl": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 240 80\" width=\"240\" height=\"80\"><path d=\"M 20 50 Q 45 15, 65 45 T 105 35 T 135 55 T 165 28 Q 185 18, 205 38 T 225 28 M 35 58 C 75 68, 145 62, 215 45\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
     "signatoryTitle": "Managing Director & Authorized Signatory",
+    "stamp": {
+      "showStamp": true,
+      "stampLabel": "ADCS",
+      "stampSubtext": "Dubai"
+    },
     "stampText": "ADCS Document Clearing LLC - Official Verified Seal",
     "stampUrl": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 200\" width=\"200\" height=\"200\"><circle cx=\"100\" cy=\"100\" r=\"92\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"3\" stroke-dasharray=\"4 2\"/><circle cx=\"100\" cy=\"100\" r=\"82\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"2\"/><circle cx=\"100\" cy=\"100\" r=\"54\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"1.5\"/><path id=\"textCircle\" d=\"M 30 100 A 70 70 0 1 1 170 100\" fill=\"none\"/><path id=\"bottomCircle\" d=\"M 170 100 A 70 70 0 0 1 30 100\" fill=\"none\"/><text fill=\"%231e3a8a\" font-size=\"9.5\" font-family=\"Arial, sans-serif\" font-weight=\"bold\" letter-spacing=\"1.5\"><textPath href=\"%23textCircle\" startOffset=\"50%\" text-anchor=\"middle\">★ ADCS CORPORATE CLEARANCE ★</textPath></text><text fill=\"%231e3a8a\" font-size=\"8.5\" font-family=\"Arial, sans-serif\" font-weight=\"bold\" letter-spacing=\"1.2\"><textPath href=\"%23bottomCircle\" startOffset=\"50%\" text-anchor=\"middle\">UAE GOVT RELATIONS &amp; PRO LLC</textPath></text><text x=\"100\" y=\"90\" text-anchor=\"middle\" fill=\"%231e3a8a\" font-size=\"10\" font-family=\"Arial, sans-serif\" font-weight=\"bold\">OFFICIAL SEAL</text><text x=\"100\" y=\"107\" text-anchor=\"middle\" fill=\"%23dc2626\" font-size=\"12\" font-family=\"Arial, sans-serif\" font-weight=\"900\" letter-spacing=\"1\">VERIFIED</text><text x=\"100\" y=\"122\" text-anchor=\"middle\" fill=\"%231e3a8a\" font-size=\"7.5\" font-family=\"monospace\">TRN: 10048291000003</text></svg>",
     "tagline": "UAE Ministry, GDRFA & ICP Government Liaison Specialists",
     "termsAndConditions": "All government pass-through fees are 0% VAT exempt. Professional typing and PRO representation are subject to 5% UAE standard VAT. Payment is due upon receipt of invoice.",
-    "tradeLicenseNo": "CN-8941029",
+    "tradeLicenseNo": "1486215",
     "tradingName": "ADCS Corporate Hub",
     "trn": "10048291000003",
+    "trnNumber": "111111",
     "updatedBy": "Alexander Vance (Master)",
+    "vatPercentage": 0,
     "vatRateDefault": 5,
     "website": "https://adcs.ae"
   },
-  "clients": [],
   "companies": [
     {
       "activeServicesCount": 0,
-      "address": "Suite 2404, Iris Bay Tower, Business Bay, Dubai, UAE",
+      "address": "224 2nd floor Aura Xavier Building",
       "adminId": "user-master",
+      "assignedAdminIds": [
+        "user-master"
+      ],
       "bankDetails": {
-        "accountName": "ADCS Document Clearing LLC",
+        "accountName": "ADCS Documents Clearing Services",
         "accountNumber": "102938475601",
-        "bankName": "Emirates NBD Business Banking",
+        "bankName": "WIO PJSC",
         "iban": "AE290260000102938475601",
         "swift": "EBILAEADXXX"
       },
+      "city": "Dubai",
+      "country": "United Arab Emirates",
       "createdAt": "2024-01-01T00:00:00Z",
       "currency": "AED",
       "email": "info@adcs.ae",
@@ -54,48 +192,60 @@
         "user-emp-1"
       ],
       "id": "comp-1",
-      "licenseExpiryDate": "2027-01-01",
+      "licenseExpiryDate": "2027-03-24",
       "licenseIssueDate": "2024-01-01",
       "logo": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=160&q=80",
-      "name": "ADCS Document Clearing & Corporate Services LLC",
-      "phone": "+971 4 829 1100",
+      "name": "ADCS Documents Clearing Services",
+      "phone": "+971 45794245",
       "totalClientsCount": 1,
-      "tradeLicenseNo": "CN-8941029",
+      "tradeLicenseNo": "TL 1486215",
       "trn": "100492817400003",
       "whatsapp": "+971 50 829 1100"
     }
   ],
   "crmBranding": {
     "billingSettings": {
-      "address": "Suite 2404, Iris Bay Tower, Business Bay, P.O. Box 89211",
+      "address": "224, 2nd floor Aura Xavier Building, Al Souk Al Kabeer",
       "bankDetails": {
-        "accountName": "ADCS Document Clearing LLC",
+        "accountName": "ADCS Document Clearing Services",
         "accountNumber": "102938475601",
-        "bankName": "Emirates NBD PJSC (Corporate Banking Dubai)",
+        "bankName": "WIO",
         "iban": "AE290260000102938475601",
         "swift": "EBILAEADXXX"
       },
       "city": "Dubai",
-      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "companyName": "ADCS Document Clearing Services ",
       "country": "United Arab Emirates",
       "currency": "AED",
       "email": "finance@adcs.ae",
       "invoiceFooterNote": "Thank you for choosing ADCS CRM. Cryptographically signed for Federal Tax Authority (FTA) compliance.",
       "lastUpdated": "2026-08-27T00:00:00Z",
-      "phone": "+971 4 829 1100",
+      "phone": "+971 45794245",
       "showSignatory": true,
       "showStamp": true,
+      "signatory": {
+        "designation": "Managing Director & Authorized Signatory",
+        "name": "Gurpreet Singh Kataria",
+        "showSignature": true
+      },
       "signatoryName": "Alexander Vance",
       "signatorySignatureUrl": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 240 80\" width=\"240\" height=\"80\"><path d=\"M 20 50 Q 45 15, 65 45 T 105 35 T 135 55 T 165 28 Q 185 18, 205 38 T 225 28 M 35 58 C 75 68, 145 62, 215 45\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
       "signatoryTitle": "Managing Director & Authorized Signatory",
+      "stamp": {
+        "showStamp": true,
+        "stampLabel": "ADCS",
+        "stampSubtext": "Dubai"
+      },
       "stampText": "ADCS Document Clearing LLC - Official Verified Seal",
       "stampUrl": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 200\" width=\"200\" height=\"200\"><circle cx=\"100\" cy=\"100\" r=\"92\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"3\" stroke-dasharray=\"4 2\"/><circle cx=\"100\" cy=\"100\" r=\"82\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"2\"/><circle cx=\"100\" cy=\"100\" r=\"54\" fill=\"none\" stroke=\"%231e3a8a\" stroke-width=\"1.5\"/><path id=\"textCircle\" d=\"M 30 100 A 70 70 0 1 1 170 100\" fill=\"none\"/><path id=\"bottomCircle\" d=\"M 170 100 A 70 70 0 0 1 30 100\" fill=\"none\"/><text fill=\"%231e3a8a\" font-size=\"9.5\" font-family=\"Arial, sans-serif\" font-weight=\"bold\" letter-spacing=\"1.5\"><textPath href=\"%23textCircle\" startOffset=\"50%\" text-anchor=\"middle\">★ ADCS CORPORATE CLEARANCE ★</textPath></text><text fill=\"%231e3a8a\" font-size=\"8.5\" font-family=\"Arial, sans-serif\" font-weight=\"bold\" letter-spacing=\"1.2\"><textPath href=\"%23bottomCircle\" startOffset=\"50%\" text-anchor=\"middle\">UAE GOVT RELATIONS &amp; PRO LLC</textPath></text><text x=\"100\" y=\"90\" text-anchor=\"middle\" fill=\"%231e3a8a\" font-size=\"10\" font-family=\"Arial, sans-serif\" font-weight=\"bold\">OFFICIAL SEAL</text><text x=\"100\" y=\"107\" text-anchor=\"middle\" fill=\"%23dc2626\" font-size=\"12\" font-family=\"Arial, sans-serif\" font-weight=\"900\" letter-spacing=\"1\">VERIFIED</text><text x=\"100\" y=\"122\" text-anchor=\"middle\" fill=\"%231e3a8a\" font-size=\"7.5\" font-family=\"monospace\">TRN: 10048291000003</text></svg>",
       "tagline": "UAE Ministry, GDRFA & ICP Government Liaison Specialists",
       "termsAndConditions": "All government pass-through fees are 0% VAT exempt. Professional typing and PRO representation are subject to 5% UAE standard VAT. Payment is due upon receipt of invoice.",
-      "tradeLicenseNo": "CN-8941029",
+      "tradeLicenseNo": "1486215",
       "tradingName": "ADCS Corporate Hub",
       "trn": "10048291000003",
+      "trnNumber": "111111",
       "updatedBy": "Alexander Vance (Master)",
+      "vatPercentage": 0,
       "vatRateDefault": 5,
       "website": "https://adcs.ae"
     },
@@ -115,7 +265,7 @@
       "updatedBy": "Alexander Vance (Master)"
     }
   },
-  "currentUserId": "user-client-1788026883434",
+  "currentUserId": "user-master",
   "departments": [
     {
       "badgeBg": "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800",
@@ -197,9 +347,8 @@
     }
   ],
   "hasCustomModifications": true,
-  "invoices": [],
   "isColdStart": false,
-  "lastUpdated": "2026-08-29T19:39:01.687Z",
+  "lastUpdated": "2026-08-30T04:41:39.769Z",
   "leadCategories": [
     {
       "badgeBg": "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800",
@@ -431,7 +580,6 @@
       "stepNumber": 6
     }
   ],
-  "notifications": [],
   "roles": [
     {
       "badgeBg": "bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800",
@@ -1008,17 +1156,16 @@
       "stepNumber": 16
     }
   ],
-  "transactions": [],
   "users": [
     {
-      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+      "avatar": "data:image/jpeg;base64,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ZmYAAQChmZoABgAAAAAAAQAyAAAAAQBaAAAABgAAAAAAAQA1AAAAAQAtAAAABgAAAAAAAThCSU0D+AAAAAAAcAAA/////////////////////////////wPoAAAAAP////////////////////////////8D6AAAAAD/////////////////////////////A+gAAAAA/////////////////////////////wPoAAA4QklNBAAAAAAAAAIAAThCSU0EAgAAAAAABAAAAAA4QklNBDAAAAAAAAIBAThCSU0ELQAAAAAABgABAAAAAjhCSU0ECAAAAAAAEAAAAAEAAAJAAAACQAAAAAA4QklNBEQAAAAAABAAAAACAAACQAAAAkAAAAAAOEJJTQQeAAAAAAAEAAAAADhCSU0EGgAAAAADSQAAAAYAAAAAAAAAAAAAALQAAAC0AAAACgBVAG4AdABpAHQAbABlAGQALQAxAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAC0AAAAtAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAABAAAAABAAAAAAAAbnVsbAAAAAIAAAAGYm91bmRzT2JqYwAAAAEAAAAAAABSY3QxAAAABAAAAABUb3AgbG9uZwAAAAAAAAAATGVmdGxvbmcAAAAAAAAAAEJ0b21sb25nAAAAtAAAAABSZ2h0bG9uZwAAALQAAAAGc2xpY2VzVmxMcwAAAAFPYmpjAAAAAQAAAAAABXNsaWNlAAAAEgAAAAdzbGljZUlEbG9uZwAAAAAAAAAHZ3JvdXBJRGxvbmcAAAAAAAAABm9yaWdpbmVudW0AAAAMRVNsaWNlT3JpZ2luAAAADWF1dG9HZW5lcmF0ZWQAAAAAVHlwZWVudW0AAAAKRVNsaWNlVHlwZQAAAABJbWcgAAAABmJvdW5kc09iamMAAAABAAAAAAAAUmN0MQAAAAQAAAAAVG9wIGxvbmcAAAAAAAAAAExlZnRsb25nAAAAAAAAAABCdG9tbG9uZwAAALQAAAAAUmdodGxvbmcAAAC0AAAAA3VybFRFWFQAAAABAAAAAAAAbnVsbFRFWFQAAAABAAAAAAAATXNnZVRFWFQAAAABAAAAAAAGYWx0VGFnVEVYVAAAAAEAAAAAAA5jZWxsVGV4dElz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MgAAAAEAOEJJTQQGAAAAAAAHAAgBAQABAQD/4Q5/aHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLwA8P3hwYWNrZXQgYmVnaW49Iu+7vyIgaWQ9Ilc1TTBNcENlaGlIenJlU3pOVGN6a2M5ZCI/PiA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJBZG9iZSBYTVAgQ29yZSA3LjItYzAwMCA3OS41NjZlYmM1LCAyMDIyLzA1LzA5LTA3OjIyOjI5ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpwaG90b3Nob3A9Imh0dHA6Ly9ucy5hZG9iZS5jb20vcGhvdG9zaG9wLzEuMC8iIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjMuNCAoV2luZG93cykiIHhtcDpDcmVhdGVEYXRlPSIyMDIzLTA2LTE4VDE5OjIwOjU1KzA1OjMwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIzLTA2LTE4VDE5OjIwOjU1KzA1OjMwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMy0wNi0xOFQxOToyMDo1NSswNTozMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDoxN2JjNzQ3My1hYzdjLWZlNDYtODM3Ny04NTJjNWQzNGYzYzgiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo5NGQ1ZDIxMy01N2E1LTY4NDUtODQ1Ni01OTllZmYwZTNiZTUiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo3OTRlYTJkZC1jNmFjLWYzNDMtYjJjZS1jY2U2NDIyYzA2MGMiIHBob3Rvc2hvcDpDb2xvck1vZGU9IjMiIHBob3Rvc2hvcDpJQ0NQcm9maWxlPSJBZG9iZSBSR0IgKDE5OTgpIiBkYzpmb3JtYXQ9ImltYWdlL2pwZWciPiA8eG1wTU06SGlzdG9yeT4gPHJkZjpTZXE+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJjcmVhdGVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjc5NGVhMmRkLWM2YWMtZjM0My1iMmNlLWNjZTY0MjJjMDYwYyIgc3RFdnQ6d2hlbj0iMjAyMy0wNi0xOFQxOToyMDo1NSswNTozMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDIzLjQgKFdpbmRvd3MpIi8+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJzYXZlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDoxN2JjNzQ3My1hYzdjLWZlNDYtODM3Ny04NTJjNWQzNGYzYzgiIHN0RXZ0OndoZW49IjIwMjMtMDYtMThUMTk6MjA6NTUrMDU6MzAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCAyMy40IChXaW5kb3dzKSIgc3RFdnQ6Y2hhbmdlZD0iLyIvPiA8L3JkZjpTZXE+IDwveG1wTU06SGlzdG9yeT4gPHBob3Rvc2hvcDpEb2N1bWVudEFuY2VzdG9ycz4gPHJkZjpCYWc+IDxyZGY6bGk+MENCOTZFNTAyQjhERjE1N0UyOUZBM0U4REJCMkM0MTY8L3JkZjpsaT4gPC9yZGY6QmFnPiA8L3Bob3Rvc2hvcDpEb2N1bWVudEFuY2VzdG9ycz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg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",
       "bio": "Oversees multi-entity corporate operations, government clearing relations, and platform administration.",
       "createdAt": "2024-01-01T00:00:00Z",
       "department": "Executive Governance",
       "email": "master@adcs.ae",
       "id": "user-master",
       "lastLogin": "2026-08-27T00:00:00Z",
-      "name": "Alexander Vance",
+      "name": "Gurpreet Singh Kataria",
       "notificationsConfig": {
         "emailAlerts": true,
         "expiryAlerts": true,
@@ -1037,12 +1184,76 @@
         "canManageTransactions": true,
         "canViewAllCompanies": true
       },
-      "phone": "+971 50 888 9900",
+      "phone": "+971 505 404 63",
       "role": "master",
       "securityPin": "8899",
+      "signature": "Digitally Authorized by ADCS Master Executive Board",
       "status": "active",
       "theme": "dark",
       "title": "Managing Director & System Master"
+    },
+    {
+      "avatar": "https://images.unsplash.com/photo-1534528741812?w=150",
+      "companyId": "comp-1",
+      "companyIds": [
+        "comp-1"
+      ],
+      "createdAt": "2026-08-30T03:26:42.768Z",
+      "department": "Sales",
+      "email": "tahir@theadcs.com",
+      "id": "user-1788060402768",
+      "jobTitle": "Sales Executive",
+      "name": "Muhammad Tahir",
+      "password": "Adcs123",
+      "permissions": {
+        "canAssignEmployees": false,
+        "canCreateClients": true,
+        "canDeleteInvoices": false,
+        "canDeleteRecords": false,
+        "canEditInvoices": false,
+        "canEditStages": true,
+        "canExportReports": false,
+        "canManageCompanies": false,
+        "canManagePayments": false,
+        "canManageUsers": false,
+        "canViewAllCompanies": false
+      },
+      "phone": "050505050",
+      "role": "employee",
+      "status": "active"
+    },
+    {
+      "id": "user-admin-main",
+      "name": "Sarah Jenkins",
+      "email": "admin@adcs.ae",
+      "role": "admin",
+      "title": "Operations Director & Branch Admin",
+      "department": "Corporate Services",
+      "avatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80",
+      "companyId": "comp-1",
+      "companyIds": [
+        "comp-1",
+        "comp-2"
+      ],
+      "status": "active",
+      "phone": "+971 50 987 6543"
+    },
+    {
+      "id": "user-emp-main",
+      "name": "Tariq Al-Hashemi",
+      "email": "employee@adcs.ae",
+      "role": "employee",
+      "title": "Senior PRO & Immigration Consultant",
+      "department": "Visa Processing",
+      "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
+      "companyId": "comp-1",
+      "companyIds": [
+        "comp-1",
+        "comp-2",
+        "comp-3"
+      ],
+      "status": "active",
+      "phone": "+971 52 445 6677"
     }
   ],
   "vendors": [
@@ -1067,7 +1278,616 @@
       "tradeLicenseNo": "TL-677571"
     }
   ],
-  "visaApplications": [],
+  "visaCountryCatalog": [
+    {
+      "countryCode": "QA",
+      "countryName": "Qatar",
+      "flag": "🇶🇦",
+      "region": "GCC & Middle East",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Government Hayya entry visa for leisure travel, conferences, and transit through Doha.",
+          "entryType": "Multiple Entry",
+          "expressDays": 1,
+          "expressSurcharge": 90,
+          "id": "qa-hayya-tourist",
+          "name": "Qatar Hayya Entry Visa / Tourist Permit",
+          "requiredDocuments": [
+            "Passport Copy",
+            "Confirmed Hotel Reservation via Discover Qatar",
+            "Return Flight"
+          ],
+          "standardDays": 2,
+          "standardGovFee": 180,
+          "standardServiceFee": 120,
+          "stayDuration": "30 Days per visit",
+          "validityDuration": "90 Days"
+        }
+      ]
+    },
+    {
+      "countryCode": "FR",
+      "countryName": "France & Schengen Area",
+      "flag": "🇫🇷",
+      "popular": true,
+      "region": "Europe & Schengen",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Access 29 European Schengen member states freely with a single unified visa including France, Germany, Italy, Switzerland, and Spain.",
+          "entryType": "Multiple Entry",
+          "expressDays": 7,
+          "expressSurcharge": 300,
+          "id": "fr-schengen-tourist",
+          "name": "Schengen Short-Stay Tourist Visa (Type C)",
+          "requiredDocuments": [
+            "Passport (valid 3+ months past return date)",
+            "UAE Residence Visa copy (valid 3+ months)",
+            "6-Month Bank Statement stamped by bank",
+            "NOC / Salary Certificate from Employer",
+            "Travel Insurance (minimum €30,000 coverage)",
+            "Confirmed Flight Itinerary & Hotel Vouchers"
+          ],
+          "standardDays": 14,
+          "standardGovFee": 380,
+          "standardServiceFee": 420,
+          "stayDuration": "90 Days within 180 Days",
+          "validityDuration": "Up to 5 Years"
+        },
+        {
+          "category": "Business Visa",
+          "description": "Tailored for entrepreneurs, executives, and trade delegates attending meetings, exhibitions, and symposiums.",
+          "entryType": "Multiple Entry",
+          "expressDays": 6,
+          "expressSurcharge": 350,
+          "id": "fr-schengen-biz",
+          "name": "Schengen Business & Conference Visa",
+          "requiredDocuments": [
+            "Passport Copy",
+            "Invitation Letter from European Host Company",
+            "Company Trade License & Employer NOC",
+            "6-Month Corporate/Personal Bank Statement",
+            "Travel Medical Insurance"
+          ],
+          "standardDays": 12,
+          "standardGovFee": 380,
+          "standardServiceFee": 480,
+          "stayDuration": "90 Days per 180 Days",
+          "validityDuration": "1 to 5 Years"
+        }
+      ]
+    },
+    {
+      "countryCode": "IT",
+      "countryName": "Italy & Schengen Area",
+      "flag": "🇮🇹",
+      "popular": true,
+      "region": "Europe & Schengen",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Complete dossier preparation, VFS/Embassy appointment booking, biometric coordination, and travel itinerary drafting.",
+          "entryType": "Multiple Entry",
+          "expressDays": 8,
+          "expressSurcharge": 300,
+          "id": "it-schengen-tourist",
+          "name": "Italy Tourist / Sightseeing Schengen Visa",
+          "requiredDocuments": [
+            "Original Passport with 2 blank pages",
+            "UAE Resident Visa Copy",
+            "Official 6-Month Bank Statement with Stamp",
+            "Employer NOC Letter with Salary Breakdown",
+            "Schengen-Compliant Travel Insurance",
+            "Confirmed Hotel Bookings in Rome/Milan/Florence"
+          ],
+          "standardDays": 15,
+          "standardGovFee": 380,
+          "standardServiceFee": 420,
+          "stayDuration": "90 Days within 180 Days",
+          "validityDuration": "Up to 2 Years"
+        }
+      ]
+    },
+    {
+      "countryCode": "CH",
+      "countryName": "Switzerland & Schengen Area",
+      "flag": "🇨🇭",
+      "popular": true,
+      "region": "Europe & Schengen",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Premier Swiss embassy filing for holidays in Zurich, Geneva, Interlaken, and all Schengen countries.",
+          "entryType": "Multiple Entry",
+          "expressDays": 6,
+          "expressSurcharge": 320,
+          "id": "ch-schengen-tourist",
+          "name": "Switzerland Alpine & Schengen Visa",
+          "requiredDocuments": [
+            "Passport Copy",
+            "UAE Residence Visa",
+            "6-Month Bank Statement",
+            "Employer NOC",
+            "Travel Insurance €30k+"
+          ],
+          "standardDays": 12,
+          "standardGovFee": 380,
+          "standardServiceFee": 450,
+          "stayDuration": "90 Days within 180 Days",
+          "validityDuration": "Up to 2 Years"
+        }
+      ]
+    },
+    {
+      "countryCode": "GB",
+      "countryName": "United Kingdom (UK)",
+      "flag": "🇬🇧",
+      "popular": true,
+      "region": "Europe & Schengen",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "UK Visas & Immigration (UKVI) online application filing, document digitization, VFS priority appointment scheduling.",
+          "entryType": "Multiple Entry",
+          "expressDays": 5,
+          "expressSurcharge": 1100,
+          "id": "uk-standard-visitor",
+          "name": "UK Standard Visitor Visa (6 Months / 2 Years / 5 Years)",
+          "requiredDocuments": [
+            "Valid Passport Copy",
+            "6-Month Detailed Bank Statement",
+            "Letter of Employment / Proof of Business Ownership",
+            "Accommodation & Travel Plan in the UK",
+            "Proof of Earnings and Financial Ties"
+          ],
+          "standardDays": 15,
+          "standardGovFee": 580,
+          "standardServiceFee": 450,
+          "stayDuration": "Up to 180 Days per visit",
+          "superExpressAvailable": true,
+          "validityDuration": "6 Months to 5 Years"
+        },
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Instant UK ETA for UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, and Oman citizens.",
+          "entryType": "Multiple Entry",
+          "expressDays": 1,
+          "expressSurcharge": 50,
+          "id": "uk-eta-gcc",
+          "name": "UK Electronic Travel Authorisation (ETA for GCC Nationals)",
+          "requiredDocuments": [
+            "Passport Copy",
+            "Passport Photo",
+            "Email & Phone Contact Details"
+          ],
+          "standardDays": 1,
+          "standardGovFee": 75,
+          "standardServiceFee": 95,
+          "stayDuration": "6 Months per visit",
+          "superExpressAvailable": true,
+          "validityDuration": "2 Years"
+        }
+      ]
+    },
+    {
+      "countryCode": "US",
+      "countryName": "United States of America (USA)",
+      "flag": "🇺🇸",
+      "popular": true,
+      "region": "Americas",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Full DS-160 consultation, CGI Federal MRV fee payment, early consular appointment slot hunting, and interview preparation.",
+          "entryType": "Multiple Entry",
+          "expressDays": 10,
+          "expressSurcharge": 450,
+          "id": "us-b1b2-visitor",
+          "name": "USA B1/B2 Tourist & Business Visa (10 Years)",
+          "requiredDocuments": [
+            "Passport (valid 6+ months)",
+            "DS-160 Form Confirmation",
+            "US Visa Standard Photo (2x2 inch)",
+            "6-Month Financial Proof & Bank Statements",
+            "Letter from Employer / Trade License",
+            "Travel Plan & Ties to Residence Country"
+          ],
+          "standardDays": 20,
+          "standardGovFee": 750,
+          "standardServiceFee": 650,
+          "stayDuration": "Up to 180 Days per entry",
+          "validityDuration": "10 Years"
+        },
+        {
+          "category": "Student Visa",
+          "description": "Dedicated student filing including SEVIS fee processing, DS-160 documentation, and US Consulate interview coaching.",
+          "entryType": "Multiple Entry",
+          "expressDays": 12,
+          "expressSurcharge": 500,
+          "id": "us-f1-student",
+          "name": "USA F-1 Academic Student Visa",
+          "requiredDocuments": [
+            "I-20 Form from US University",
+            "SEVIS I-901 Fee Receipt",
+            "Proof of Financial Support / Bank Balance",
+            "Academic Transcripts"
+          ],
+          "standardDays": 25,
+          "standardGovFee": 1450,
+          "standardServiceFee": 750,
+          "stayDuration": "Full Course Duration",
+          "validityDuration": "Duration of Study"
+        }
+      ]
+    },
+    {
+      "countryCode": "CA",
+      "countryName": "Canada",
+      "flag": "🇨🇦",
+      "popular": true,
+      "region": "Americas",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "IRCC Portal electronic filing, document optimization, biometrics appointment scheduling, and passport stamping courier support.",
+          "entryType": "Multiple Entry",
+          "expressDays": 14,
+          "expressSurcharge": 380,
+          "id": "ca-visitor-visa",
+          "name": "Canada Temporary Resident Visa (TRV - 10 Years)",
+          "requiredDocuments": [
+            "Passport Copy with all previous stamps",
+            "6-Month Stamped Bank Statements",
+            "Employment Verification Letter with Pay Slips",
+            "Family Information Forms (IMM 5645)",
+            "Purpose of Travel & Detailed Itinerary"
+          ],
+          "standardDays": 25,
+          "standardGovFee": 520,
+          "standardServiceFee": 480,
+          "stayDuration": "Up to 6 Months per stay",
+          "validityDuration": "Up to 10 Years (Matching Passport Expiry)"
+        }
+      ]
+    },
+    {
+      "countryCode": "SG",
+      "countryName": "Singapore",
+      "flag": "🇸🇬",
+      "popular": true,
+      "region": "Asia-Pacific",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Immigration & Checkpoints Authority (ICA) authorized electronic submission with instant PDF e-Visa delivery.",
+          "entryType": "Multiple Entry",
+          "expressDays": 1,
+          "expressSurcharge": 150,
+          "id": "sg-evisa-tourist",
+          "name": "Singapore Authorized Tourist eVisa (Type V39A)",
+          "requiredDocuments": [
+            "Passport Copy (6+ months)",
+            "High-Resolution Digital Photo",
+            "Confirmed Flight Ticket",
+            "Hotel Booking in Singapore"
+          ],
+          "standardDays": 3,
+          "standardGovFee": 180,
+          "standardServiceFee": 170,
+          "stayDuration": "30 Days per entry",
+          "superExpressAvailable": true,
+          "validityDuration": "Up to 2 Years"
+        }
+      ]
+    },
+    {
+      "countryCode": "JP",
+      "countryName": "Japan",
+      "flag": "🇯🇵",
+      "popular": true,
+      "region": "Asia-Pacific",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Ministry of Foreign Affairs (MOFA) JAPAN eVISA filing, daily itinerary preparation, and consular verification.",
+          "entryType": "Single Entry",
+          "expressDays": 3,
+          "expressSurcharge": 180,
+          "id": "jp-tourist-evisa",
+          "name": "Japan Short-Term Tourist eVisa (90 Days)",
+          "requiredDocuments": [
+            "Passport Copy",
+            "UAE Residence Visa Copy",
+            "3-Month Bank Statement with Healthy Balance",
+            "Schedule of Stay / Day-by-day Travel Plan",
+            "Flight & Hotel Bookings in Tokyo/Kyoto"
+          ],
+          "standardDays": 6,
+          "standardGovFee": 150,
+          "standardServiceFee": 250,
+          "stayDuration": "Up to 30 Days",
+          "validityDuration": "90 Days"
+        }
+      ]
+    },
+    {
+      "countryCode": "CN",
+      "countryName": "China",
+      "flag": "🇨🇳",
+      "region": "Asia-Pacific",
+      "visaTypes": [
+        {
+          "category": "Business Visa",
+          "description": "Essential for sourcing from factories, attending Canton Fair in Guangzhou, and conducting commerce across China.",
+          "entryType": "Multiple Entry",
+          "expressDays": 2,
+          "expressSurcharge": 280,
+          "id": "cn-business-m",
+          "name": "China M-Category Commercial & Trade Visa",
+          "requiredDocuments": [
+            "Passport Copy",
+            "Official Invitation Letter from Chinese Partner/Canton Fair",
+            "Company NOC & Trade License",
+            "Passport Photo"
+          ],
+          "standardDays": 6,
+          "standardGovFee": 420,
+          "standardServiceFee": 380,
+          "stayDuration": "30 to 60 Days per visit",
+          "validityDuration": "6 Months to 1 Year"
+        }
+      ]
+    },
+    {
+      "countryCode": "TH",
+      "countryName": "Thailand",
+      "flag": "🇹🇭",
+      "popular": true,
+      "region": "Asia-Pacific",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Thai Ministry of Foreign Affairs official electronic visa for Bangkok, Phuket, Koh Samui, and Chiang Mai.",
+          "entryType": "Single Entry",
+          "expressDays": 2,
+          "expressSurcharge": 120,
+          "id": "th-evisa-tourist",
+          "name": "Thailand Single & Multiple Entry Tourist eVisa",
+          "requiredDocuments": [
+            "Passport Copy",
+            "Passport Photo",
+            "Flight Reservation",
+            "Accommodation Proof in Bangkok/Phuket",
+            "Bank Balance Proof"
+          ],
+          "standardDays": 4,
+          "standardGovFee": 160,
+          "standardServiceFee": 140,
+          "stayDuration": "60 Days",
+          "validityDuration": "90 Days"
+        },
+        {
+          "category": "Digital Nomad",
+          "description": "Long-term 5-year multiple entry visa designed for remote workers, digital nomads, freelancers, and soft power activities.",
+          "entryType": "Multiple Entry",
+          "expressDays": 3,
+          "expressSurcharge": 350,
+          "id": "th-nomad-dvt",
+          "name": "Destination Thailand Visa (DTV - 5 Years Digital Nomad)",
+          "requiredDocuments": [
+            "Passport Copy",
+            "Proof of Remote Work / Employment Contract / Portfolio",
+            "Financial Proof (minimum 500,000 THB / AED 55,000)",
+            "Current Location Proof"
+          ],
+          "standardDays": 7,
+          "standardGovFee": 1400,
+          "standardServiceFee": 600,
+          "stayDuration": "180 Days per entry (extendable)",
+          "validityDuration": "5 Years"
+        }
+      ]
+    },
+    {
+      "countryCode": "AU",
+      "countryName": "Australia",
+      "flag": "🇦🇺",
+      "popular": true,
+      "region": "Asia-Pacific",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Department of Home Affairs ImmiAccount electronic submission, health requirement guidance, and biometrics booking.",
+          "entryType": "Multiple Entry",
+          "expressDays": 8,
+          "expressSurcharge": 320,
+          "id": "au-visitor-600",
+          "name": "Australia Visitor Visa (Subclass 600 - Tourist Stream)",
+          "requiredDocuments": [
+            "Color Passport Copy",
+            "UAE Residence Visa & Emirates ID",
+            "6-Month Stamped Bank Statements",
+            "Employer Leave Approval / NOC Letter",
+            "Travel Plan & Ties to Country of Residence"
+          ],
+          "standardDays": 16,
+          "standardGovFee": 480,
+          "standardServiceFee": 420,
+          "stayDuration": "Up to 3 Months per entry",
+          "validityDuration": "1 to 3 Years"
+        }
+      ]
+    },
+    {
+      "countryCode": "NZ",
+      "countryName": "New Zealand",
+      "flag": "🇳🇿",
+      "region": "Asia-Pacific",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Full Immigration New Zealand online processing, International Visitor Conservation and Tourism Levy (IVL) clearance.",
+          "entryType": "Multiple Entry",
+          "expressDays": 9,
+          "expressSurcharge": 290,
+          "id": "nz-visitor-visa",
+          "name": "New Zealand Visitor Visa & NZeTA",
+          "requiredDocuments": [
+            "Passport Copy",
+            "6-Month Bank Statements",
+            "Employment Letter",
+            "Travel Itinerary & Return Flight"
+          ],
+          "standardDays": 18,
+          "standardGovFee": 460,
+          "standardServiceFee": 390,
+          "stayDuration": "Up to 9 Months",
+          "validityDuration": "Up to 2 Years"
+        }
+      ]
+    },
+    {
+      "countryCode": "TR",
+      "countryName": "Turkey (Türkiye)",
+      "flag": "🇹🇷",
+      "popular": true,
+      "region": "Africa & Global",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Instant Turkish government eVisa for Istanbul, Antalya, Cappadocia, and all Turkish destinations.",
+          "entryType": "Multiple Entry",
+          "expressDays": 1,
+          "expressSurcharge": 60,
+          "id": "tr-evisa-tourist",
+          "name": "Turkey Electronic Tourist Visa (Multiple Entry)",
+          "requiredDocuments": [
+            "Passport Copy (valid 6+ months)",
+            "Valid US, UK, Schengen, or GCC Residence permit (if required by nationality)"
+          ],
+          "standardDays": 1,
+          "standardGovFee": 220,
+          "standardServiceFee": 120,
+          "stayDuration": "Up to 90 Days",
+          "superExpressAvailable": true,
+          "validityDuration": "180 Days"
+        }
+      ]
+    },
+    {
+      "countryCode": "EG",
+      "countryName": "Egypt",
+      "flag": "🇪🇬",
+      "region": "Africa & Global",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Fast-track electronic visa for tourism, Nile cruises, and Red Sea holidays.",
+          "entryType": "Multiple Entry",
+          "expressDays": 1,
+          "expressSurcharge": 70,
+          "id": "eg-tourist-evisa",
+          "name": "Egypt Single & Multiple Entry Tourist eVisa",
+          "requiredDocuments": [
+            "Passport Copy",
+            "Passport Photo",
+            "Hotel Reservation in Cairo/Sharm El Sheikh/Hurghada"
+          ],
+          "standardDays": 2,
+          "standardGovFee": 180,
+          "standardServiceFee": 110,
+          "stayDuration": "30 Days per entry",
+          "superExpressAvailable": true,
+          "validityDuration": "90 Days"
+        }
+      ]
+    },
+    {
+      "countryCode": "ZA",
+      "countryName": "South Africa",
+      "flag": "🇿🇦",
+      "region": "Africa & Global",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "VFS Global appointment booking, documentation verification, and visa application submission.",
+          "entryType": "Single Entry",
+          "expressDays": 7,
+          "expressSurcharge": 200,
+          "id": "za-visitor-visa",
+          "name": "South Africa Tourist & Safari Visitor Visa (Section 11(1))",
+          "requiredDocuments": [
+            "Passport Copy",
+            "3-Month Stamped Bank Statements",
+            "Employer NOC Letter",
+            "Confirmed Return Flight Tickets",
+            "Hotel Accommodation in Cape Town / Johannesburg"
+          ],
+          "standardDays": 14,
+          "standardGovFee": 250,
+          "standardServiceFee": 350,
+          "stayDuration": "Up to 90 Days",
+          "validityDuration": "90 Days"
+        }
+      ]
+    },
+    {
+      "countryCode": "AZ",
+      "countryName": "Azerbaijan",
+      "flag": "🇦🇿",
+      "region": "Africa & Global",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Official ASAN Visa portal electronic clearance with 3-hour super express option available for Baku holidays.",
+          "entryType": "Single Entry",
+          "expressDays": 1,
+          "expressSurcharge": 90,
+          "id": "az-asan-evisa",
+          "name": "ASAN Visa Electronic Tourist Visa (30 Days)",
+          "requiredDocuments": [
+            "Passport Copy (valid 3+ months beyond visa expiry)",
+            "Email Address"
+          ],
+          "standardDays": 2,
+          "standardGovFee": 120,
+          "standardServiceFee": 80,
+          "stayDuration": "30 Days",
+          "superExpressAvailable": true,
+          "validityDuration": "90 Days"
+        }
+      ]
+    },
+    {
+      "countryCode": "GE",
+      "countryName": "Georgia",
+      "flag": "🇬🇪",
+      "region": "Africa & Global",
+      "visaTypes": [
+        {
+          "category": "Tourist / Visit Visa",
+          "description": "Fast electronic visa for Caucasus tours, Tbilisi old town, and Kazbegi mountain trips.",
+          "entryType": "Multiple Entry",
+          "expressDays": 1,
+          "expressSurcharge": 80,
+          "id": "ge-tourist-evisa",
+          "name": "Georgia Electronic Tourist Visa (120 Days)",
+          "requiredDocuments": [
+            "Passport Copy",
+            "Passport Photo",
+            "Travel Medical Insurance",
+            "Accommodation Proof in Tbilisi/Batumi"
+          ],
+          "standardDays": 3,
+          "standardGovFee": 110,
+          "standardServiceFee": 90,
+          "stayDuration": "30 Days",
+          "validityDuration": "120 Days"
+        }
+      ]
+    }
+  ],
   "workflows": [
     {
       "badgeBg": "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
@@ -1518,9 +2338,5 @@
       "updatedAt": "2026-08-25T08:00:00Z"
     }
   ],
-  "leads": [],
-  "tasks": [],
-  "documents": [],
-  "messages": [],
-  "forceReset": true
+  "leads": []
 }

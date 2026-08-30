@@ -31,7 +31,11 @@ export const DepartmentSettings: React.FC = () => {
     currentUser,
   } = useCRM();
 
-  const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
+  const canManage =
+    currentUser.role === 'master' ||
+    currentUser.role === 'admin' ||
+    currentUser.role === 'employee' ||
+    Boolean(currentUser.permissions?.canManageSystemSettings);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState('all');
@@ -67,10 +71,6 @@ export const DepartmentSettings: React.FC = () => {
   });
 
   const handleOpenAddModal = () => {
-    if (!isAdminOrMaster) {
-      setNotice({ type: 'error', text: 'Permission denied: Only Admin or Master users can manage departments.' });
-      return;
-    }
     setEditingDept(null);
     setFormData({
       name: '',
@@ -86,10 +86,6 @@ export const DepartmentSettings: React.FC = () => {
   };
 
   const handleOpenEditModal = (dept: Department) => {
-    if (!isAdminOrMaster) {
-      setNotice({ type: 'error', text: 'Permission denied: Only Admin or Master users can edit departments.' });
-      return;
-    }
     setEditingDept(dept);
     setFormData({
       name: dept.name,
@@ -106,11 +102,6 @@ export const DepartmentSettings: React.FC = () => {
 
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdminOrMaster) {
-      setNotice({ type: 'error', text: 'Permission denied: Only Admin or Master users can modify departments.' });
-      return;
-    }
-
     if (!formData.name.trim()) {
       setNotice({ type: 'error', text: 'Department Name is required.' });
       return;
@@ -155,11 +146,6 @@ export const DepartmentSettings: React.FC = () => {
   };
 
   const handleDeleteDepartment = (id: string) => {
-    if (!isAdminOrMaster) {
-      setNotice({ type: 'error', text: 'Permission denied: Only Admin or Master users can delete departments.' });
-      return;
-    }
-
     deleteDepartment(id);
     setNotice({ type: 'success', text: 'Department deleted successfully.' });
     setDeleteConfirmId(null);
@@ -211,7 +197,7 @@ export const DepartmentSettings: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {isAdminOrMaster && (
+          {canManage && (
             <button
               onClick={handleOpenAddModal}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all cursor-pointer"
@@ -338,8 +324,8 @@ export const DepartmentSettings: React.FC = () => {
                 )}
               </div>
 
-              {/* Action Buttons for Admins */}
-              {isAdminOrMaster && (
+              {/* Action Buttons */}
+              {canManage && (
                 <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
                   <button
                     onClick={() => handleOpenEditModal(dept)}
@@ -371,7 +357,7 @@ export const DepartmentSettings: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
               No organizational departments match your current query or company filter.
             </p>
-            {isAdminOrMaster && (
+            {canManage && (
               <button
                 onClick={handleOpenAddModal}
                 className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 inline-flex items-center gap-2"

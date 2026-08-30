@@ -70,9 +70,13 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
           {/* Header */}
           <div className="flex justify-between items-start">
             <div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                  {initials}
+              <div className="flex items-center gap-3">
+                <div className="h-12 px-2.5 py-1 bg-white border border-slate-200 rounded-xl flex items-center justify-center shadow-xs shrink-0">
+                  <img
+                    src={crmBranding?.logoUrl || '/logo-adcs.svg'}
+                    alt="ADCS"
+                    className="h-8 w-auto object-contain"
+                  />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-slate-900 leading-tight">

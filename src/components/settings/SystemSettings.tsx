@@ -45,7 +45,11 @@ import { useGmail } from '../../context/GmailContext';
 import { VisaEmailTemplate, CRMBranding, InvoiceBillingSettings, LeadCategory, LeadSource, LeadStage } from '../../types/crm';
 import { DepartmentSettings } from './DepartmentSettings';
 
-export const SystemSettings: React.FC = () => {
+interface SystemSettingsProps {
+  initialTab?: 'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync';
+}
+
+export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'billing' }) => {
   const {
     departments,
     stages,
@@ -94,7 +98,13 @@ export const SystemSettings: React.FC = () => {
   const isMaster = currentUser.role === 'master';
   const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync'>('billing');
+  const [activeTab, setActiveTab] = useState<'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync'>(initialTab);
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   
   // Billing Settings Form State
   const [billingForm, setBillingForm] = useState<InvoiceBillingSettings>(billingSettings);
@@ -1156,28 +1166,16 @@ export const SystemSettings: React.FC = () => {
       {/* Tab: Lead Categories, Channels & Pipeline Stages */}
       {activeTab === 'lead_config' && (
         <div className="space-y-6">
-          {/* Permission Notice */}
-          {!isAdminOrMaster ? (
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-3">
-              <Lock className="w-4 h-4 shrink-0 mt-0.5" />
-              <div>
-                <strong className="block font-bold">Admin / Master Access Required</strong>
-                <span>
-                  Lead categories, channels, and custom pipeline stages can only be created, edited, or deleted by Administrator or Master accounts.
-                </span>
-              </div>
+          {/* Information Notice */}
+          <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-blue-800 dark:text-blue-300 text-xs flex items-start gap-3">
+            <Tag className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block font-bold">Lead Categories, Acquisition Channels & Pipeline Stages</strong>
+              <span>
+                Create, edit, and delete lead types/categories (including Job Applications, Corporate, Golden Visa, and VIP categories), marketing channels/sources, and pipeline stages. All changes persist automatically.
+              </span>
             </div>
-          ) : (
-            <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-blue-800 dark:text-blue-300 text-xs flex items-start gap-3">
-              <Tag className="w-4 h-4 shrink-0 mt-0.5" />
-              <div>
-                <strong className="block font-bold">Lead Categories, Acquisition Channels & Pipeline Stages</strong>
-                <span>
-                  Admin and Master can create, edit, and delete lead types/categories (including Job Applications, Corporate, Golden Visa, and VIP categories), marketing channels/sources, and pipeline stages. All changes persist automatically and remain safe across version upgrades.
-                </span>
-              </div>
-            </div>
-          )}
+          </div>
 
           {/* Section 1: Lead Categories Management */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
@@ -1192,15 +1190,13 @@ export const SystemSettings: React.FC = () => {
                 </p>
               </div>
 
-              {isAdminOrMaster && (
-                <button
-                  onClick={() => setShowAddCategoryModal(true)}
-                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Category</span>
-                </button>
-              )}
+              <button
+                onClick={() => setShowAddCategoryModal(true)}
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Category</span>
+              </button>
             </div>
 
             {/* Categories List Grid */}
@@ -1221,28 +1217,24 @@ export const SystemSettings: React.FC = () => {
                           : (cat.badgeText || cat.name || cat.code || 'Category')}
                       </span>
                       <div className="flex items-center gap-1">
-                        {isAdminOrMaster && (
-                          <>
-                            <button
-                              onClick={() => setEditingCategory(cat)}
-                              className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                              title="Edit Category"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm(`Delete lead category "${cat.name}"?`)) {
-                                  deleteLeadCategory(cat.id);
-                                }
-                              }}
-                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                              title="Delete Category"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
+                        <button
+                          onClick={() => setEditingCategory(cat)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                          title="Edit Category"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete lead category "${cat.name}"?`)) {
+                              deleteLeadCategory(cat.id);
+                            }
+                          }}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                          title="Delete Category"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
 
@@ -1272,15 +1264,13 @@ export const SystemSettings: React.FC = () => {
                 </p>
               </div>
 
-              {isAdminOrMaster && (
-                <button
-                  onClick={() => setShowAddSourceModal(true)}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Channel</span>
-                </button>
-              )}
+              <button
+                onClick={() => setShowAddSourceModal(true)}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Channel</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -1297,28 +1287,26 @@ export const SystemSettings: React.FC = () => {
                     <p className="text-[10px] text-slate-500 mt-1">{src.description || 'Acquisition channel'}</p>
                   </div>
 
-                  {isAdminOrMaster && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setEditingSource(src)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        title="Edit Source"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete lead source channel "${src.name}"?`)) {
-                            deleteLeadSource(src.id);
-                          }
-                        }}
-                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                        title="Delete Source"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingSource(src)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="Edit Source"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete lead source channel "${src.name}"?`)) {
+                          deleteLeadSource(src.id);
+                        }
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                      title="Delete Source"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1337,15 +1325,13 @@ export const SystemSettings: React.FC = () => {
                 </p>
               </div>
 
-              {isAdminOrMaster && (
-                <button
-                  onClick={() => setShowAddStageModal(true)}
-                  className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Pipeline Stage</span>
-                </button>
-              )}
+              <button
+                onClick={() => setShowAddStageModal(true)}
+                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Pipeline Stage</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -1367,28 +1353,26 @@ export const SystemSettings: React.FC = () => {
                     </div>
                   </div>
 
-                  {isAdminOrMaster && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setEditingStageItem(stg)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        title="Edit Stage"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete pipeline stage "${stg.name}"?`)) {
-                            deleteLeadStage(stg.id);
-                          }
-                        }}
-                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                        title="Delete Stage"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingStageItem(stg)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="Edit Stage"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete pipeline stage "${stg.name}"?`)) {
+                          deleteLeadStage(stg.id);
+                        }
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                      title="Delete Stage"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1911,11 +1895,13 @@ export const SystemSettings: React.FC = () => {
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center gap-5">
               <div className="relative group shrink-0">
                 {brandForm.logoUrl ? (
-                  <img
-                    src={brandForm.logoUrl}
-                    alt="CRM Logo"
-                    className="w-20 h-20 rounded-2xl object-cover ring-2 ring-blue-500/40 shadow-md"
-                  />
+                  <div className="w-24 h-20 p-2 bg-white rounded-2xl ring-2 ring-blue-500/40 shadow-md flex items-center justify-center overflow-hidden">
+                    <img
+                      src={brandForm.logoUrl}
+                      alt="CRM Logo"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
                 ) : (
                   <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-white text-2xl shadow-md">
                     {brandForm.shortName ? brandForm.shortName[0] : 'A'}

@@ -26,11 +26,17 @@ import {
   Database,
   Globe,
   Plane,
+  Smartphone,
+  Menu,
+  Layers,
+  Tag,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
 import { UserRole } from '../../types/crm';
 import { CloudDataSyncModal } from '../common/CloudDataSyncModal';
+import { PWAInstallModal } from '../common/PWAInstallModal';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface NavbarProps {
   onOpenSearch: () => void;
@@ -38,6 +44,7 @@ interface NavbarProps {
   onOpenCreateInvoice: () => void;
   onOpenAddTask: () => void;
   onOpenUploadDoc: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -46,6 +53,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCreateInvoice,
   onOpenAddTask,
   onOpenUploadDoc,
+  onToggleMobileSidebar,
 }) => {
   const {
     currentUser,
@@ -85,7 +93,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showQuickAddDropdown, setShowQuickAddDropdown] = useState(false);
   const [showSystemMenu, setShowSystemMenu] = useState(false);
   const [showCloudSyncModal, setShowCloudSyncModal] = useState(false);
+  const [showPWAInstallModal, setShowPWAInstallModal] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'expiries' | 'tasks'>('all');
+  const { isInstalled, isAndroid, isInstallable } = usePWAInstall();
 
   const roleRef = useRef<HTMLDivElement>(null);
   const compRef = useRef<HTMLDivElement>(null);
@@ -166,17 +176,35 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="h-16 sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
       <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
 
-      <div className="h-full px-6 sm:px-8 flex items-center justify-between gap-4">
+      <div className="h-full px-3 sm:px-6 md:px-8 flex items-center justify-between gap-2 sm:gap-4">
         {/* Left: Global Search Input & Branch Selector */}
-        <div className="flex items-center gap-4 flex-1 max-w-xl">
-          <div className="w-full relative">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-1 max-w-xl min-w-0">
+          {/* Mobile Sidebar Hamburger Toggle */}
+          {onToggleMobileSidebar && (
+            <button
+              onClick={onToggleMobileSidebar}
+              className="md:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-800 shrink-0 cursor-pointer"
+              title="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Mobile visible ADCS Brand Logo */}
+          <div className="md:hidden flex items-center shrink-0">
+            <div className="h-8 px-1.5 py-0.5 bg-white dark:bg-white rounded-lg flex items-center justify-center shadow-xs border border-slate-200">
+              <img src="/logo-adcs.svg" alt="ADCS" className="h-5 w-auto object-contain" />
+            </div>
+          </div>
+
+          <div className="w-full relative min-w-0">
             <button
               onClick={onOpenSearch}
-              className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-md text-xs text-slate-500 border border-slate-200 dark:border-slate-700/70 transition-colors group cursor-pointer"
+              className="w-full flex items-center justify-between px-2.5 sm:px-3 py-2 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-md text-xs text-slate-500 border border-slate-200 dark:border-slate-700/70 transition-colors group cursor-pointer"
             >
-              <span className="flex items-center gap-2">
-                <Search className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
-                <span className="truncate">Search ID, Name, Passport, EID, or Invoices...</span>
+              <span className="flex items-center gap-1.5 sm:gap-2 truncate">
+                <Search className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                <span className="truncate">Search clients, visas...</span>
               </span>
               <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-slate-500 bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 shadow-xs">
                 ⌘K
@@ -425,6 +453,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <Upload className="w-4 h-4 text-amber-600" />
                     <span>Upload Document</span>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('departments');
+                      setShowQuickAddDropdown(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <Layers className="w-4 h-4 text-purple-600" />
+                    <span>Manage Departments & Units</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('categories');
+                      setShowQuickAddDropdown(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <Tag className="w-4 h-4 text-rose-600" />
+                    <span>Lead Categories & Channels</span>
                   </button>
                 </div>
               )}
@@ -824,6 +876,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Cloud className="w-4 h-4 text-blue-600" />
                   <span>Cloud Persistence & Sync</span>
                 </button>
+                <button
+                  onClick={() => {
+                    setShowPWAInstallModal(true);
+                    setShowSystemMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                >
+                  <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <span>{isInstalled ? 'Mobile App Status' : isAndroid ? 'Install Android App (PWA)' : 'Install Mobile App (PWA)'}</span>
+                </button>
                 <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                 <button
                   onClick={handleExportBackup}
@@ -860,6 +922,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Cloud Data Persistence & Sync Modal */}
       <CloudDataSyncModal isOpen={showCloudSyncModal} onClose={() => setShowCloudSyncModal(false)} />
+
+      {/* PWA / Android App Install Modal */}
+      <PWAInstallModal isOpen={showPWAInstallModal} onClose={() => setShowPWAInstallModal(false)} />
     </header>
   );
 };

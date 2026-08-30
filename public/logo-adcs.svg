@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" width="800" height="320" fill="none">
+  <defs>
+    <style>
+      .navy-fill { fill: #070e5c; }
+      .red-fill { fill: #f0141e; }
+    </style>
+  </defs>
+
+  <!-- Group for entire ADCS Logo centered -->
+  <g transform="translate(20, 20)">
+
+    <!-- LETTER A -->
+    <!-- Red body of A -->
+    <path class="red-fill" d="M 125,40 L 165,40 L 225,240 L 180,240 L 165,190 L 105,190 L 98,212 L 58,240 L 125,40 Z M 145,115 L 118,160 L 155,160 Z" />
+    <!-- Navy diagonal dynamic swoop cutting across the lower left of A -->
+    <path class="navy-fill" d="M 20,120 Q 80,180 145,215 L 240,240 L 225,240 L 140,210 Q 75,185 20,120 Z" />
+    <path class="navy-fill" d="M 25,240 L 95,240 L 120,165 L 60,208 Z" />
+
+    <!-- LETTER D -->
+    <!-- Navy D outer container with rounded top-left wing/swoop and rounded right side -->
+    <path class="navy-fill" d="M 215,65 C 215,48 240,40 270,40 L 330,40 C 385,40 425,85 425,140 C 425,195 385,240 330,240 L 255,240 C 240,240 240,225 240,210 L 240,195 L 320,195 C 355,195 375,170 375,140 C 375,110 355,85 320,85 L 255,85 C 240,85 230,80 215,65 Z" />
+    <!-- Red rounded rectangle inner dot of D -->
+    <rect class="red-fill" x="250" y="112" width="45" height="55" rx="14" ry="14" />
+
+    <!-- LETTER C -->
+    <!-- Deep Navy Top Arc of C -->
+    <path class="navy-fill" d="M 545,45 C 500,42 460,70 445,115 C 440,130 438,145 438,160 C 452,125 480,95 530,90 C 580,85 615,110 635,130 L 635,80 C 605,55 575,45 545,45 Z" />
+    <!-- Vibrant Red Bottom Arc of C with left tail swirl -->
+    <path class="red-fill" d="M 438,150 C 438,195 460,230 500,250 C 545,268 600,255 640,225 L 640,175 C 615,200 580,215 535,210 C 490,205 460,180 448,150 C 442,150 438,145 438,150 Z" />
+    <!-- Small Navy lower-inner wedge for C -->
+    <path class="navy-fill" d="M 445,115 C 455,85 490,60 540,60 C 590,60 625,90 635,115 L 610,130 C 595,105 570,88 535,88 C 490,88 460,120 460,150 C 460,175 485,205 530,205 C 565,205 595,188 610,165 L 635,180 C 618,215 580,235 530,235 C 470,235 440,195 440,150 Z" opacity="0.05" />
+
+    <!-- LETTER S -->
+    <!-- Upper Red dynamic swoop / top curve of S -->
+    <path class="red-fill" d="M 770,55 C 720,40 675,65 675,100 C 675,130 705,145 745,158 C 785,170 805,185 805,215 C 805,255 755,270 705,255 C 690,250 678,242 668,232 L 668,200 C 680,215 700,228 730,230 C 765,232 780,215 780,200 C 780,180 755,168 720,155 C 675,140 655,120 655,88 C 655,50 705,32 755,42 C 770,45 780,50 790,56 L 770,85 C 760,78 748,72 730,70 C 700,68 680,82 680,98 C 680,112 700,122 730,132 L 770,55 Z" />
+    <!-- Navy Blue spine & lower foundation curve of S -->
+    <path class="navy-fill" d="M 650,85 C 650,75 658,58 675,45 L 675,120 C 665,105 650,98 650,85 Z M 650,150 C 650,190 680,240 735,248 C 760,250 780,242 795,230 L 795,255 C 775,268 745,272 720,270 C 665,265 640,215 640,165 C 640,140 650,120 660,105 L 660,135 C 652,145 650,150 650,150 Z" />
+
+  </g>
+</svg>

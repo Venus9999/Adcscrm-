@@ -200,11 +200,13 @@ export const LoginScreen: React.FC = () => {
             {/* Logo and Brand Title */}
             <div className="flex items-center gap-3.5">
               {crmBranding.logoUrl ? (
-                <img
-                  src={crmBranding.logoUrl}
-                  alt={crmBranding.name}
-                  className="w-12 h-12 rounded-2xl object-cover ring-2 ring-blue-500/40 shadow-lg shadow-blue-500/20"
-                />
+                <div className="h-14 px-3 py-2 bg-white rounded-2xl flex items-center justify-center ring-2 ring-white/30 shadow-xl shadow-blue-500/20 shrink-0">
+                  <img
+                    src={crmBranding.logoUrl}
+                    alt={crmBranding.name}
+                    className="h-9 w-auto object-contain"
+                  />
+                </div>
               ) : (
                 <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-500/30">
                   {crmBranding.shortName ? crmBranding.shortName[0] : 'A'}

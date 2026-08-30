@@ -421,7 +421,7 @@ export const UserProfileSettings: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+          <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -432,6 +432,12 @@ export const UserProfileSettings: React.FC = () => {
                     type={showCurrentPass ? 'text' : 'password'}
                     value={passwordForm.currentPassword}
                     onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handlePasswordSubmit(e);
+                      }
+                    }}
                     placeholder="Enter current password"
                     className="w-full p-2.5 pr-9 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
                   />
@@ -454,6 +460,12 @@ export const UserProfileSettings: React.FC = () => {
                     type={showNewPass ? 'text' : 'password'}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handlePasswordSubmit(e);
+                      }
+                    }}
                     placeholder="Minimum 4 characters"
                     className="w-full p-2.5 pr-9 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
                   />
@@ -475,6 +487,12 @@ export const UserProfileSettings: React.FC = () => {
                   type={showNewPass ? 'text' : 'password'}
                   value={passwordForm.confirmPassword}
                   onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handlePasswordSubmit(e);
+                    }
+                  }}
                   placeholder="Repeat new password"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
                 />
@@ -486,14 +504,15 @@ export const UserProfileSettings: React.FC = () => {
                 After changing, your new password is immediately active for future sign-ins.
               </span>
               <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                type="button"
+                onClick={handlePasswordSubmit}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Key className="w-3.5 h-3.5" />
                 Update Password
               </button>
             </div>
-          </form>
+          </div>
         </div>
 
         {/* Notification Routing Settings */}

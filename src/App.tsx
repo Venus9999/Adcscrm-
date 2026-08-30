@@ -22,6 +22,7 @@ import { ReportsAnalytics } from './components/reports/ReportsAnalytics';
 import { AuditTrail } from './components/audit/AuditTrail';
 import { ServicesCatalog } from './components/services/ServicesCatalog';
 import { SystemSettings } from './components/settings/SystemSettings';
+import { DepartmentSettings } from './components/settings/DepartmentSettings';
 import { GlobalSearchModal } from './components/common/GlobalSearchModal';
 import { LeadsManagement } from './components/leads/LeadsManagement';
 import { TransactionsManagement } from './components/transactions/TransactionsManagement';
@@ -30,6 +31,8 @@ import { UserProfileSettings } from './components/settings/UserProfileSettings';
 import { VendorsManagement } from './components/vendors/VendorsManagement';
 import { VisaServicesManager } from './components/visa/VisaServicesManager';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { PWAInstallBanner } from './components/common/PWAInstallBanner';
+import { PWAInstallModal } from './components/common/PWAInstallModal';
 
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -38,6 +41,8 @@ const AppContent: React.FC = () => {
 
   const [showAddClientModal, setShowAddClientModal] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [showPWAInstallModal, setShowPWAInstallModal] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // If not authenticated, render the secure Login Screen
   if (!isAuthenticated) {
@@ -121,6 +126,21 @@ const AppContent: React.FC = () => {
       case 'gmail':
         return <GmailHub />;
 
+      case 'departments':
+      case 'department':
+        return <DepartmentSettings />;
+
+      case 'categories':
+      case 'lead_config':
+      case 'lead-categories':
+        return <SystemSettings initialTab="lead_config" />;
+
+      case 'billing':
+        return <SystemSettings initialTab="billing" />;
+
+      case 'branding':
+        return <SystemSettings initialTab="branding" />;
+
       case 'settings':
         return <SystemSettings />;
 
@@ -132,7 +152,10 @@ const AppContent: React.FC = () => {
   return (
     <div className="flex h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden font-sans">
       {/* Left Sidebar */}
-      <Sidebar />
+      <Sidebar
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+      />
 
       {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -143,6 +166,7 @@ const AppContent: React.FC = () => {
           onOpenCreateInvoice={() => setActiveTab('payments')}
           onOpenAddTask={() => setActiveTab('tasks')}
           onOpenUploadDoc={() => setActiveTab('documents')}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
         />
 
         {/* Scrollable Viewport */}
@@ -173,6 +197,15 @@ const AppContent: React.FC = () => {
 
       {/* Mandatory Gmail Mutating Action Confirmation Dialog */}
       <GmailConfirmDialog />
+
+      {/* PWA / Android Mobile App Install Banner */}
+      <PWAInstallBanner onOpenModal={() => setShowPWAInstallModal(true)} />
+
+      {/* PWA / Android Install Guide Modal */}
+      <PWAInstallModal
+        isOpen={showPWAInstallModal}
+        onClose={() => setShowPWAInstallModal(false)}
+      />
     </div>
   );
 };

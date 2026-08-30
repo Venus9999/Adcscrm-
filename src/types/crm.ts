@@ -24,6 +24,8 @@ export interface UserPermissions {
   canManageWorkflows?: boolean;
   canEditWorkflows?: boolean;
   canManageRoles?: boolean;
+  canManageSystemSettings?: boolean;
+  canManageDepartments?: boolean;
 }
 
 export interface RoleDefinition {

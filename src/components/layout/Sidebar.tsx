@@ -22,8 +22,14 @@ import {
   LogOut,
   Mail,
   Globe,
+  Layers,
+  Tag,
+  Smartphone,
+  X,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
+import { PWAInstallModal } from '../common/PWAInstallModal';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface SidebarNavItem {
   id: string;
@@ -34,7 +40,12 @@ interface SidebarNavItem {
   badgeColor?: string;
 }
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile }) => {
   const {
     currentUser,
     activeTab,
@@ -49,6 +60,9 @@ export const Sidebar: React.FC = () => {
     crmBranding,
     logout,
   } = useCRM();
+
+  const [showPWAInstallModal, setShowPWAInstallModal] = React.useState(false);
+  const { isInstalled, isAndroid } = usePWAInstall();
 
   const isClient = currentUser?.role === 'client';
 
@@ -81,6 +95,18 @@ export const Sidebar: React.FC = () => {
       label: 'Companies & Branches',
       icon: Building2,
       allowedRoles: ['master', 'admin'],
+    },
+    {
+      id: 'departments',
+      label: 'Departments & Units',
+      icon: Layers,
+      allowedRoles: ['master', 'admin', 'employee'],
+    },
+    {
+      id: 'categories',
+      label: 'Categories & Lead Config',
+      icon: Tag,
+      allowedRoles: ['master', 'admin', 'employee'],
     },
     {
       id: 'users',
@@ -214,7 +240,10 @@ export const Sidebar: React.FC = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  onCloseMobile?.();
+                }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-colors ${
                   isActive
                     ? 'bg-slate-800 text-white font-semibold border-l-2 border-blue-500 pl-2.5 shadow-xs'
@@ -246,17 +275,19 @@ export const Sidebar: React.FC = () => {
     );
   };
 
-  return (
-    <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 border-r border-slate-800 select-none">
+  const sidebarContent = (
+    <>
       {/* Brand Header */}
-      <div className="p-4 flex items-center justify-between border-b border-slate-800">
+      <div className="p-4 flex items-center justify-between border-b border-slate-800 bg-slate-950/40">
         <div className="flex items-center gap-3">
           {crmBranding.logoUrl ? (
-            <img
-              src={crmBranding.logoUrl}
-              alt={crmBranding.name}
-              className="w-8 h-8 rounded-lg object-cover ring-2 ring-blue-500/30 shadow-md shrink-0"
-            />
+            <div className="h-9 px-2 py-1 bg-white rounded-lg flex items-center justify-center shadow-md ring-1 ring-white/20 shrink-0">
+              <img
+                src={crmBranding.logoUrl}
+                alt={crmBranding.name}
+                className="h-6 w-auto object-contain"
+              />
+            </div>
           ) : (
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-md text-sm ring-2 ring-blue-500/30 shrink-0">
               {crmBranding.shortName ? crmBranding.shortName[0] : 'A'}
@@ -264,12 +295,21 @@ export const Sidebar: React.FC = () => {
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-bold text-white tracking-tight truncate">{crmBranding.name}</span>
-              <span className="text-[9px] font-bold px-1 py-0.2 bg-blue-500/20 text-blue-400 rounded shrink-0">PRO</span>
+              <span className="text-sm font-black text-white tracking-tight truncate">{crmBranding.name}</span>
+              <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded shrink-0">CRM</span>
             </div>
-            <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold truncate">{crmBranding.tagline}</p>
+            <p className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold truncate">{crmBranding.tagline}</p>
           </div>
         </div>
+        {onCloseMobile && (
+          <button
+            onClick={onCloseMobile}
+            className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            title="Close navigation"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Nav List */}
@@ -290,8 +330,9 @@ export const Sidebar: React.FC = () => {
             onClick={() => {
               setActiveTab('client_portal');
               setSelectedClientId('client-1');
+              onCloseMobile?.();
             }}
-            className="w-full mt-1.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-md transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+            className="w-full mt-1.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-md transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
           >
             <Compass className="w-3.5 h-3.5" />
             <span>Launch Client Portal</span>
@@ -299,10 +340,33 @@ export const Sidebar: React.FC = () => {
         </div>
       )}
 
+      {/* Android & PWA App Install Button */}
+      <div className="mx-3 mb-3">
+        <button
+          onClick={() => setShowPWAInstallModal(true)}
+          className="w-full p-2.5 rounded-xl bg-gradient-to-r from-blue-950/60 to-indigo-950/60 hover:from-blue-900/80 hover:to-indigo-900/80 border border-blue-800/50 text-blue-200 text-xs font-bold transition-all flex items-center justify-between gap-2 group shadow-sm cursor-pointer"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-lg bg-blue-600/30 border border-blue-500/30 flex items-center justify-center shrink-0">
+              <Smartphone className="w-3.5 h-3.5 text-blue-300" />
+            </div>
+            <span className="truncate text-[11px]">
+              {isInstalled ? 'Mobile App Info' : isAndroid ? 'Install Android App' : 'Install Mobile App'}
+            </span>
+          </div>
+          <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/20 font-extrabold shrink-0">
+            {isInstalled ? 'Installed' : 'PWA'}
+          </span>
+        </button>
+      </div>
+
       {/* User Status Profile Footer with Logout */}
       <div className="p-3 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between gap-2">
         <div
-          onClick={() => setActiveTab('profile')}
+          onClick={() => {
+            setActiveTab('profile');
+            onCloseMobile?.();
+          }}
           className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-90 cursor-pointer transition-opacity"
           title="View & Edit Profile Settings"
         >
@@ -335,6 +399,37 @@ export const Sidebar: React.FC = () => {
           <LogOut className="w-4 h-4" />
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar */}
+      <aside className="hidden md:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 border-r border-slate-800 select-none">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Drawer Overlay */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={onCloseMobile}
+          />
+
+          {/* Drawer panel */}
+          <aside className="relative w-72 max-w-[85vw] bg-slate-900 text-slate-300 flex flex-col h-full shadow-2xl border-r border-slate-800 select-none z-10 animate-in slide-in-from-left duration-200">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+
+      {/* PWA / Android Install Guide Modal */}
+      <PWAInstallModal
+        isOpen={showPWAInstallModal}
+        onClose={() => setShowPWAInstallModal(false)}
+      />
+    </>
   );
 };

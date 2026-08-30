@@ -335,6 +335,7 @@ const CRMContext = createContext<CRMContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY = 'adcs_crm_db_v2';
 const AUTH_STORAGE_KEY = 'adcs_crm_auth_session_v2';
 const CURRENT_USER_STORAGE_KEY = 'adcs_crm_active_user_id_v2';
+const ACTIVE_USER_PROFILE_KEY = 'adcs_crm_active_user_profile_v2';
 
 export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Load saved state or default
@@ -379,6 +380,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [currentUser, setCurrentUserState] = useState<User>(() => {
     try {
+      // 1. Direct cached user profile object
+      const savedProfile = localStorage.getItem(ACTIVE_USER_PROFILE_KEY);
+      if (savedProfile) {
+        try {
+          const parsedUser = JSON.parse(savedProfile);
+          if (parsedUser && parsedUser.id && parsedUser.role) {
+            return parsedUser;
+          }
+        } catch {}
+      }
+
+      // 2. Lookup by saved user ID
       const savedUserId = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
       if (savedUserId) {
         const savedDb =
@@ -394,7 +407,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 (u.id === savedUserId ||
                   u.email?.toLowerCase().trim() === savedUserId.toLowerCase().trim())
             );
-            if (found) return found;
+            if (found) {
+              try {
+                localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(found));
+              } catch {}
+              return found;
+            }
           }
         }
         const initialFound = INITIAL_USERS.find(
@@ -403,7 +421,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             (u.id === savedUserId ||
               u.email.toLowerCase().trim() === savedUserId.toLowerCase().trim())
         );
-        if (initialFound) return initialFound;
+        if (initialFound) {
+          try {
+            localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(initialFound));
+          } catch {}
+          return initialFound;
+        }
       }
     } catch (e) {
       console.warn('Failed to restore active user session', e);
@@ -417,6 +440,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (next && next.id) {
         try {
           localStorage.setItem(CURRENT_USER_STORAGE_KEY, next.id);
+          localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(next));
         } catch {}
       }
       return next;
@@ -424,7 +448,20 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTabState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('adcs_crm_active_tab');
+      if (saved) return saved;
+    } catch {}
+    return 'dashboard';
+  });
+
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem('adcs_crm_active_tab', tab);
+    } catch {}
+  }, []);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   // Server Sync Status State
@@ -456,55 +493,92 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.roles && Array.isArray(parsed.roles)) setRoles(parsed.roles);
     if (parsed.workflows && Array.isArray(parsed.workflows)) setWorkflows(parsed.workflows);
     if (parsed.users && Array.isArray(parsed.users)) {
-      // Filter out deleted legacy demo staff accounts (user-admin-1, user-emp-1, tariq, pro)
-      const cleanUsers = (parsed.users || []).filter(
-        (u: User) =>
-          u &&
-          u.id !== 'user-admin-1' &&
-          u.id !== 'user-emp-1' &&
-          u.email &&
-          u.email.toLowerCase() !== 'admin@adcs.ae' &&
-          u.email.toLowerCase() !== 'pro@adcs.ae' &&
-          !u.email.toLowerCase().includes('tariq@')
-      ).map((u: User) => ({
-        ...u,
-        companyIds: u.companyIds && u.companyIds.length > 0 ? u.companyIds : u.companyId ? [u.companyId] : [],
-      }));
+      const cleanUsers = (parsed.users || [])
+        .filter((u: User) => u && u.id && u.email)
+        .map((u: User) => ({
+          ...u,
+          companyIds: u.companyIds && u.companyIds.length > 0 ? u.companyIds : u.companyId ? [u.companyId] : [],
+        }));
 
-      // Directly set users without merging missing local users to ensure deletions are permanent
-      setUsers(cleanUsers.length > 0 ? cleanUsers : INITIAL_USERS);
+      // Merge cached active profile and INITIAL_USERS so standard roles/users are always preserved
+      const mergedUsers = [...cleanUsers];
+      try {
+        const storedProfile = localStorage.getItem(ACTIVE_USER_PROFILE_KEY);
+        if (storedProfile) {
+          const cached = JSON.parse(storedProfile);
+          if (
+            cached &&
+            cached.id &&
+            !mergedUsers.some(
+              (u) =>
+                u.id === cached.id ||
+                (u.email && cached.email && u.email.toLowerCase().trim() === cached.email.toLowerCase().trim())
+            )
+          ) {
+            mergedUsers.push(cached);
+          }
+        }
+      } catch {}
+
+      INITIAL_USERS.forEach((initU) => {
+        if (
+          !mergedUsers.some(
+            (u) =>
+              u.id === initU.id ||
+              (u.email && initU.email && u.email.toLowerCase().trim() === initU.email.toLowerCase().trim())
+          )
+        ) {
+          mergedUsers.push(initU);
+        }
+      });
+
+      setUsers(mergedUsers.length > 0 ? mergedUsers : INITIAL_USERS);
 
       // Maintain current user profile integrity in local browser session
       setCurrentUserState((prevUser) => {
-        let targetId = prevUser.id;
+        let targetId = prevUser?.id;
+        let cachedProfileUser: User | null = null;
+
         try {
+          const storedProfile = localStorage.getItem(ACTIVE_USER_PROFILE_KEY);
+          if (storedProfile) {
+            cachedProfileUser = JSON.parse(storedProfile);
+            if (cachedProfileUser && cachedProfileUser.id) {
+              targetId = cachedProfileUser.id;
+            }
+          }
           const storedId = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
           if (storedId) targetId = storedId;
         } catch {}
 
-        const found = cleanUsers.find(
+        const usersList = mergedUsers.length > 0 ? mergedUsers : INITIAL_USERS;
+        const found = usersList.find(
           (u: User) =>
             u &&
             (u.id === targetId ||
-              u.email?.toLowerCase().trim() === targetId.toLowerCase().trim() ||
-              u.id === prevUser.id ||
-              u.email?.toLowerCase().trim() === prevUser.email?.toLowerCase().trim())
+              (targetId && u.email?.toLowerCase().trim() === targetId.toLowerCase().trim()) ||
+              u.id === prevUser?.id ||
+              (prevUser?.email && u.email?.toLowerCase().trim() === prevUser.email.toLowerCase().trim()))
         );
+
         if (found) {
           try {
             localStorage.setItem(CURRENT_USER_STORAGE_KEY, found.id);
+            localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(found));
           } catch {}
           return found;
         }
-        if (prevUser.role !== 'master') {
-          setIsAuthenticated(false);
-          try {
-            localStorage.removeItem(AUTH_STORAGE_KEY);
-            localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-          } catch {}
-          return INITIAL_USERS[0];
+
+        // If not matched in snapshot users but cached profile is valid, retain the profile
+        if (cachedProfileUser && cachedProfileUser.id && cachedProfileUser.role) {
+          return cachedProfileUser;
         }
-        return prevUser;
+
+        if (prevUser && prevUser.id) {
+          return prevUser;
+        }
+
+        return INITIAL_USERS[0];
       });
     }
     if (parsed.stages && Array.isArray(parsed.stages)) setStages(parsed.stages);
@@ -1066,6 +1140,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);
       localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+      localStorage.removeItem(ACTIVE_USER_PROFILE_KEY);
     } catch (e) {
       console.error('Session logout error', e);
     }
@@ -1368,10 +1443,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Departments Management
   const addDepartment = useCallback(
     (deptData: Omit<Department, 'id' | 'createdAt'>): Department => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can create departments');
-        return {} as Department;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       const newDept: Department = {
         ...deptData,
         id: `dept-${Date.now()}`,
@@ -1382,15 +1456,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       recordAuditLog('Department Created', 'Settings', `Created department "${newDept.name}" (${newDept.code})`);
       return newDept;
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
   const updateDepartment = useCallback(
     (id: string, updates: Partial<Department>) => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can edit departments');
-        return;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setDepartments((prev) =>
         prev.map((d) => {
           if (d.id === id) {
@@ -1412,15 +1485,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       recordAuditLog('Department Updated', 'Settings', `Updated department ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
   const deleteDepartment = useCallback(
     (id: string) => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can delete departments');
-        return;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setDepartments((prev) => {
         const target = (prev || []).find((d) => d && d.id === id);
         if (target) {
@@ -1429,7 +1501,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return (prev || []).filter((d) => d && d.id !== id);
       });
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
   // Frontend Client Self-Registration
@@ -4048,13 +4120,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [leads, selectedCompanyId, companies, serviceCategories, users, stages, currentUser, setClients, setLeads, addTransaction, recordAuditLog]
   );
 
-  // Lead Categories Management (Admin & Master)
+  // Lead Categories Management
   const addLeadCategory = useCallback(
     (catData: Omit<LeadCategory, 'id' | 'createdAt'>): LeadCategory => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can create lead categories');
-        return {} as LeadCategory;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       const newCat: LeadCategory = {
         ...catData,
         id: `lead-cat-${Date.now()}`,
@@ -4064,15 +4135,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       recordAuditLog('Lead Category Created', 'Leads', `Created lead category "${newCat.name}" (Code: ${newCat.code})`);
       return newCat;
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
   const updateLeadCategory = useCallback(
     (id: string, updates: Partial<LeadCategory>) => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can edit lead categories');
-        return;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setLeadCategories((prev) =>
         prev.map((cat) => {
           if (cat.id === id) {
@@ -4094,24 +4164,26 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       recordAuditLog('Lead Category Updated', 'Leads', `Updated lead category ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
   const deleteLeadCategory = useCallback(
     (id: string) => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can delete lead categories');
-        return;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setLeadCategories((prev) => (prev || []).filter((cat) => cat && cat.id !== id));
       recordAuditLog('Lead Category Deleted', 'Leads', `Deleted lead category ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
-  // Lead Sources / Channels Management (Admin & Master)
+  // Lead Sources / Channels Management
   const addLeadSource = useCallback(
     (srcData: Omit<LeadSource, 'id' | 'createdAt'>): LeadSource => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       const newSrc: LeadSource = {
         ...srcData,
         id: `lead-src-${Date.now()}`,
@@ -4126,6 +4198,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateLeadSource = useCallback(
     (id: string, updates: Partial<LeadSource>) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setLeadSources((prev) =>
         prev.map((src) => {
           if (src.id === id) {
@@ -4152,19 +4227,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteLeadSource = useCallback(
     (id: string) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setLeadSources((prev) => (prev || []).filter((src) => src && src.id !== id));
       recordAuditLog('Lead Source Deleted', 'Leads', `Deleted lead source channel ID ${id}`);
     },
     [recordAuditLog]
   );
 
-  // Lead Pipeline Stages Management (Admin & Master)
+  // Lead Pipeline Stages Management
   const addLeadStage = useCallback(
     (stgData: Omit<LeadStage, 'id'>): LeadStage => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can create lead stages');
-        return {} as LeadStage;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       const newStg: LeadStage = {
         ...stgData,
         id: `lead-stage-${Date.now()}`,
@@ -4173,15 +4250,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       recordAuditLog('Lead Stage Created', 'Leads', `Created pipeline stage "${newStg.name}"`);
       return newStg;
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
   const updateLeadStage = useCallback(
     (id: string, updates: Partial<LeadStage>) => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can edit lead stages');
-        return;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setLeadStages((prev) =>
         prev.map((stg) => {
           if (stg.id === id) {
@@ -4202,19 +4278,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       recordAuditLog('Lead Stage Updated', 'Leads', `Updated pipeline stage ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
   const deleteLeadStage = useCallback(
     (id: string) => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can delete lead stages');
-        return;
-      }
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setLeadStages((prev) => (prev || []).filter((stg) => stg && stg.id !== id));
       recordAuditLog('Lead Stage Deleted', 'Leads', `Deleted pipeline stage ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [recordAuditLog]
   );
 
   // Messages
@@ -5804,7 +5879,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const isAssigned =
         l.assignedEmployeeId === currentUser?.id ||
         (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(currentUser?.id)) ||
-        l.createdByUserId === currentUser?.id;
+        l.createdByUserId === currentUser?.id ||
+        !l.assignedEmployeeId ||
+        (currentUser?.companyId && l.companyId === currentUser.companyId);
       return Boolean(isAssigned);
     }
 
