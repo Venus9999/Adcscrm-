@@ -286,31 +286,33 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Employee / PRO Filter Dropdown */}
-            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
-              <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <select
-                value={selectedEmployeeFilter}
-                onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-              >
-                <option value="all">All PRO Officers & Staff ({(staffUsers || []).length})</option>
-                {(staffUsers || []).map((u) => {
-                  const empCases = (filteredClients || []).filter(
-                    (c) =>
-                      (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(u.id)) ||
-                      c.assignedEmployeeId === u.id ||
-                      c.assignedAdminId === u.id ||
-                      (c.services || []).some((s) => s.assignedEmployeeId === u.id)
-                  ).length;
-                  return (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({empCases} active cases) - {u.role.toUpperCase()}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
+            {/* Employee / PRO Filter Dropdown (Hidden for employees) */}
+            {currentUser.role !== 'employee' && (
+              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <select
+                  value={selectedEmployeeFilter}
+                  onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">All PRO Officers & Staff ({(staffUsers || []).length})</option>
+                  {(staffUsers || []).map((u) => {
+                    const empCases = (filteredClients || []).filter(
+                      (c) =>
+                        (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(u.id)) ||
+                        c.assignedEmployeeId === u.id ||
+                        c.assignedAdminId === u.id ||
+                        (c.services || []).some((s) => s.assignedEmployeeId === u.id)
+                    ).length;
+                    return (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({empCases} active cases) - {u.role.toUpperCase()}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
 
             {/* Service Category Filter Dropdown */}
             <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
@@ -344,59 +346,61 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
           </div>
         </div>
 
-        {/* Staff Quick-Select Chips */}
-        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
-            Staff Workload:
-          </span>
-          <button
-            onClick={() => setSelectedEmployeeFilter('all')}
-            className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all shrink-0 cursor-pointer ${
-              selectedEmployeeFilter === 'all'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            All Staff ({(filteredClients || []).length})
-          </button>
-          {(staffUsers || []).map((u) => {
-            const count = (filteredClients || []).filter(
-              (c) =>
-                (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(u.id)) ||
-                c.assignedEmployeeId === u.id ||
-                c.assignedAdminId === u.id ||
-                (c.services || []).some((s) => s.assignedEmployeeId === u.id)
-            ).length;
-            const isSelected = selectedEmployeeFilter === u.id;
-            return (
-              <button
-                key={u.id}
-                onClick={() => setSelectedEmployeeFilter(isSelected ? 'all' : u.id)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  isSelected
-                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                <img
-                  src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`}
-                  alt={u.name}
-                  className="w-3.5 h-3.5 rounded-full object-cover shrink-0"
-                />
-                <span>{u.name}</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+        {/* Staff Quick-Select Chips (Hidden for employees) */}
+        {currentUser.role !== 'employee' && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+              Staff Workload:
+            </span>
+            <button
+              onClick={() => setSelectedEmployeeFilter('all')}
+              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all shrink-0 cursor-pointer ${
+                selectedEmployeeFilter === 'all'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              All Staff ({(filteredClients || []).length})
+            </button>
+            {(staffUsers || []).map((u) => {
+              const count = (filteredClients || []).filter(
+                (c) =>
+                  (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(u.id)) ||
+                  c.assignedEmployeeId === u.id ||
+                  c.assignedAdminId === u.id ||
+                  (c.services || []).some((s) => s.assignedEmployeeId === u.id)
+              ).length;
+              const isSelected = selectedEmployeeFilter === u.id;
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => setSelectedEmployeeFilter(isSelected ? 'all' : u.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                     isSelected
-                      ? 'bg-emerald-700 text-white'
-                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                      ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <img
+                    src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`}
+                    alt={u.name}
+                    className="w-3.5 h-3.5 rounded-full object-cover shrink-0"
+                  />
+                  <span>{u.name}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      isSelected
+                        ? 'bg-emerald-700 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {activeView === 'board' ? (

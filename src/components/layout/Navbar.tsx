@@ -247,8 +247,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
-          {/* Employee / Staff Global Filter */}
-          {currentUser.role !== 'client' && (
+          {/* Employee / Staff Global Filter (Visible to Master, Admins, and Branch Managers only) */}
+          {currentUser.role !== 'client' && currentUser.role !== 'employee' && (
             <div className="relative hidden sm:block shrink-0" ref={empRef}>
               <button
                 onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}

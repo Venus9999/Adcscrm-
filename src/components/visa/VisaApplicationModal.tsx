@@ -18,7 +18,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
-import { WORLD_VISA_COUNTRIES, VisaCountryOption } from '../../data/countriesData';
+import { VisaCountryOption } from '../../data/countriesData';
 import { VisaUploadedDoc } from '../../types/crm';
 
 type CountryVisaType = VisaCountryOption['visaTypes'][number];
@@ -42,6 +42,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
     applyForVisaService,
     companies,
     selectedCompanyId,
+    visaCountryCatalog,
   } = useCRM();
 
   // Wizard Step: 1. Select Country & Visa Type -> 2. Applicant Details -> 3. Documents -> 4. Review & Payment
@@ -53,17 +54,19 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
 
   // Country & Visa Selection
   const [selectedCountry, setSelectedCountry] = useState<VisaCountryOption | null>(() => {
+    const list = visaCountryCatalog || [];
     if (preSelectedCountryCode) {
-      return WORLD_VISA_COUNTRIES.find((c) => c.countryCode.toLowerCase() === preSelectedCountryCode.toLowerCase()) || WORLD_VISA_COUNTRIES[0];
+      return list.find((c) => c.countryCode.toLowerCase() === preSelectedCountryCode.toLowerCase()) || list[0] || null;
     }
-    return WORLD_VISA_COUNTRIES[0];
+    return list[0] || null;
   });
 
   const [selectedVisaType, setSelectedVisaType] = useState<CountryVisaType>(() => {
+    const list = visaCountryCatalog || [];
     const initialCountry = preSelectedCountryCode
-      ? WORLD_VISA_COUNTRIES.find((c) => c.countryCode.toLowerCase() === preSelectedCountryCode.toLowerCase()) || WORLD_VISA_COUNTRIES[0]
-      : WORLD_VISA_COUNTRIES[0];
-    return initialCountry.visaTypes[0];
+      ? list.find((c) => c.countryCode.toLowerCase() === preSelectedCountryCode.toLowerCase()) || list[0]
+      : list[0];
+    return initialCountry?.visaTypes?.[0];
   });
 
   const [processingSpeed, setProcessingSpeed] = useState<'Standard' | 'Express / VIP' | 'Super Express (24h)'>('Standard');
@@ -109,7 +112,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
 
   // Filter countries
   const filteredCountries = useMemo(() => {
-    return WORLD_VISA_COUNTRIES.filter((c) => {
+    return (visaCountryCatalog || []).filter((c) => {
       const matchRegion = selectedRegion === 'all' || c.region === selectedRegion;
       const matchQuery =
         !searchQuery ||
@@ -119,13 +122,13 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
         c.visaTypes.some((vt) => vt.name.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchRegion && matchQuery;
     });
-  }, [searchQuery, selectedRegion]);
+  }, [visaCountryCatalog, searchQuery, selectedRegion]);
 
   // Unique regions list
   const regions = useMemo(() => {
-    const set = new Set(WORLD_VISA_COUNTRIES.map((c) => c.region));
+    const set = new Set((visaCountryCatalog || []).map((c) => c.region));
     return ['all', ...Array.from(set)];
-  }, []);
+  }, [visaCountryCatalog]);
 
   // Update selected client details when client selection changes
   const handleClientChange = (cId: string) => {

@@ -65,6 +65,7 @@ import {
   INITIAL_VISA_APPLICATIONS,
   INITIAL_DEPARTMENTS,
 } from '../data/initialData';
+import { WORLD_VISA_COUNTRIES, VisaCountryOption } from '../data/countriesData';
 
 interface DuplicateCheckResult {
   isDuplicate: boolean;
@@ -282,6 +283,14 @@ interface CRMContextType {
   // Global Visa Services (Worldwide)
   visaApplications: VisaApplication[];
   filteredVisaApplications: VisaApplication[];
+  visaCountryCatalog: VisaCountryOption[];
+  addVisaCountry: (country: VisaCountryOption) => void;
+  updateVisaCountry: (countryCode: string, updates: Partial<VisaCountryOption>) => void;
+  deleteVisaCountry: (countryCode: string) => void;
+  addVisaCountryService: (countryCode: string, service: VisaCountryOption['visaTypes'][0]) => void;
+  updateVisaCountryService: (countryCode: string, serviceId: string, updates: Partial<VisaCountryOption['visaTypes'][0]>) => void;
+  deleteVisaCountryService: (countryCode: string, serviceId: string) => void;
+  resetVisaCountryCatalog: () => void;
   applyForVisaService: (
     applicationData: Omit<VisaApplication, 'id' | 'applicationNumber' | 'submissionDate' | 'status' | 'progressPercentage' | 'currentStageTitle' | 'timeline' | 'createdAt' | 'updatedAt' | 'paidAmount' | 'paymentStatus'>,
     options?: {
@@ -351,6 +360,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [leadStages, setLeadStages] = useState<LeadStage[]>(INITIAL_LEAD_STAGES);
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
   const [visaApplications, setVisaApplications] = useState<VisaApplication[]>(INITIAL_VISA_APPLICATIONS);
+  const [visaCountryCatalog, setVisaCountryCatalog] = useState<VisaCountryOption[]>(WORLD_VISA_COUNTRIES);
 
   // CRM Branding & Billing Settings (Admin & Master)
   const [crmBranding, setCrmBranding] = useState<CRMBranding>(DEFAULT_CRM_BRANDING);
@@ -482,6 +492,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setVisaApplications(parsed.visaApplications);
     } else {
       setVisaApplications(INITIAL_VISA_APPLICATIONS);
+    }
+    if (parsed.visaCountryCatalog && Array.isArray(parsed.visaCountryCatalog) && parsed.visaCountryCatalog.length > 0) {
+      setVisaCountryCatalog(parsed.visaCountryCatalog);
+    } else {
+      setVisaCountryCatalog(WORLD_VISA_COUNTRIES);
     }
     if (parsed.crmBranding) {
       setCrmBranding(parsed.crmBranding);
@@ -747,6 +762,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       leadStages,
       transactions,
       visaApplications,
+      visaCountryCatalog,
       crmBranding,
       billingSettings,
       lastUpdated: nowIso,
@@ -5322,6 +5338,158 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [visaApplications, recordAuditLog]
   );
 
+  // Worldwide Visa Catalog Management (Admin & Master)
+  const addVisaCountry = useCallback(
+    (country: VisaCountryOption) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      setVisaCountryCatalog((prev) => {
+        const existingIdx = prev.findIndex((c) => c.countryCode.toLowerCase() === country.countryCode.toLowerCase());
+        if (existingIdx >= 0) {
+          const next = [...prev];
+          next[existingIdx] = country;
+          return next;
+        }
+        return [country, ...prev];
+      });
+
+      recordAuditLog(
+        'Worldwide Visa Country Added',
+        'Services',
+        `Added new destination country ${country.countryName} (${country.countryCode}) to worldwide visa directory.`
+      );
+    },
+    [recordAuditLog]
+  );
+
+  const updateVisaCountry = useCallback(
+    (countryCode: string, updates: Partial<VisaCountryOption>) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      setVisaCountryCatalog((prev) =>
+        prev.map((c) =>
+          c.countryCode.toLowerCase() === countryCode.toLowerCase()
+            ? { ...c, ...updates }
+            : c
+        )
+      );
+
+      recordAuditLog(
+        'Worldwide Visa Country Updated',
+        'Services',
+        `Updated destination country ${countryCode} details in worldwide visa catalog.`
+      );
+    },
+    [recordAuditLog]
+  );
+
+  const deleteVisaCountry = useCallback(
+    (countryCode: string) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      const target = visaCountryCatalog.find((c) => c.countryCode.toLowerCase() === countryCode.toLowerCase());
+      setVisaCountryCatalog((prev) =>
+        prev.filter((c) => c.countryCode.toLowerCase() !== countryCode.toLowerCase())
+      );
+
+      if (target) {
+        recordAuditLog(
+          'Worldwide Visa Country Deleted',
+          'Services',
+          `Deleted country ${target.countryName} (${countryCode}) from worldwide visa directory.`
+        );
+      }
+    },
+    [visaCountryCatalog, recordAuditLog]
+  );
+
+  const addVisaCountryService = useCallback(
+    (countryCode: string, service: VisaCountryOption['visaTypes'][0]) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      setVisaCountryCatalog((prev) =>
+        prev.map((c) => {
+          if (c.countryCode.toLowerCase() !== countryCode.toLowerCase()) return c;
+          const exists = (c.visaTypes || []).some((vt) => vt.id === service.id);
+          const nextTypes = exists
+            ? c.visaTypes.map((vt) => (vt.id === service.id ? service : vt))
+            : [...(c.visaTypes || []), service];
+          return { ...c, visaTypes: nextTypes };
+        })
+      );
+
+      recordAuditLog(
+        'Worldwide Visa Service Added',
+        'Services',
+        `Added/updated visa service "${service.name}" for country ${countryCode}.`
+      );
+    },
+    [recordAuditLog]
+  );
+
+  const updateVisaCountryService = useCallback(
+    (countryCode: string, serviceId: string, updates: Partial<VisaCountryOption['visaTypes'][0]>) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      setVisaCountryCatalog((prev) =>
+        prev.map((c) => {
+          if (c.countryCode.toLowerCase() !== countryCode.toLowerCase()) return c;
+          const nextTypes = (c.visaTypes || []).map((vt) =>
+            vt.id === serviceId ? { ...vt, ...updates } : vt
+          );
+          return { ...c, visaTypes: nextTypes };
+        })
+      );
+
+      recordAuditLog(
+        'Worldwide Visa Service Updated',
+        'Services',
+        `Modified visa service ${serviceId} for country ${countryCode}.`
+      );
+    },
+    [recordAuditLog]
+  );
+
+  const deleteVisaCountryService = useCallback(
+    (countryCode: string, serviceId: string) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      setVisaCountryCatalog((prev) =>
+        prev.map((c) => {
+          if (c.countryCode.toLowerCase() !== countryCode.toLowerCase()) return c;
+          return {
+            ...c,
+            visaTypes: (c.visaTypes || []).filter((vt) => vt.id !== serviceId),
+          };
+        })
+      );
+
+      recordAuditLog(
+        'Worldwide Visa Service Removed',
+        'Services',
+        `Removed visa service ${serviceId} from country ${countryCode}.`
+      );
+    },
+    [recordAuditLog]
+  );
+
+  const resetVisaCountryCatalog = useCallback(() => {
+    hasUserEditedRef.current = true;
+    lastAppliedRemoteIsoRef.current = new Date().toISOString();
+    setVisaCountryCatalog(WORLD_VISA_COUNTRIES);
+    recordAuditLog(
+      'Worldwide Visa Catalog Reset',
+      'Services',
+      'Reset worldwide visa country directory and fee schedules to system defaults.'
+    );
+  }, [recordAuditLog]);
+
   // Computed Filtered Views (Strict Employee Data Isolation & Branch Filtering)
   const isEmployeeRole = currentUser?.role === 'employee';
   const isClientRole = currentUser?.role === 'client';
@@ -5825,6 +5993,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deleteLeadStage,
 
         // Global Visa Services
+        visaCountryCatalog,
+        addVisaCountry,
+        updateVisaCountry,
+        deleteVisaCountry,
+        addVisaCountryService,
+        updateVisaCountryService,
+        deleteVisaCountryService,
+        resetVisaCountryCatalog,
         applyForVisaService,
         updateVisaApplication,
         updateVisaApplicationStatus,

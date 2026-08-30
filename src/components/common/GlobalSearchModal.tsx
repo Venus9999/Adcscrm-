@@ -39,6 +39,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     selectedCompanyId,
     selectedEmployeeId,
     setActiveTab,
+    currentUser,
   } = useCRM();
 
   const [query, setQuery] = useState('');
@@ -430,22 +431,24 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
               </div>
 
               {/* Employee / Agent Selector */}
-              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 shadow-2xs">
-                <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Employee:</span>
-                <select
-                  value={selectedEmployeeFilter}
-                  onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
-                  className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-hidden cursor-pointer max-w-[180px]"
-                >
-                  <option value="all">All Staff & Employees</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {currentUser.role !== 'employee' && (
+                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 shadow-2xs">
+                  <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Employee:</span>
+                  <select
+                    value={selectedEmployeeFilter}
+                    onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
+                    className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-hidden cursor-pointer max-w-[180px]"
+                  >
+                    <option value="all">All Staff & Employees</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Reset Filters Button */}
               {hasFilterActive && (

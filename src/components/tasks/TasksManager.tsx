@@ -314,18 +314,20 @@ export const TasksManager: React.FC = () => {
           </select>
 
           {/* Employee */}
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-medium max-w-[170px]"
-          >
-            <option value="all">All Employees</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
+          {currentUser.role !== 'employee' && (
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-medium max-w-[170px]"
+            >
+              <option value="all">All Employees</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          )}
 
           <select
             value={statusFilter}

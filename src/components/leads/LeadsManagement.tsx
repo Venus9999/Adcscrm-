@@ -766,22 +766,24 @@ export const LeadsManagement: React.FC = () => {
           </select>
 
           {/* Employee Filter */}
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className={`w-full px-2 py-1.5 rounded-xl text-[11px] border font-medium ${
-              employeeFilter !== 'all'
-                ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-400/40'
-                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-            }`}
-          >
-            <option value="all">Employee (All)</option>
-            {activeEmployees.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.name} ({emp.role})
-              </option>
-            ))}
-          </select>
+          {currentUser.role !== 'employee' && (
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+              className={`w-full px-2 py-1.5 rounded-xl text-[11px] border font-medium ${
+                employeeFilter !== 'all'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-400/40'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              <option value="all">Employee (All)</option>
+              {activeEmployees.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name} ({emp.role})
+                </option>
+              ))}
+            </select>
+          )}
 
           {/* 1. Job Type Filter */}
           <select

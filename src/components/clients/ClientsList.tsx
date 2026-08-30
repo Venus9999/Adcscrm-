@@ -234,24 +234,26 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
           </select>
 
           {/* Employee / Agent */}
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className={`px-3 py-2 rounded-md text-xs border font-medium max-w-[160px] ${
-              employeeFilter !== 'all'
-                ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
-                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-            }`}
-          >
-            <option value="all">All Employees</option>
-            {(users || [])
-              .filter((u) => u && u.role !== 'client')
-              .map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.role})
-                </option>
-              ))}
-          </select>
+          {currentUser.role !== 'employee' && (
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+              className={`px-3 py-2 rounded-md text-xs border font-medium max-w-[160px] ${
+                employeeFilter !== 'all'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              <option value="all">All Employees</option>
+              {(users || [])
+                .filter((u) => u && u.role !== 'client')
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role})
+                  </option>
+                ))}
+            </select>
+          )}
 
           <select
             value={stageFilter}

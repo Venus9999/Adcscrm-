@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { VisaApplication, VisaApplicationStatus, VisaTimelineEvent } from '../../types/crm';
+import { EditVisaApplicationModal } from './EditVisaApplicationModal';
 
 interface VisaTimelineModalProps {
   application: VisaApplication | null;
@@ -46,6 +47,7 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
   } = useCRM();
 
   const [activeTab, setActiveTab] = useState<'timeline' | 'documents' | 'manage'>('timeline');
+  const [isEditDossierOpen, setIsEditDossierOpen] = useState(false);
 
   // Staff Update Status form state
   const [newStatus, setNewStatus] = useState<VisaApplicationStatus>(application?.status || 'documents_verification');
@@ -69,7 +71,8 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
 
   if (!isOpen || !application) return null;
 
-  const isAdminOrStaff = currentUser.role === 'admin' || currentUser.role === 'employee';
+  const isAdminOrStaff = currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'employee';
+  const isMasterOrAdmin = currentUser.role === 'master' || currentUser.role === 'admin';
 
   const statusColorMap: Record<VisaApplicationStatus, { bg: string; text: string; border: string }> = {
     submitted: { bg: 'bg-blue-50 dark:bg-blue-950/50', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300' },
@@ -170,6 +173,16 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            {isMasterOrAdmin && (
+              <button
+                onClick={() => setIsEditDossierOpen(true)}
+                title="Edit Application Dossier Details (Master/Admin)"
+                className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 border border-blue-400/30 text-xs font-bold flex items-center space-x-1.5 transition-colors"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Dossier</span>
+              </button>
+            )}
             <button
               onClick={handleSendEmail}
               disabled={isSendingEmail}
@@ -643,6 +656,15 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Edit Dossier Modal for Master & Admin */}
+      {isEditDossierOpen && (
+        <EditVisaApplicationModal
+          isOpen={isEditDossierOpen}
+          onClose={() => setIsEditDossierOpen(false)}
+          application={application}
+        />
+      )}
     </div>
   );
 };
