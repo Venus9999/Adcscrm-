@@ -313,8 +313,8 @@ export const TasksManager: React.FC = () => {
             ))}
           </select>
 
-          {/* Employee */}
-          {currentUser.role !== 'employee' && (
+          {/* Employee Filter (Visible to Master and Admin only) */}
+          {(currentUser.role === 'master' || currentUser.role === 'admin') && (
             <select
               value={employeeFilter}
               onChange={(e) => setEmployeeFilter(e.target.value)}

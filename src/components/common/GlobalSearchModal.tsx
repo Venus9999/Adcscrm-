@@ -163,8 +163,12 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     });
   }, [leads, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, companyMap, userMap]);
 
-  // Matched Employees / Users
+  // Matched Employees / Users (Master and Admin only)
   const matchedEmployees = useMemo(() => {
+    if (currentUser.role === 'employee' || currentUser.role === 'client') {
+      return [];
+    }
+
     return (users || []).filter((u) => {
       if (!u) return false;
       // Company filter
@@ -191,7 +195,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         compName.includes(cleanQuery)
       );
     });
-  }, [users, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, companyMap]);
+  }, [users, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, companyMap, currentUser.role]);
 
   // Matched Documents
   const matchedDocs = useMemo(() => {
@@ -430,8 +434,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                 </select>
               </div>
 
-              {/* Employee / Agent Selector */}
-              {currentUser.role !== 'employee' && (
+              {/* Employee / Agent Selector (Master and Admin only) */}
+              {(currentUser.role === 'master' || currentUser.role === 'admin') && (
                 <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 shadow-2xs">
                   <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Employee:</span>

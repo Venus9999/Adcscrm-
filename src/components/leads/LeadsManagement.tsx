@@ -765,8 +765,8 @@ export const LeadsManagement: React.FC = () => {
             ))}
           </select>
 
-          {/* Employee Filter */}
-          {currentUser.role !== 'employee' && (
+          {/* Employee Filter (Visible to Master and Admin only) */}
+          {(currentUser.role === 'master' || currentUser.role === 'admin') && (
             <select
               value={employeeFilter}
               onChange={(e) => setEmployeeFilter(e.target.value)}

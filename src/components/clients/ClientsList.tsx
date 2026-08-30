@@ -233,8 +233,8 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
             ))}
           </select>
 
-          {/* Employee / Agent */}
-          {currentUser.role !== 'employee' && (
+          {/* Employee / Agent Filter (Visible to Master and Admin only) */}
+          {(currentUser.role === 'master' || currentUser.role === 'admin') && (
             <select
               value={employeeFilter}
               onChange={(e) => setEmployeeFilter(e.target.value)}

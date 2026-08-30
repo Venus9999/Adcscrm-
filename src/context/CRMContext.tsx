@@ -5531,18 +5531,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (selectedCompanyId !== 'all' && c.companyId && c.companyId !== selectedCompanyId) return false;
 
-    // If an explicit employee/officer filter is active (selected in Navbar or page filter)
-    if (selectedEmployeeId !== 'all') {
-      const isAssigned =
-        (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-        (c as any).assignedEmployeeId === selectedEmployeeId ||
-        c.assignedAdminId === selectedEmployeeId ||
-        (c as any).createdByUserId === selectedEmployeeId ||
-        (c.services && c.services.some((s) => s.assignedEmployeeId === selectedEmployeeId));
-      return Boolean(isAssigned);
-    }
-
-    // Default view for Employee role: STRICT ISOLATION - only assigned or created clients
     if (isEmployeeRole) {
       const isAssigned =
         (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
@@ -5550,6 +5538,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         c.assignedAdminId === currentUser?.id ||
         (c as any).createdByUserId === currentUser?.id ||
         (c.services && c.services.some((s) => s.assignedEmployeeId === currentUser?.id));
+      return Boolean(isAssigned);
+    }
+
+    // If an explicit employee/officer filter is active (selected by Admin/Master in Navbar or page filter)
+    if (selectedEmployeeId !== 'all') {
+      const isAssigned =
+        (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+        (c as any).assignedEmployeeId === selectedEmployeeId ||
+        c.assignedAdminId === selectedEmployeeId ||
+        (c as any).createdByUserId === selectedEmployeeId ||
+        (c.services && c.services.some((s) => s.assignedEmployeeId === selectedEmployeeId));
       return Boolean(isAssigned);
     }
 
@@ -5581,6 +5580,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (selectedCompanyId !== 'all' && i.companyId !== selectedCompanyId) return false;
 
+    if (isEmployeeRole) {
+      const isIssuer = i.issuedByUserId === currentUser?.id;
+      const isAssigned =
+        linkedClient &&
+        ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
+          (linkedClient as any).assignedEmployeeId === currentUser?.id ||
+          linkedClient.assignedAdminId === currentUser?.id ||
+          (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
+      return Boolean(isIssuer || isAssigned);
+    }
+
     if (selectedEmployeeId !== 'all') {
       const isIssuer = i.issuedByUserId === selectedEmployeeId;
       const isAssigned =
@@ -5591,17 +5601,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
       if (!isIssuer && !isAssigned) return false;
       return true;
-    }
-
-    if (isEmployeeRole) {
-      const isIssuer = i.issuedByUserId === currentUser?.id;
-      const isAssigned =
-        linkedClient &&
-        ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
-          (linkedClient as any).assignedEmployeeId === currentUser?.id ||
-          linkedClient.assignedAdminId === currentUser?.id ||
-          (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
-      return Boolean(isIssuer || isAssigned);
     }
 
     return true;
@@ -5615,20 +5614,20 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
 
-    if (selectedEmployeeId !== 'all') {
-      return (
-        t.assignedEmployeeId === selectedEmployeeId ||
-        ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(selectedEmployeeId)) ||
-        (t as any).createdByUserId === selectedEmployeeId
-      );
-    }
-
     if (isEmployeeRole) {
       const isAssigned =
         t.assignedEmployeeId === currentUser?.id ||
         ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(currentUser?.id)) ||
         (t as any).createdByUserId === currentUser?.id;
       return Boolean(isAssigned);
+    }
+
+    if (selectedEmployeeId !== 'all') {
+      return (
+        t.assignedEmployeeId === selectedEmployeeId ||
+        ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(selectedEmployeeId)) ||
+        (t as any).createdByUserId === selectedEmployeeId
+      );
     }
 
     return true;
@@ -5647,17 +5646,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (selectedCompanyId !== 'all' && client && client.companyId !== selectedCompanyId) return false;
 
-    if (selectedEmployeeId !== 'all') {
-      const isUploader = d.uploadedByUserId === selectedEmployeeId;
-      const isAssigned =
-        client &&
-        ((client.assignedEmployeeIds && client.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          (client as any).assignedEmployeeId === selectedEmployeeId ||
-          client.assignedAdminId === selectedEmployeeId ||
-          (client.services && client.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
-      return Boolean(isUploader || isAssigned);
-    }
-
     if (isEmployeeRole) {
       const isUploader = d.uploadedByUserId === currentUser?.id;
       const isAssigned =
@@ -5666,6 +5654,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           (client as any).assignedEmployeeId === currentUser?.id ||
           client.assignedAdminId === currentUser?.id ||
           (client.services && client.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
+      return Boolean(isUploader || isAssigned);
+    }
+
+    if (selectedEmployeeId !== 'all') {
+      const isUploader = d.uploadedByUserId === selectedEmployeeId;
+      const isAssigned =
+        client &&
+        ((client.assignedEmployeeIds && client.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+          (client as any).assignedEmployeeId === selectedEmployeeId ||
+          client.assignedAdminId === selectedEmployeeId ||
+          (client.services && client.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
       return Boolean(isUploader || isAssigned);
     }
 
@@ -5678,20 +5677,20 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (selectedCompanyId !== 'all' && l.companyId !== selectedCompanyId) return false;
 
-    if (selectedEmployeeId !== 'all') {
-      const matchEmp =
-        l.assignedEmployeeId === selectedEmployeeId ||
-        (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-        l.createdByUserId === selectedEmployeeId;
-      return Boolean(matchEmp);
-    }
-
     if (isEmployeeRole) {
       const isAssigned =
         l.assignedEmployeeId === currentUser?.id ||
         (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(currentUser?.id)) ||
         l.createdByUserId === currentUser?.id;
       return Boolean(isAssigned);
+    }
+
+    if (selectedEmployeeId !== 'all') {
+      const matchEmp =
+        l.assignedEmployeeId === selectedEmployeeId ||
+        (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+        l.createdByUserId === selectedEmployeeId;
+      return Boolean(matchEmp);
     }
 
     return true;
@@ -5710,16 +5709,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (selectedCompanyId !== 'all' && tx.companyId !== selectedCompanyId) return false;
 
-    if (selectedEmployeeId !== 'all') {
-      const isRecorder = tx.recordedByUserId === selectedEmployeeId;
-      const isAssigned =
-        linkedClient &&
-        ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
-          linkedClient.assignedAdminId === selectedEmployeeId);
-      return Boolean(isRecorder || isAssigned);
-    }
-
     if (isEmployeeRole) {
       const isRecorder = tx.recordedByUserId === currentUser?.id;
       const isAssigned =
@@ -5727,6 +5716,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
           (linkedClient as any).assignedEmployeeId === currentUser?.id ||
           linkedClient.assignedAdminId === currentUser?.id);
+      return Boolean(isRecorder || isAssigned);
+    }
+
+    if (selectedEmployeeId !== 'all') {
+      const isRecorder = tx.recordedByUserId === selectedEmployeeId;
+      const isAssigned =
+        linkedClient &&
+        ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+          (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
+          linkedClient.assignedAdminId === selectedEmployeeId);
       return Boolean(isRecorder || isAssigned);
     }
 
@@ -5853,13 +5852,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (selectedCompanyId !== 'all' && vsa.companyId && vsa.companyId !== selectedCompanyId) return false;
 
-      if (selectedEmployeeId !== 'all') {
-        return vsa.assignedOfficerId === selectedEmployeeId;
-      }
-
       if (isEmployeeRole) {
         const isAssigned = vsa.assignedOfficerId === currentUser?.id;
         return Boolean(isAssigned);
+      }
+
+      if (selectedEmployeeId !== 'all') {
+        return vsa.assignedOfficerId === selectedEmployeeId;
       }
 
       return true;

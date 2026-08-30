@@ -247,8 +247,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
-          {/* Employee / Staff Global Filter (Visible to Master, Admins, and Branch Managers only) */}
-          {currentUser.role !== 'client' && currentUser.role !== 'employee' && (
+          {/* Employee / Staff Global Filter (Visible to Master and Admins only) */}
+          {(currentUser.role === 'admin' || currentUser.role === 'master') && (
             <div className="relative hidden sm:block shrink-0" ref={empRef}>
               <button
                 onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
@@ -716,44 +716,70 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {showRoleDropdown && (
               <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-md shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-50 animate-in fade-in">
-                <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Role Hierarchy Switcher
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Switch between roles to test permissions & Client Portal
-                  </p>
-                </div>
+                {(currentUser.role === 'master' || currentUser.role === 'admin') ? (
+                  <>
+                    <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Role Hierarchy Switcher
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Switch between roles to test permissions & Client Portal
+                      </p>
+                    </div>
 
-                <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
-                  {availableUsers.map((user) => (
+                    <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
+                      {availableUsers.map((user) => (
+                        <button
+                          key={user.id}
+                          onClick={() => {
+                            setCurrentUser(user);
+                            setShowRoleDropdown(false);
+                          }}
+                          className={`w-full text-left p-2 rounded-md flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                            currentUser.id === user.id ? 'bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <img src={user.avatar} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
+                            <div className="truncate">
+                              <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
+                              <p className="text-[10px] text-slate-500 truncate">{user.title}</p>
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border shrink-0 ${getRoleBadge(
+                               user.role
+                            )}`}
+                          >
+                            {user.role}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <img src={currentUser.avatar} alt="" className="w-9 h-9 rounded-md object-cover shrink-0 ring-1 ring-slate-200 dark:ring-slate-700" />
+                      <div className="truncate">
+                        <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{currentUser.name}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{currentUser.email}</p>
+                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border inline-block mt-1 ${getRoleBadge(currentUser.role)}`}>
+                          {currentUser.role}
+                        </span>
+                      </div>
+                    </div>
                     <button
-                      key={user.id}
                       onClick={() => {
-                        setCurrentUser(user);
+                        setActiveTab('settings');
                         setShowRoleDropdown(false);
                       }}
-                      className={`w-full text-left p-2 rounded-md flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
-                        currentUser.id === user.id ? 'bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900' : ''
-                      }`}
+                      className="w-full mt-2.5 text-center px-2.5 py-1.5 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded font-semibold transition-colors"
                     >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <img src={user.avatar} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
-                        <div className="truncate">
-                          <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
-                          <p className="text-[10px] text-slate-500 truncate">{user.title}</p>
-                        </div>
-                      </div>
-                      <span
-                        className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border shrink-0 ${getRoleBadge(
-                           user.role
-                        )}`}
-                      >
-                        {user.role}
-                      </span>
+                      Account Settings
                     </button>
-                  ))}
-                </div>
+                  </div>
+                )}
 
                 <div className="p-1.5 border-t border-slate-100 dark:border-slate-800">
                   <button

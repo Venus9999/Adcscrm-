@@ -286,8 +286,8 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Employee / PRO Filter Dropdown (Hidden for employees) */}
-            {currentUser.role !== 'employee' && (
+            {/* Employee / PRO Filter Dropdown (Visible to Master & Admin only) */}
+            {(currentUser.role === 'master' || currentUser.role === 'admin') && (
               <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
                 <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <select
@@ -346,8 +346,8 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
           </div>
         </div>
 
-        {/* Staff Quick-Select Chips (Hidden for employees) */}
-        {currentUser.role !== 'employee' && (
+        {/* Staff Quick-Select Chips (Visible to Master & Admin only) */}
+        {(currentUser.role === 'master' || currentUser.role === 'admin') && (
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
               Staff Workload:
