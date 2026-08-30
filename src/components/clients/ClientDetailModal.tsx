@@ -1523,7 +1523,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                       </div>
                       <input
                         type="url"
-                        value={editFormData.avatar}
+                        value={editFormData.avatar ?? ''}
                         onChange={(e) => setEditFormData({ ...editFormData, avatar: e.target.value })}
                         placeholder="https://example.com/avatar.jpg"
                         className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px]"
@@ -1557,7 +1557,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <input
                       type="text"
                       required
-                      value={editFormData.firstName}
+                      value={editFormData.firstName ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, firstName: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold"
                     />
@@ -1568,7 +1568,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <input
                       type="text"
                       required
-                      value={editFormData.lastName}
+                      value={editFormData.lastName ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold"
                     />
@@ -1578,7 +1578,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Nationality</label>
                     <input
                       type="text"
-                      value={editFormData.nationality}
+                      value={editFormData.nationality ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, nationality: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     />
@@ -1587,7 +1587,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                   <div>
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Gender</label>
                     <select
-                      value={editFormData.gender}
+                      value={editFormData.gender ?? 'Male'}
                       onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value as any })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     >
@@ -1600,7 +1600,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                   <div>
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Company Entity *</label>
                     <select
-                      value={editFormData.companyId}
+                      value={editFormData.companyId ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, companyId: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold"
                     >
@@ -1615,7 +1615,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                   <div>
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Vendor / Partner</label>
                     <select
-                      value={editFormData.vendorId}
+                      value={editFormData.vendorId ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, vendorId: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     >
@@ -1632,7 +1632,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Referred By</label>
                     <input
                       type="text"
-                      value={editFormData.referredBy}
+                      value={editFormData.referredBy ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, referredBy: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     />
@@ -1642,7 +1642,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
                     <input
                       type="email"
-                      value={editFormData.email}
+                      value={editFormData.email ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     />
@@ -1652,7 +1652,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Mobile Phone</label>
                     <input
                       type="text"
-                      value={editFormData.mobile}
+                      value={editFormData.mobile ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, mobile: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono"
                     />
@@ -1662,7 +1662,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">WhatsApp Number</label>
                     <input
                       type="text"
-                      value={editFormData.whatsapp}
+                      value={editFormData.whatsapp ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, whatsapp: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono"
                     />
@@ -1672,7 +1672,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Passport Number</label>
                     <input
                       type="text"
-                      value={editFormData.passportNo}
+                      value={editFormData.passportNo ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, passportNo: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono uppercase"
                     />
@@ -1682,7 +1682,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Passport Expiry</label>
                     <input
                       type="date"
-                      value={editFormData.passportExpiry}
+                      value={editFormData.passportExpiry ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, passportExpiry: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     />
@@ -1692,7 +1692,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Emirates ID</label>
                     <input
                       type="text"
-                      value={editFormData.emiratesId}
+                      value={editFormData.emiratesId ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, emiratesId: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono"
                     />
@@ -1702,7 +1702,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Emirates ID Expiry</label>
                     <input
                       type="date"
-                      value={editFormData.emiratesIdExpiry}
+                      value={editFormData.emiratesIdExpiry ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, emiratesIdExpiry: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     />
@@ -1712,7 +1712,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Residential Address in UAE</label>
                     <input
                       type="text"
-                      value={editFormData.residentialAddress}
+                      value={editFormData.residentialAddress ?? ''}
                       onChange={(e) => setEditFormData({ ...editFormData, residentialAddress: e.target.value })}
                       placeholder="e.g. Marina Gate Tower 1, Apt 1402, Dubai Marina, Dubai"
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"

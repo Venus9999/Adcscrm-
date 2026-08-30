@@ -112,16 +112,16 @@ export const VendorsManagement: React.FC = () => {
     setEditingVendor(vendor);
     const existingEmpIds = vendor.assignedEmployeeIds || (vendor.assignedEmployeeId ? [vendor.assignedEmployeeId] : []);
     setFormData({
-      name: vendor.name,
-      category: vendor.category,
-      companyId: vendor.companyId,
-      contactPerson: vendor.contactPerson,
-      email: vendor.email,
-      phone: vendor.phone,
+      name: vendor.name ?? '',
+      category: vendor.category || 'Typing Center',
+      companyId: vendor.companyId || (companies[0]?.id || 'comp-adcs-dubai'),
+      contactPerson: vendor.contactPerson ?? '',
+      email: vendor.email ?? '',
+      phone: vendor.phone ?? '',
       address: vendor.address || '',
       tradeLicenseNo: vendor.tradeLicenseNo || '',
       tradeLicenseExpiry: vendor.tradeLicenseExpiry || '',
-      status: vendor.status,
+      status: vendor.status || 'active',
       bankName: vendor.bankName || '',
       iban: vendor.iban || '',
       accountNumber: vendor.accountNumber || '',
@@ -594,11 +594,11 @@ export const VendorsManagement: React.FC = () => {
             <form onSubmit={handleSaveVendor} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Vendor / Firm Name *</label>
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Vendor / Partner Name *</label>
                   <input
                     type="text"
                     required
-                    value={formData.name}
+                    value={formData.name ?? ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="e.g. Al Taresh Typing & Govt Services"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
@@ -608,7 +608,7 @@ export const VendorsManagement: React.FC = () => {
                 <div>
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Partner Category *</label>
                   <select
-                    value={formData.category}
+                    value={formData.category ?? 'Typing Center'}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value as Vendor['category'] })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                   >
@@ -627,7 +627,7 @@ export const VendorsManagement: React.FC = () => {
                 <div>
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned Company / Branch *</label>
                   <select
-                    value={formData.companyId}
+                    value={formData.companyId ?? ''}
                     onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold"
                   >
@@ -642,7 +642,7 @@ export const VendorsManagement: React.FC = () => {
                 <div>
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Active Status</label>
                   <select
-                    value={formData.status}
+                    value={formData.status ?? 'active'}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as Vendor['status'] })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-bold"
                   >
@@ -656,7 +656,7 @@ export const VendorsManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.contactPerson}
+                    value={formData.contactPerson ?? ''}
                     onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
                     placeholder="e.g. Tariq Mansoor"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
@@ -668,7 +668,7 @@ export const VendorsManagement: React.FC = () => {
                   <input
                     type="email"
                     required
-                    value={formData.email}
+                    value={formData.email ?? ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="e.g. info@altaresh.ae"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
@@ -679,7 +679,7 @@ export const VendorsManagement: React.FC = () => {
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Phone / WhatsApp</label>
                   <input
                     type="text"
-                    value={formData.phone}
+                    value={formData.phone ?? ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+971 50 123 4567"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono"
@@ -692,7 +692,7 @@ export const VendorsManagement: React.FC = () => {
                     type="number"
                     min="0"
                     max="100"
-                    value={formData.commissionRate}
+                    value={formData.commissionRate ?? 0}
                     onChange={(e) => setFormData({ ...formData, commissionRate: Number(e.target.value) })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -702,7 +702,7 @@ export const VendorsManagement: React.FC = () => {
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Trade License Number</label>
                   <input
                     type="text"
-                    value={formData.tradeLicenseNo}
+                    value={formData.tradeLicenseNo ?? ''}
                     onChange={(e) => setFormData({ ...formData, tradeLicenseNo: e.target.value })}
                     placeholder="e.g. TL-849201"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono uppercase"
@@ -713,7 +713,7 @@ export const VendorsManagement: React.FC = () => {
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Trade License Expiry</label>
                   <input
                     type="date"
-                    value={formData.tradeLicenseExpiry}
+                    value={formData.tradeLicenseExpiry ?? ''}
                     onChange={(e) => setFormData({ ...formData, tradeLicenseExpiry: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                   />
@@ -724,7 +724,7 @@ export const VendorsManagement: React.FC = () => {
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Physical Address / Branch Location</label>
                 <input
                   type="text"
-                  value={formData.address}
+                  value={formData.address ?? ''}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   placeholder="e.g. Ground Floor, Al Barsha Business Center, Dubai"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
@@ -736,7 +736,7 @@ export const VendorsManagement: React.FC = () => {
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Bank Name</label>
                   <input
                     type="text"
-                    value={formData.bankName}
+                    value={formData.bankName ?? ''}
                     onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                     placeholder="Emirates NBD / FAB"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
@@ -747,7 +747,7 @@ export const VendorsManagement: React.FC = () => {
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">IBAN Number</label>
                   <input
                     type="text"
-                    value={formData.iban}
+                    value={formData.iban ?? ''}
                     onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
                     placeholder="AE00 0000 0000 0000 0000 00"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono uppercase"
@@ -758,7 +758,7 @@ export const VendorsManagement: React.FC = () => {
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Account Number</label>
                   <input
                     type="text"
-                    value={formData.accountNumber}
+                    value={formData.accountNumber ?? ''}
                     onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
                     placeholder="1010293848"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono"

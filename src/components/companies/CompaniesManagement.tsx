@@ -85,17 +85,17 @@ export const CompaniesManagement: React.FC = () => {
   const handleOpenEdit = (comp: Company) => {
     setEditingCompany(comp);
     setFormData({
-      name: comp.name,
-      tradeLicenseNo: comp.tradeLicenseNo,
-      licenseExpiryDate: comp.licenseExpiryDate,
-      trn: comp.trn,
+      name: comp.name ?? '',
+      tradeLicenseNo: comp.tradeLicenseNo ?? '',
+      licenseExpiryDate: comp.licenseExpiryDate ?? '',
+      trn: comp.trn ?? '',
       country: comp.country || 'United Arab Emirates',
       city: comp.city || 'Dubai',
-      address: comp.address,
-      phone: comp.phone,
-      email: comp.email,
-      currency: comp.currency,
-      assignedAdminIds: comp.assignedAdminIds || [comp.adminId],
+      address: comp.address ?? '',
+      phone: comp.phone ?? '',
+      email: comp.email ?? '',
+      currency: comp.currency ?? 'AED',
+      assignedAdminIds: comp.assignedAdminIds || (comp.adminId ? [comp.adminId] : []),
       employeeIds: comp.employeeIds || [],
       bankName: comp.bankDetails?.bankName || 'Emirates NBD',
       accountNumber: comp.bankDetails?.accountNumber || '1029384756',
@@ -347,7 +347,7 @@ export const CompaniesManagement: React.FC = () => {
                 <input
                   type="text"
                   required
-                  value={formData.name}
+                  value={formData.name ?? ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. ADCS Dubai Global Gateway PRO LLC"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -362,7 +362,7 @@ export const CompaniesManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.tradeLicenseNo}
+                    value={formData.tradeLicenseNo ?? ''}
                     onChange={(e) => setFormData({ ...formData, tradeLicenseNo: e.target.value })}
                     placeholder="TL-98421"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -375,7 +375,7 @@ export const CompaniesManagement: React.FC = () => {
                   </label>
                   <input
                     type="date"
-                    value={formData.licenseExpiryDate}
+                    value={formData.licenseExpiryDate ?? ''}
                     onChange={(e) => setFormData({ ...formData, licenseExpiryDate: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -389,7 +389,7 @@ export const CompaniesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.trn}
+                    value={formData.trn ?? ''}
                     onChange={(e) => setFormData({ ...formData, trn: e.target.value })}
                     placeholder="10098421000003"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -402,7 +402,7 @@ export const CompaniesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.currency}
+                    value={formData.currency ?? ''}
                     onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
                     placeholder="AED"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -415,7 +415,7 @@ export const CompaniesManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>
                   <input
                     type="text"
-                    value={formData.phone}
+                    value={formData.phone ?? ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -425,7 +425,7 @@ export const CompaniesManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
                   <input
                     type="email"
-                    value={formData.email}
+                    value={formData.email ?? ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -436,7 +436,7 @@ export const CompaniesManagement: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Address / Location</label>
                 <input
                   type="text"
-                  value={formData.address}
+                  value={formData.address ?? ''}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   placeholder="e.g. Al Saada Tower, Business Bay, Dubai"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -453,7 +453,7 @@ export const CompaniesManagement: React.FC = () => {
                     <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Bank Name</label>
                     <input
                       type="text"
-                      value={formData.bankName}
+                      value={formData.bankName ?? ''}
                       onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                       placeholder="Emirates NBD"
                       className="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -463,7 +463,7 @@ export const CompaniesManagement: React.FC = () => {
                     <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">IBAN</label>
                     <input
                       type="text"
-                      value={formData.iban}
+                      value={formData.iban ?? ''}
                       onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
                       placeholder="AE12033102938475601"
                       className="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"

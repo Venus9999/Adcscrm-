@@ -377,7 +377,7 @@ export async function saveCRMDataToCloud(payload: any, force: boolean = false): 
         payload: payload,
       };
       const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
-      await setDoc(storeRef, storeDoc, { merge: true });
+      await setDoc(storeRef, storeDoc);
       lastCloudSaveTime = Date.now();
       return true;
     } catch (error: any) {

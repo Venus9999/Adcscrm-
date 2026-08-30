@@ -159,7 +159,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 <input
                   type="text"
                   required
-                  value={clientName}
+                  value={clientName ?? ''}
                   onChange={(e) => setClientName(e.target.value)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -172,7 +172,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 <input
                   type="text"
                   required
-                  value={clientPassportNo}
+                  value={clientPassportNo ?? ''}
                   onChange={(e) => setClientPassportNo(e.target.value)}
                   className="w-full py-2 px-3 text-xs font-mono font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -186,7 +186,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 </label>
                 <input
                   type="email"
-                  value={clientEmail}
+                  value={clientEmail ?? ''}
                   onChange={(e) => setClientEmail(e.target.value)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -197,7 +197,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 </label>
                 <input
                   type="text"
-                  value={clientPhone}
+                  value={clientPhone ?? ''}
                   onChange={(e) => setClientPhone(e.target.value)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -208,7 +208,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 </label>
                 <input
                   type="text"
-                  value={clientNationality}
+                  value={clientNationality ?? ''}
                   onChange={(e) => setClientNationality(e.target.value)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -222,7 +222,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 </label>
                 <input
                   type="text"
-                  value={originCountry}
+                  value={originCountry ?? ''}
                   onChange={(e) => setOriginCountry(e.target.value)}
                   placeholder="e.g. India, United Kingdom, Pakistan"
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
@@ -234,7 +234,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 </label>
                 <input
                   type="text"
-                  value={countryOfApplying}
+                  value={countryOfApplying ?? ''}
                   onChange={(e) => setCountryOfApplying(e.target.value)}
                   placeholder="e.g. United Arab Emirates, Saudi Arabia, Qatar"
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
@@ -257,7 +257,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 </label>
                 <input
                   type="text"
-                  value={targetCountry}
+                  value={targetCountry ?? ''}
                   onChange={(e) => setTargetCountry(e.target.value)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -269,7 +269,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 </label>
                 <input
                   type="text"
-                  value={visaType}
+                  value={visaType ?? ''}
                   onChange={(e) => setVisaType(e.target.value)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -282,7 +282,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                   Entry Type
                 </label>
                 <select
-                  value={entryType}
+                  value={entryType ?? 'Single Entry'}
                   onChange={(e) => setEntryType(e.target.value as any)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 >
@@ -297,7 +297,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 </label>
                 <input
                   type="date"
-                  value={travelDate}
+                  value={travelDate ?? ''}
                   onChange={(e) => setTravelDate(e.target.value)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -308,7 +308,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                   Processing Speed
                 </label>
                 <select
-                  value={processingSpeed}
+                  value={processingSpeed ?? 'Standard'}
                   onChange={(e) => setProcessingSpeed(e.target.value as any)}
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 >
@@ -328,7 +328,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 Fee Breakdown (AED)
               </span>
               <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">
-                Total Payable: AED {totalAmount.toLocaleString()}
+                Total Payable: AED {(totalAmount ?? 0).toLocaleString()}
               </span>
             </h4>
 
@@ -340,7 +340,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 <input
                   type="number"
                   min="0"
-                  value={governmentFee}
+                  value={governmentFee ?? 0}
                   onChange={(e) => handleGovOrServiceFeeChange(Number(e.target.value), serviceFee)}
                   className="w-full py-1.5 px-3 text-xs font-mono rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -353,7 +353,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 <input
                   type="number"
                   min="0"
-                  value={serviceFee}
+                  value={serviceFee ?? 0}
                   onChange={(e) => handleGovOrServiceFeeChange(governmentFee, Number(e.target.value))}
                   className="w-full py-1.5 px-3 text-xs font-mono rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -366,7 +366,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 <input
                   type="number"
                   min="0"
-                  value={totalAmount}
+                  value={totalAmount ?? 0}
                   onChange={(e) => setTotalAmount(Number(e.target.value))}
                   className="w-full py-1.5 px-3 text-xs font-mono font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
@@ -381,7 +381,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                 Assigned Immigration Officer
               </label>
               <select
-                value={assignedOfficerName}
+                value={assignedOfficerName ?? ''}
                 onChange={(e) => setAssignedOfficerName(e.target.value)}
                 className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
               >
@@ -400,7 +400,7 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
               </label>
               <input
                 type="text"
-                value={governmentReferenceNo}
+                value={governmentReferenceNo ?? ''}
                 onChange={(e) => setGovernmentReferenceNo(e.target.value)}
                 placeholder="e.g. MOFA-DXB-9812984"
                 className="w-full py-2 px-3 text-xs font-mono rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"

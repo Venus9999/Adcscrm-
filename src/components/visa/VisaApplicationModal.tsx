@@ -150,15 +150,15 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
   // Update selected client details when client selection changes
   const handleClientChange = (cId: string) => {
     setSelectedClientIdState(cId);
-    const cl = clients.find((c) => c.id === cId);
+    const cl = (clients || []).find((c) => c && c.id === cId);
     if (cl) {
-      setApplicantName(cl.fullName);
-      setApplicantEmail(cl.email);
-      setApplicantPhone(cl.phone);
-      if (cl.passportNo) setApplicantPassportNo(cl.passportNo);
+      setApplicantName(cl.fullName || '');
+      setApplicantEmail(cl.email || '');
+      setApplicantPhone(cl.phone || '');
+      setApplicantPassportNo(cl.passportNo || '');
       if (cl.nationality) {
-        setApplicantNationality(cl.nationality);
-        setOriginCountry(cl.nationality);
+        setApplicantNationality(cl.nationality || '');
+        setOriginCountry(cl.nationality || '');
       }
     }
   };
@@ -709,7 +709,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={applicantName}
+                        value={applicantName ?? ''}
                         onChange={(e) => setApplicantName(e.target.value)}
                         placeholder="e.g. Alexander Wright"
                         className="w-full py-2 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -721,7 +721,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={applicantPassportNo}
+                        value={applicantPassportNo ?? ''}
                         onChange={(e) => setApplicantPassportNo(e.target.value)}
                         placeholder="e.g. P89201948"
                         className="w-full py-2 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
@@ -733,7 +733,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={applicantNationality}
+                        value={applicantNationality ?? ''}
                         onChange={(e) => {
                           setApplicantNationality(e.target.value);
                           if (!originCountry) setOriginCountry(e.target.value);
@@ -748,7 +748,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={originCountry}
+                        value={originCountry ?? ''}
                         onChange={(e) => setOriginCountry(e.target.value)}
                         placeholder="e.g. India, United Kingdom, Pakistan, Philippines"
                         className="w-full py-2 px-3 text-sm rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -761,7 +761,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={countryOfApplying}
+                        value={countryOfApplying ?? ''}
                         onChange={(e) => setCountryOfApplying(e.target.value)}
                         placeholder="e.g. United Arab Emirates, Saudi Arabia, Oman"
                         className="w-full py-2 px-3 text-sm rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -774,7 +774,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </label>
                       <input
                         type="date"
-                        value={travelDate}
+                        value={travelDate ?? ''}
                         onChange={(e) => setTravelDate(e.target.value)}
                         className="w-full py-2 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
@@ -785,7 +785,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </label>
                       <input
                         type="email"
-                        value={applicantEmail}
+                        value={applicantEmail ?? ''}
                         onChange={(e) => setApplicantEmail(e.target.value)}
                         placeholder="e.g. alex@example.com"
                         className="w-full py-2 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -797,7 +797,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </label>
                       <input
                         type="tel"
-                        value={applicantPhone}
+                        value={applicantPhone ?? ''}
                         onChange={(e) => setApplicantPhone(e.target.value)}
                         placeholder="e.g. +971 50 123 4567"
                         className="w-full py-2 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -811,7 +811,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                     </label>
                     <textarea
                       rows={3}
-                      value={specialNotes}
+                      value={specialNotes ?? ''}
                       onChange={(e) => setSpecialNotes(e.target.value)}
                       placeholder="e.g. Attending Paris Tech Expo, visiting relatives, express biometrics required..."
                       className="w-full py-2 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"

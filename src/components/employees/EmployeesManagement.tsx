@@ -200,10 +200,10 @@ export const EmployeesManagement: React.FC = () => {
   const handleOpenEdit = (user: User) => {
     setSelectedUser(user);
     setFormData({
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
+      name: user.name ?? '',
+      email: user.email ?? '',
+      phone: user.phone ?? '',
+      role: user.role || 'employee',
       department: user.department || 'PRO Operations',
       jobTitle: user.jobTitle || 'Staff Member',
       companyId: user.companyId || '',
@@ -398,10 +398,10 @@ export const EmployeesManagement: React.FC = () => {
   const handleOpenEditRole = (role: RoleDefinition) => {
     setSelectedRole(role);
     setRoleFormData({
-      name: role.name,
-      code: role.code,
-      description: role.description,
-      roleType: role.roleType,
+      name: role.name ?? '',
+      code: role.code ?? '',
+      description: role.description ?? '',
+      roleType: role.roleType || 'employee',
       color: role.color || '#3b82f6',
       permissions: role.permissions || {
         canCreateClients: true,
@@ -881,7 +881,7 @@ export const EmployeesManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.name}
+                    value={formData.name ?? ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                   />
@@ -894,7 +894,7 @@ export const EmployeesManagement: React.FC = () => {
                   <input
                     type="email"
                     required
-                    value={formData.email}
+                    value={formData.email ?? ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -908,7 +908,7 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.phone}
+                    value={formData.phone ?? ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -919,7 +919,7 @@ export const EmployeesManagement: React.FC = () => {
                     System Role *
                   </label>
                   <select
-                    value={formData.role}
+                    value={formData.role ?? 'employee'}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                   >
@@ -939,7 +939,7 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.department}
+                    value={formData.department ?? ''}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -951,7 +951,7 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.jobTitle}
+                    value={formData.jobTitle ?? ''}
                     onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -964,7 +964,7 @@ export const EmployeesManagement: React.FC = () => {
                     Branch Assignment
                   </label>
                   <select
-                    value={formData.companyId}
+                    value={formData.companyId ?? ''}
                     onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -982,7 +982,7 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.password}
+                    value={formData.password ?? ''}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
                   />
@@ -1029,7 +1029,7 @@ export const EmployeesManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.name}
+                    value={formData.name ?? ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                   />
@@ -1042,7 +1042,7 @@ export const EmployeesManagement: React.FC = () => {
                   <input
                     type="email"
                     required
-                    value={formData.email}
+                    value={formData.email ?? ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -1056,7 +1056,7 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.phone}
+                    value={formData.phone ?? ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1067,7 +1067,7 @@ export const EmployeesManagement: React.FC = () => {
                     System Role
                   </label>
                   <select
-                    value={formData.role}
+                    value={formData.role ?? 'employee'}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                   >
@@ -1087,7 +1087,7 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.department}
+                    value={formData.department ?? ''}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -1099,7 +1099,7 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.jobTitle}
+                    value={formData.jobTitle ?? ''}
                     onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -1112,7 +1112,7 @@ export const EmployeesManagement: React.FC = () => {
                     Account Status
                   </label>
                   <select
-                    value={formData.status}
+                    value={formData.status ?? 'active'}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                   >
@@ -1126,7 +1126,7 @@ export const EmployeesManagement: React.FC = () => {
                     Branch Assignment
                   </label>
                   <select
-                    value={formData.companyId}
+                    value={formData.companyId ?? ''}
                     onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -1303,7 +1303,7 @@ export const EmployeesManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={roleFormData.name}
+                    value={roleFormData.name ?? ''}
                     onChange={(e) => setRoleFormData({ ...roleFormData, name: e.target.value })}
                     placeholder="e.g. Senior Legal Counsel"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
@@ -1315,7 +1315,7 @@ export const EmployeesManagement: React.FC = () => {
                     Base Access Type
                   </label>
                   <select
-                    value={roleFormData.roleType}
+                    value={roleFormData.roleType ?? 'employee'}
                     onChange={(e) => setRoleFormData({ ...roleFormData, roleType: e.target.value as UserRole })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -1334,7 +1334,7 @@ export const EmployeesManagement: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={roleFormData.description}
+                  value={roleFormData.description ?? ''}
                   onChange={(e) => setRoleFormData({ ...roleFormData, description: e.target.value })}
                   placeholder="e.g. Legal vetting, trade license drafting, and court clearances"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1348,13 +1348,13 @@ export const EmployeesManagement: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={roleFormData.color}
+                    value={roleFormData.color ?? '#3b82f6'}
                     onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
                     className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0"
                   />
                   <input
                     type="text"
-                    value={roleFormData.color}
+                    value={roleFormData.color ?? '#3b82f6'}
                     onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
                     className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1499,7 +1499,7 @@ export const EmployeesManagement: React.FC = () => {
                 <input
                   type="text"
                   required
-                  value={roleFormData.name}
+                  value={roleFormData.name ?? ''}
                   onChange={(e) => setRoleFormData({ ...roleFormData, name: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                 />
@@ -1511,7 +1511,7 @@ export const EmployeesManagement: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={roleFormData.description}
+                  value={roleFormData.description ?? ''}
                   onChange={(e) => setRoleFormData({ ...roleFormData, description: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />
@@ -1524,13 +1524,13 @@ export const EmployeesManagement: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={roleFormData.color}
+                    value={roleFormData.color ?? '#3b82f6'}
                     onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
                     className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0"
                   />
                   <input
                     type="text"
-                    value={roleFormData.color}
+                    value={roleFormData.color ?? '#3b82f6'}
                     onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
                     className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1911,7 +1911,7 @@ export const EmployeesManagement: React.FC = () => {
                 <div className="relative">
                   <input
                     type={showResetPassInput ? 'text' : 'password'}
-                    value={resetNewPassword}
+                    value={resetNewPassword ?? ''}
                     onChange={(e) => setResetNewPassword(e.target.value)}
                     placeholder="Enter new password (min 4 chars)"
                     className="w-full p-2.5 pr-9 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
@@ -1934,7 +1934,7 @@ export const EmployeesManagement: React.FC = () => {
                 <input
                   type="text"
                   maxLength={6}
-                  value={resetNewPin}
+                  value={resetNewPin ?? ''}
                   onChange={(e) => setResetNewPin(e.target.value)}
                   placeholder="e.g. 1234"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono tracking-widest"
