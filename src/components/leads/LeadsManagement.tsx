@@ -149,6 +149,7 @@ export const LeadsManagement: React.FC = () => {
     status: 'new' as Lead['status'],
     companyId: '',
     assignedEmployeeId: '',
+    assignedEmployeeIds: [] as string[],
     notes: '',
     followUpDate: new Date().toISOString().split('T')[0],
   });
@@ -380,6 +381,7 @@ export const LeadsManagement: React.FC = () => {
       status: 'new',
       companyId: selectedCompanyId !== 'all' ? selectedCompanyId : companies[0]?.id || 'comp-1',
       assignedEmployeeId: currentUser.id,
+      assignedEmployeeIds: [currentUser.id],
       notes: '',
       followUpDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
     });
@@ -390,6 +392,12 @@ export const LeadsManagement: React.FC = () => {
     setSelectedLead(lead);
     const cat = leadCategories.find((c) => c.id === lead.leadCategoryId || c.name === lead.category);
     const isJob = Boolean(lead.isJobLead || cat?.isJobCategory || (lead.category && lead.category.toLowerCase().includes('job')));
+
+    const initialEmpIds = lead.assignedEmployeeIds && lead.assignedEmployeeIds.length > 0
+      ? lead.assignedEmployeeIds
+      : lead.assignedEmployeeId
+      ? [lead.assignedEmployeeId]
+      : [];
 
     setFormData({
       name: lead.name,
@@ -415,7 +423,8 @@ export const LeadsManagement: React.FC = () => {
       priority: lead.priority,
       status: lead.status,
       companyId: lead.companyId,
-      assignedEmployeeId: lead.assignedEmployeeId || '',
+      assignedEmployeeId: lead.assignedEmployeeId || (initialEmpIds[0] || ''),
+      assignedEmployeeIds: initialEmpIds,
       notes: lead.notes || '',
       followUpDate: lead.followUpDate || '',
     });
@@ -443,7 +452,8 @@ export const LeadsManagement: React.FC = () => {
 
   const handleSaveAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    const assignedUser = users.find((u) => u.id === formData.assignedEmployeeId);
+    const primaryId = formData.assignedEmployeeIds[0] || formData.assignedEmployeeId;
+    const assignedUser = users.find((u) => u.id === primaryId);
     const targetComp = companies.find((c) => c.id === formData.companyId);
 
     addLead({
@@ -471,7 +481,8 @@ export const LeadsManagement: React.FC = () => {
       priority: formData.priority,
       companyId: formData.companyId || companies[0]?.id,
       branchName: targetComp?.name,
-      assignedEmployeeId: formData.assignedEmployeeId,
+      assignedEmployeeId: primaryId,
+      assignedEmployeeIds: formData.assignedEmployeeIds,
       assignedEmployeeName: assignedUser?.name,
       assignedEmployeeAvatar: assignedUser?.avatar,
       notes: formData.notes,
@@ -484,7 +495,8 @@ export const LeadsManagement: React.FC = () => {
     e.preventDefault();
     if (!selectedLead) return;
 
-    const assignedUser = users.find((u) => u.id === formData.assignedEmployeeId);
+    const primaryId = formData.assignedEmployeeIds[0] || formData.assignedEmployeeId;
+    const assignedUser = users.find((u) => u.id === primaryId);
     const targetComp = companies.find((c) => c.id === formData.companyId);
 
     updateLead(selectedLead.id, {
@@ -512,7 +524,8 @@ export const LeadsManagement: React.FC = () => {
       priority: formData.priority,
       companyId: formData.companyId,
       branchName: targetComp?.name,
-      assignedEmployeeId: formData.assignedEmployeeId,
+      assignedEmployeeId: primaryId,
+      assignedEmployeeIds: formData.assignedEmployeeIds,
       assignedEmployeeName: assignedUser?.name,
       assignedEmployeeAvatar: assignedUser?.avatar,
       notes: formData.notes,
@@ -1618,35 +1631,68 @@ export const LeadsManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned Company / Branch</label>
-                  <select
-                    value={formData.companyId}
-                    onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-                  >
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned Company / Branch</label>
+                <select
+                  value={formData.companyId}
+                  onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                >
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Multi-Staff Assignment for New Lead */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Assign Staff & Agents
+                  </label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                    {formData.assignedEmployeeIds.length} Selected
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned PRO / Officer</label>
-                  <select
-                    value={formData.assignedEmployeeId}
-                    onChange={(e) => setFormData({ ...formData, assignedEmployeeId: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-                  >
-                    <option value="">Unassigned</option>
-                    {activeEmployees.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.title || u.role})
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-32 overflow-y-auto pr-1">
+                  {activeEmployees.map((u) => {
+                    const isSelected = formData.assignedEmployeeIds.includes(u.id);
+                    return (
+                      <button
+                        type="button"
+                        key={u.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setFormData({
+                              ...formData,
+                              assignedEmployeeIds: formData.assignedEmployeeIds.filter((id) => id !== u.id),
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              assignedEmployeeIds: [...formData.assignedEmployeeIds, u.id],
+                            });
+                          }
+                        }}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-900 dark:text-blue-200 font-semibold'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          className="rounded text-blue-600 focus:ring-blue-500 pointer-events-none"
+                        />
+                        <span className="truncate flex-1">{u.name}</span>
+                        <span className="text-[10px] text-slate-400 capitalize">{u.role}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1926,30 +1972,63 @@ export const LeadsManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Estimated Value (AED)</label>
-                  <input
-                    type="number"
-                    value={formData.estimatedValue}
-                    onChange={(e) => setFormData({ ...formData, estimatedValue: Number(e.target.value) })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
-                  />
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Estimated Value (AED)</label>
+                <input
+                  type="number"
+                  value={formData.estimatedValue}
+                  onChange={(e) => setFormData({ ...formData, estimatedValue: Number(e.target.value) })}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                />
+              </div>
+
+              {/* Multi-Staff Assignment for Edit Lead */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Assigned Staff & Agents
+                  </label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                    {formData.assignedEmployeeIds.length} Selected
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned Officer</label>
-                  <select
-                    value={formData.assignedEmployeeId}
-                    onChange={(e) => setFormData({ ...formData, assignedEmployeeId: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-                  >
-                    <option value="">Unassigned</option>
-                    {activeEmployees.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-32 overflow-y-auto pr-1">
+                  {activeEmployees.map((u) => {
+                    const isSelected = formData.assignedEmployeeIds.includes(u.id);
+                    return (
+                      <button
+                        type="button"
+                        key={u.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setFormData({
+                              ...formData,
+                              assignedEmployeeIds: formData.assignedEmployeeIds.filter((id) => id !== u.id),
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              assignedEmployeeIds: [...formData.assignedEmployeeIds, u.id],
+                            });
+                          }
+                        }}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-900 dark:text-blue-200 font-semibold'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          className="rounded text-blue-600 focus:ring-blue-500 pointer-events-none"
+                        />
+                        <span className="truncate flex-1">{u.name}</span>
+                        <span className="text-[10px] text-slate-400 capitalize">{u.role}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -30,6 +30,8 @@ import { EmployeesManagement } from './components/employees/EmployeesManagement'
 import { UserProfileSettings } from './components/settings/UserProfileSettings';
 import { VendorsManagement } from './components/vendors/VendorsManagement';
 import { VisaServicesManager } from './components/visa/VisaServicesManager';
+import { AIVisaCountryAdvisor } from './components/visa/AIVisaCountryAdvisor';
+import { AIImageStudio } from './components/ai/AIImageStudio';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { PWAInstallBanner } from './components/common/PWAInstallBanner';
 import { PWAInstallModal } from './components/common/PWAInstallModal';
@@ -101,6 +103,15 @@ const AppContent: React.FC = () => {
       case 'visa':
       case 'visas':
         return <VisaServicesManager />;
+
+      case 'ai_advisor':
+      case 'visa_advisor':
+        return <AIVisaCountryAdvisor />;
+
+      case 'photo_studio':
+      case 'image_studio':
+      case 'ai_image':
+        return <AIImageStudio />;
 
       case 'services':
         return <ServicesCatalog />;

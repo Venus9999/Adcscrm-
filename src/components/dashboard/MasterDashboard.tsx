@@ -13,6 +13,7 @@ import {
   Sparkles,
   Globe,
   Plane,
+  Wand2,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 
@@ -122,12 +123,26 @@ export const MasterDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => setActiveTab('photo_studio')}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>AI Photo Studio</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('ai_advisor')}
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-bold rounded-lg border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>AI Visa Intel</span>
+          </button>
           <button
             onClick={() => setActiveTab('visa')}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <span>Open Visa Services ({visaApplications.length} Cases)</span>
+            <span>Open Visa Hub ({visaApplications.length})</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
           </button>
         </div>

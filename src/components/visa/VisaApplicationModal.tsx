@@ -16,10 +16,16 @@ import {
   CreditCard,
   Building,
   Check,
+  Zap,
+  Camera,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { VisaCountryOption } from '../../data/countriesData';
 import { VisaUploadedDoc } from '../../types/crm';
+import { NomodCheckoutModal } from '../payment/NomodCheckoutModal';
+import { AIVisaCountryAdvisor } from './AIVisaCountryAdvisor';
 
 type CountryVisaType = VisaCountryOption['visaTypes'][number];
 
@@ -40,6 +46,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
     currentUser,
     clients,
     applyForVisaService,
+    confirmNomodPayment,
     companies,
     selectedCompanyId,
     visaCountryCatalog,
@@ -85,12 +92,16 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
   const [applicantPhone, setApplicantPhone] = useState(defaultClient?.phone || '+971 50 123 4567');
   const [applicantPassportNo, setApplicantPassportNo] = useState(defaultClient?.passportNo || 'P89201948');
   const [applicantNationality, setApplicantNationality] = useState(defaultClient?.nationality || 'United Arab Emirates');
+  const [originCountry, setOriginCountry] = useState(defaultClient?.nationality || 'United Arab Emirates');
+  const [countryOfApplying, setCountryOfApplying] = useState('United Arab Emirates');
   const [travelDate, setTravelDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 21);
     return d.toISOString().split('T')[0];
   });
   const [specialNotes, setSpecialNotes] = useState('');
+  const [showAIAdvisor, setShowAIAdvisor] = useState(true);
+  const [showPhotoStudioModal, setShowPhotoStudioModal] = useState(false);
 
   // Uploaded Documents state
   const [uploadedDocsList, setUploadedDocsList] = useState<Omit<VisaUploadedDoc, 'id' | 'uploadedAt' | 'status'>[]>([
@@ -105,10 +116,16 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
 
   // Payment Options
   const [paymentOption, setPaymentOption] = useState<'pay_now' | 'pay_later'>('pay_now');
-  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'bank_transfer' | 'cash'>('credit_card');
+  const [paymentMethod, setPaymentMethod] = useState<'nomod_online' | 'bank_transfer' | 'cash'>('nomod_online');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [createdAppNumber, setCreatedAppNumber] = useState('');
+  const [createdAppId, setCreatedAppId] = useState('');
+
+  // Nomod Checkout Modal State
+  const [isNomodModalOpen, setIsNomodModalOpen] = useState(false);
+  const [nomodPaymentConfirmed, setNomodPaymentConfirmed] = useState(false);
+  const [nomodPaymentRef, setNomodPaymentRef] = useState('');
 
   // Filter countries
   const filteredCountries = useMemo(() => {
@@ -139,7 +156,10 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
       setApplicantEmail(cl.email);
       setApplicantPhone(cl.phone);
       if (cl.passportNo) setApplicantPassportNo(cl.passportNo);
-      if (cl.nationality) setApplicantNationality(cl.nationality);
+      if (cl.nationality) {
+        setApplicantNationality(cl.nationality);
+        setOriginCountry(cl.nationality);
+      }
     }
   };
 
@@ -218,6 +238,8 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
         clientPhone: applicantPhone || clientObj.phone,
         clientPassportNo: applicantPassportNo || clientObj.passportNo || 'P89201948',
         clientNationality: applicantNationality || clientObj.nationality || 'UAE Resident',
+        originCountry: originCountry || applicantNationality || 'United Arab Emirates',
+        countryOfApplying: countryOfApplying || 'United Arab Emirates',
         companyId: clientObj.companyId || (selectedCompanyId !== 'all' ? selectedCompanyId : companies[0]?.id || 'comp-1'),
         targetCountry: selectedCountry.countryName,
         targetCountryCode: selectedCountry.countryCode,
@@ -244,17 +266,17 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
           uploadedAt: new Date().toISOString(),
           status: 'verified' as const,
         })),
-        notes: specialNotes || `Travel date: ${travelDate}. Processing: ${processingSpeed}. Applied via Client Portal.`,
+        notes: specialNotes || `Travel date: ${travelDate}. Processing: ${processingSpeed}. Applied via Client Portal. Origin: ${originCountry}. Applying from: ${countryOfApplying}.`,
       },
       {
         autoInvoice: true,
         initialPayment:
-          paymentOption === 'pay_now'
+          paymentOption === 'pay_now' && paymentMethod !== 'nomod_online'
             ? {
                 amount: totalAmount,
-                method: paymentMethod === 'credit_card' ? ('Credit Card' as const) : paymentMethod === 'bank_transfer' ? ('Bank Transfer' as const) : ('Cash' as const),
-                reference: `ONLINE-PAY-${Math.floor(10000 + Math.random() * 90000)}`,
-                notes: `Full payment cleared online for ${selectedCountry.countryName} visa`,
+                method: paymentMethod === 'bank_transfer' ? ('Bank Transfer' as const) : ('Cash' as const),
+                reference: `MANUAL-PAY-${Math.floor(10000 + Math.random() * 90000)}`,
+                notes: `Payment cleared for ${selectedCountry.countryName} visa`,
               }
             : undefined,
       }
@@ -264,8 +286,26 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
 
     if (result.success && result.application) {
       setCreatedAppNumber(result.application.applicationNumber);
-      setSubmitSuccess(true);
+      setCreatedAppId(result.application.id);
+
+      if (paymentOption === 'pay_now' && paymentMethod === 'nomod_online') {
+        // Open Nomod Checkout Modal
+        setIsNomodModalOpen(true);
+      } else {
+        setSubmitSuccess(true);
+      }
     }
+  };
+
+  const handleNomodSuccess = (paymentResult: any) => {
+    setIsNomodModalOpen(false);
+    setNomodPaymentConfirmed(true);
+    setNomodPaymentRef(paymentResult.reference);
+
+    if (createdAppId) {
+      confirmNomodPayment(createdAppId, paymentResult);
+    }
+    setSubmitSuccess(true);
   };
 
   if (!isOpen) return null;
@@ -579,6 +619,54 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                           ))}
                         </div>
                       </div>
+
+                      {/* AI Country Visa Advisor & Search Grounding Section */}
+                      <div className="mt-4 border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl overflow-hidden shadow-md">
+                        <div
+                          onClick={() => setShowAIAdvisor(!showAIAdvisor)}
+                          className="p-3.5 bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/60 flex items-center justify-between cursor-pointer text-white hover:bg-slate-800/90 transition-all"
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                              <Sparkles className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-white">
+                                  AI Country Visa Intelligence & Search Grounding
+                                </p>
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                  ⚡ Google Search Verified (2026)
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">
+                                Live visa rules, embassy processing speed & checklist for {selectedCountry.countryName}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[11px] text-emerald-400 font-semibold hidden sm:inline">
+                              {showAIAdvisor ? 'Hide Intelligence' : 'Inspect Rules'}
+                            </span>
+                            {showAIAdvisor ? (
+                              <ChevronUp className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-slate-400" />
+                            )}
+                          </div>
+                        </div>
+
+                        {showAIAdvisor && (
+                          <div className="p-2 bg-slate-950">
+                            <AIVisaCountryAdvisor
+                              initialDestination={selectedCountry.countryName}
+                              initialNationality={applicantNationality || originCountry || 'United Arab Emirates'}
+                              initialVisaType={selectedVisaType.name}
+                              compact={true}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -638,10 +726,39 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       <input
                         type="text"
                         value={applicantNationality}
-                        onChange={(e) => setApplicantNationality(e.target.value)}
+                        onChange={(e) => {
+                          setApplicantNationality(e.target.value);
+                          if (!originCountry) setOriginCountry(e.target.value);
+                        }}
                         placeholder="e.g. British / Indian / Pakistani / Emirati"
                         className="w-full py-2 px-3 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Origin Country (Country of Citizenship / Passport) *
+                      </label>
+                      <input
+                        type="text"
+                        value={originCountry}
+                        onChange={(e) => setOriginCountry(e.target.value)}
+                        placeholder="e.g. India, United Kingdom, Pakistan, Philippines"
+                        className="w-full py-2 px-3 text-sm rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Determines consular entry visa criteria</span>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Country of Applying (Where You Are Applying From) *
+                      </label>
+                      <input
+                        type="text"
+                        value={countryOfApplying}
+                        onChange={(e) => setCountryOfApplying(e.target.value)}
+                        placeholder="e.g. United Arab Emirates, Saudi Arabia, Oman"
+                        className="w-full py-2 px-3 text-sm rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Current location of residence / embassy jurisdiction</span>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
@@ -706,6 +823,29 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </span>
                     </div>
                     <span className="font-semibold">{uploadedDocsList.length} Uploaded</span>
+                  </div>
+
+                  {/* AI Photo Studio Helper Banner */}
+                  <div className="p-3.5 bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/30 rounded-xl flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-white">Need a compliant passport / visa photo?</p>
+                        <p className="text-[11px] text-slate-400">
+                          Use AI Image Studio to format white background and 35x45mm / 2x2 in biometric standards.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSimulateDocUpload('Biometric Studio Passport Photo (35x45mm White BG)')}
+                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Auto-Generate Photo</span>
+                    </button>
                   </div>
 
                   <div className="space-y-3">
@@ -778,7 +918,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 pt-3 text-xs">
                       <div>
                         <span className="text-slate-400 block text-[10px]">Applicant:</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200">{applicantName}</span>
@@ -788,11 +928,19 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                         <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{applicantPassportNo}</span>
                       </div>
                       <div>
+                        <span className="text-slate-400 block text-[10px]">Origin Country:</span>
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">{originCountry || applicantNationality}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Country Applying From:</span>
+                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">{countryOfApplying}</span>
+                      </div>
+                      <div>
                         <span className="text-slate-400 block text-[10px]">Travel Date:</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200">{travelDate}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block text-[10px]">Documents Attached:</span>
+                        <span className="text-slate-400 block text-[10px]">Documents:</span>
                         <span className="font-semibold text-emerald-600 dark:text-emerald-400">{uploadedDocsList.length} Files</span>
                       </div>
                     </div>
@@ -836,20 +984,44 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                     <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                       Payment Settlement Method
                     </h5>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div
-                        onClick={() => setPaymentOption('pay_now')}
+                        onClick={() => {
+                          setPaymentOption('pay_now');
+                          setPaymentMethod('nomod_online');
+                        }}
                         className={`cursor-pointer p-3.5 rounded-xl border text-left transition-all ${
-                          paymentOption === 'pay_now'
+                          paymentOption === 'pay_now' && paymentMethod === 'nomod_online'
                             ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/20'
                             : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                         }`}
                       >
-                        <div className="flex items-center space-x-2">
-                          <CreditCard className="w-4 h-4 text-blue-600" />
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">Pay Now Online</span>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center space-x-2">
+                            <Zap className="w-4 h-4 text-blue-600 fill-blue-600" />
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">Nomod Online Gateway</span>
+                          </div>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Instant</span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-1">Instant confirmation & priority queueing</p>
+                        <p className="text-[11px] text-slate-500">Cards, Apple Pay, UAE local debit & auto-invoice</p>
+                      </div>
+
+                      <div
+                        onClick={() => {
+                          setPaymentOption('pay_now');
+                          setPaymentMethod('bank_transfer');
+                        }}
+                        className={`cursor-pointer p-3.5 rounded-xl border text-left transition-all ${
+                          paymentOption === 'pay_now' && paymentMethod === 'bank_transfer'
+                            ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/20'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2 mb-1">
+                          <CreditCard className="w-4 h-4 text-slate-600" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">Bank Wire / Transfer</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Manual verification with bank slip upload</p>
                       </div>
 
                       <div
@@ -860,31 +1032,13 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                             : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                         }`}
                       >
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 mb-1">
                           <Building className="w-4 h-4 text-slate-600" />
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">Generate Official Invoice</span>
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">Issue Official Invoice</span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-1">Pay within 7 days or upon biometrics slot</p>
+                        <p className="text-[11px] text-slate-500">Corporate billing or pay before embassy slot</p>
                       </div>
                     </div>
-
-                    {paymentOption === 'pay_now' && (
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center space-x-4 text-xs">
-                        <span className="text-slate-500">Method:</span>
-                        {['credit_card', 'bank_transfer', 'cash'].map((m) => (
-                          <label key={m} className="flex items-center space-x-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-300">
-                            <input
-                              type="radio"
-                              name="method"
-                              checked={paymentMethod === m}
-                              onChange={() => setPaymentMethod(m as any)}
-                              className="text-blue-600"
-                            />
-                            <span>{m === 'credit_card' ? 'Online Card' : m === 'bank_transfer' ? 'Wire Transfer' : 'Cash Deposit'}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -930,7 +1084,11 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      <span>Submit Visa Application (AED {totalAmount.toLocaleString()})</span>
+                      <span>
+                        {paymentOption === 'pay_now' && paymentMethod === 'nomod_online'
+                          ? `Pay Online with Nomod (AED ${totalAmount.toLocaleString()})`
+                          : `Submit Visa Application (AED ${totalAmount.toLocaleString()})`}
+                      </span>
                     </>
                   )}
                 </button>
@@ -939,6 +1097,25 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
           </div>
         )}
       </div>
+
+      {/* Nomod Checkout Modal */}
+      {isNomodModalOpen && (
+        <NomodCheckoutModal
+          isOpen={isNomodModalOpen}
+          onClose={() => {
+            setIsNomodModalOpen(false);
+            setSubmitSuccess(true);
+          }}
+          amount={totalAmount}
+          currency="AED"
+          description={`${selectedCountry?.countryName} ${selectedVisaType.name} (${processingSpeed}) - App #${createdAppNumber}`}
+          customerName={applicantName}
+          customerEmail={applicantEmail}
+          customerPhone={applicantPhone}
+          applicationId={createdAppId}
+          onPaymentSuccess={handleNomodSuccess}
+        />
+      )}
     </div>
   );
 };

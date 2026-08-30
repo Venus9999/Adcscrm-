@@ -26,6 +26,7 @@ import {
   Tag,
   Smartphone,
   X,
+  Wand2,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { PWAInstallModal } from '../common/PWAInstallModal';
@@ -141,6 +142,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       icon: Globe,
       badge: activeVisaCount > 0 ? activeVisaCount : undefined,
       badgeColor: 'bg-indigo-600 text-white',
+      allowedRoles: ['master', 'admin', 'employee', 'client'],
+    },
+    {
+      id: 'ai_advisor',
+      label: 'AI Visa Intelligence',
+      icon: Sparkles,
+      allowedRoles: ['master', 'admin', 'employee', 'client'],
+    },
+    {
+      id: 'photo_studio',
+      label: 'AI Photo & Doc Studio',
+      icon: Wand2,
       allowedRoles: ['master', 'admin', 'employee', 'client'],
     },
     {

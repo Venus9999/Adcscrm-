@@ -317,6 +317,21 @@ interface CRMContextType {
   addVisaTimelineMilestone: (id: string, milestone: Omit<VisaTimelineEvent, 'id' | 'timestamp'>) => void;
   uploadVisaDocument: (appId: string, doc: Omit<VisaUploadedDoc, 'id' | 'uploadedAt' | 'status'>) => void;
   deleteVisaApplication: (id: string) => void;
+  confirmNomodPayment: (
+    appId: string,
+    result: {
+      paymentId: string;
+      reference: string;
+      authCode?: string;
+      cardBrand?: string;
+      last4?: string;
+      amount: number;
+      currency?: string;
+      paidAt?: string;
+      customerName?: string;
+    }
+  ) => { success: boolean; invoice?: Invoice; error?: string };
+  assignLeadToStaff: (leadId: string, employeeId: string, notes?: string) => void;
 
   // Filtered views helpers
   filteredClients: Client[];
@@ -336,6 +351,7 @@ const LOCAL_STORAGE_KEY = 'adcs_crm_db_v2';
 const AUTH_STORAGE_KEY = 'adcs_crm_auth_session_v2';
 const CURRENT_USER_STORAGE_KEY = 'adcs_crm_active_user_id_v2';
 const ACTIVE_USER_PROFILE_KEY = 'adcs_crm_active_user_profile_v2';
+const DELETED_USERS_STORAGE_KEY = 'adcs_crm_deleted_user_ids';
 
 export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Load saved state or default
@@ -493,15 +509,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.roles && Array.isArray(parsed.roles)) setRoles(parsed.roles);
     if (parsed.workflows && Array.isArray(parsed.workflows)) setWorkflows(parsed.workflows);
     if (parsed.users && Array.isArray(parsed.users)) {
+      // Get set of permanently deleted user IDs
+      let deletedUserIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_USERS_STORAGE_KEY);
+        if (delRaw) deletedUserIds = JSON.parse(delRaw);
+      } catch {}
+
       const cleanUsers = (parsed.users || [])
-        .filter((u: User) => u && u.id && u.email)
+        .filter((u: User) => u && u.id && u.email && !deletedUserIds.includes(u.id) && !deletedUserIds.includes(u.email.toLowerCase().trim()))
         .map((u: User) => ({
           ...u,
           companyIds: u.companyIds && u.companyIds.length > 0 ? u.companyIds : u.companyId ? [u.companyId] : [],
         }));
 
-      // Merge cached active profile and INITIAL_USERS so standard roles/users are always preserved
       const mergedUsers = [...cleanUsers];
+
+      // If active profile exists and not deleted, make sure it is preserved
       try {
         const storedProfile = localStorage.getItem(ACTIVE_USER_PROFILE_KEY);
         if (storedProfile) {
@@ -509,6 +533,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (
             cached &&
             cached.id &&
+            !deletedUserIds.includes(cached.id) &&
+            !deletedUserIds.includes((cached.email || '').toLowerCase().trim()) &&
             !mergedUsers.some(
               (u) =>
                 u.id === cached.id ||
@@ -520,17 +546,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch {}
 
-      INITIAL_USERS.forEach((initU) => {
-        if (
-          !mergedUsers.some(
-            (u) =>
-              u.id === initU.id ||
-              (u.email && initU.email && u.email.toLowerCase().trim() === initU.email.toLowerCase().trim())
-          )
-        ) {
-          mergedUsers.push(initU);
-        }
-      });
+      // Only ensure a Master account exists if no master is in the users list
+      const hasMaster = mergedUsers.some((u) => u.role === 'master');
+      if (!hasMaster && INITIAL_USERS[0]) {
+        mergedUsers.unshift(INITIAL_USERS[0]);
+      }
 
       setUsers(mergedUsers.length > 0 ? mergedUsers : INITIAL_USERS);
 
@@ -1526,11 +1546,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!cleanPass || cleanPass.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
       if (!cleanPhone) return { success: false, error: 'Contact phone number is required.' };
 
-      const existingUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
+      // Check current in-memory users & saved users
+      let currentUsersList = [...users];
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.users)) {
+            currentUsersList = parsed.users;
+          }
+        }
+      } catch {}
+
+      const existingUser = currentUsersList.find((u) => u.email.toLowerCase().trim() === cleanEmail);
       if (existingUser) {
         return {
           success: false,
-          error: 'An account with this email already exists. Please sign in or use Forgot Password.',
+          error: 'An account with this email already exists. Please sign in with your password or use Forgot Password.',
         };
       }
 
@@ -1544,6 +1576,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const refNo = `CL-2026-${randomDigits}`;
 
       const targetCompany = (data.companyId ? companies.find(c => c.id === data.companyId) : null) || companies[0] || INITIAL_COMPANIES[0];
+      const targetCompanyId = targetCompany?.id || 'comp-1';
 
       // 1. Create client User account
       const newUser: User = {
@@ -1554,8 +1587,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         role: 'client',
         title: 'Client / Account Holder',
         jobTitle: 'Client',
-        companyId: targetCompany.id,
-        companyIds: [targetCompany.id],
+        companyId: targetCompanyId,
+        companyIds: [targetCompanyId],
         phone: cleanPhone,
         avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
         status: 'active',
@@ -1583,6 +1616,48 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const firstName = nameParts[0] || cleanName;
       const lastName = nameParts.slice(1).join(' ') || '';
 
+      const initialServiceId = `srv-${Date.now()}`;
+      const initialService: ClientService = {
+        id: initialServiceId,
+        clientId: clientId,
+        serviceId: 'srv-residency-visa',
+        serviceName: 'Residency Visa & Corporate Client Onboarding',
+        category: 'visa',
+        categoryName: 'Residency & Immigration',
+        notes: 'Client registered online via Self-Service Portal. File opened and awaiting document verification.',
+        price: 3500,
+        governmentFees: 1200,
+        advancePaid: 0,
+        balance: 4700,
+        status: 'active',
+        currentStageId: 'stage-1',
+        currentStageName: 'Inquiry / File Opening',
+        assignedEmployeeId: targetCompany?.employeeIds?.[0] || 'user-emp-1',
+        assignedEmployeeName: 'Farhan Akhtar (Senior PRO)',
+        startDate: nowIso.split('T')[0],
+        targetCompletionDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+        referenceNumber: `ICP-${refNo}`,
+        requiredDocs: [
+          { docName: 'Passport Copy (High Resolution Color)', isUploaded: false, status: 'pending' },
+          { docName: 'Emirates ID / National Identity Card', isUploaded: false, status: 'pending' },
+          { docName: 'Passport Size Photo (White Background)', isUploaded: false, status: 'pending' },
+          { docName: 'Trade License / Visa Entry Stamp (Optional)', isUploaded: false, status: 'pending' },
+        ],
+        stageHistory: [
+          {
+            id: `hist-${Date.now()}`,
+            fromStage: 'Online Registration',
+            toStage: 'Inquiry / File Opening',
+            updatedByUserId: userId,
+            updatedByUserName: cleanName,
+            updatedByUserRole: 'client',
+            timestamp: nowIso,
+            remarks: 'Client profile registered online and assigned to Senior PRO officer for document review and processing.',
+            nextFollowUpDate: new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0],
+          },
+        ],
+      };
+
       // 2. Create Client profile record
       const newClient: Client = {
         id: clientId,
@@ -1591,9 +1666,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         lastName,
         fullName: cleanName,
         email: cleanEmail,
-        phone: cleanPhone,
-        mobile: cleanPhone,
-        whatsapp: cleanPhone,
+        phone: cleanPhone || '+971 50 123 4567',
+        mobile: cleanPhone || '+971 50 123 4567',
+        whatsapp: cleanPhone || '+971 50 123 4567',
         dob: '1990-01-01',
         gender: 'Male',
         passportNo: data.passportNo || `P${Math.floor(10000000 + Math.random() * 90000000)}`,
@@ -1603,19 +1678,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         residentialAddress: 'Dubai, United Arab Emirates',
         nationality: data.nationality || 'United Arab Emirates',
         companyName: data.companyName || `${cleanName}'s Portfolio`,
-        companyId: targetCompany.id,
+        companyId: targetCompanyId,
         category: 'individual',
         type: 'individual',
         status: 'active',
         currentStageId: 'stage-1',
-        currentStageName: 'New Inquiry',
-        services: [],
-        assignedEmployeeIds: targetCompany.employeeIds && targetCompany.employeeIds.length > 0 ? targetCompany.employeeIds.slice(0, 2) : ['user-emp-1'],
-        assignedAdminId: targetCompany.adminId || 'user-admin',
-        totalAmount: 0,
+        currentStageName: 'Inquiry / File Opening',
+        services: [initialService],
+        assignedEmployeeIds: targetCompany?.employeeIds && targetCompany.employeeIds.length > 0 ? targetCompany.employeeIds.slice(0, 2) : ['user-emp-1'],
+        assignedAdminId: targetCompany?.adminId || 'user-admin',
+        totalAmount: 4700,
         paidAmount: 0,
-        outstandingAmount: 0,
-        paymentStatus: 'paid',
+        outstandingAmount: 4700,
+        paymentStatus: 'unpaid',
         avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
         notes: [
           {
@@ -1623,7 +1698,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             userId: userId,
             userName: cleanName,
             userRole: 'client',
-            text: `✨ Client created account online via Frontend Registration on ${new Date().toLocaleDateString()}. Welcome to ADCS Corporate Services!`,
+            text: `✨ Client registered account via Client Portal on ${new Date().toLocaleDateString()}. Welcome to ADCS Corporate Services!`,
             createdAt: nowIso,
           },
         ],
@@ -1632,31 +1707,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createdAt: nowIso,
         updatedAt: nowIso,
       };
-
-      // Update state
-      setUsers((prev) => [newUser, ...prev]);
-      setClients((prev) => [newClient, ...prev]);
-
-      // Update company counts
-      setCompanies((prev) =>
-        prev.map((comp) =>
-          comp.id === targetCompany.id
-            ? {
-                ...comp,
-                totalClientsCount: comp.totalClientsCount + 1,
-              }
-            : comp
-        )
-      );
-
-      // Auto login as new client
-      setCurrentUser(newUser);
-      setIsAuthenticated(true);
-      setSelectedCompanyId(targetCompany.id);
-      setSelectedClientId(clientId);
-      try {
-        localStorage.setItem(AUTH_STORAGE_KEY, 'true');
-      } catch {}
 
       // Notifications
       const notif: NotificationItem = {
@@ -1670,13 +1720,113 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         read: false,
         timestamp: nowIso,
       };
-      setNotifications((prev) => [notif, ...prev]);
 
-      recordAuditLog(
-        'Client Self-Registration',
-        'Security',
-        `New client ${cleanName} (${cleanEmail}) registered online and initialized portal (${refNo})`
+      const newLog: AuditLogEntry = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        userId: userId,
+        userName: cleanName,
+        userRole: 'client',
+        userEmail: cleanEmail,
+        action: 'Client Self-Registration',
+        module: 'Security',
+        details: `New client ${cleanName} (${cleanEmail}) registered online and initialized portal (${refNo})`,
+        timestamp: nowIso,
+      };
+
+      // Update state
+      setUsers((prev) => [newUser, ...(prev || [])]);
+      setClients((prev) => [newClient, ...(prev || [])]);
+      setNotifications((prev) => [notif, ...(prev || [])]);
+      setAuditLogs((prev) => [newLog, ...(prev || [])]);
+
+      // Update company counts
+      setCompanies((prev) =>
+        (prev || []).map((comp) =>
+          comp.id === targetCompanyId
+            ? {
+                ...comp,
+                totalClientsCount: (comp.totalClientsCount || 0) + 1,
+              }
+            : comp
+        )
       );
+
+      // Auto login as new client & ensure activeTab is set to client_portal
+      setCurrentUser(newUser);
+      setIsAuthenticated(true);
+      setActiveTab('client_portal');
+      setSelectedCompanyId(targetCompanyId);
+      setSelectedClientId(clientId);
+
+      // Persist auth and snapshot to localStorage, cloud, and disk
+      try {
+        localStorage.setItem(AUTH_STORAGE_KEY, 'true');
+        localStorage.setItem(CURRENT_USER_STORAGE_KEY, userId);
+        localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(newUser));
+        localStorage.setItem('adcs_crm_active_tab', 'client_portal');
+
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        let snapshotToSave: any;
+        if (saved) {
+          snapshotToSave = JSON.parse(saved);
+          snapshotToSave.users = [newUser, ...(snapshotToSave.users || [])];
+          snapshotToSave.clients = [newClient, ...(snapshotToSave.clients || [])];
+          snapshotToSave.companies = (snapshotToSave.companies || companies).map((c: any) =>
+            c.id === targetCompanyId ? { ...c, totalClientsCount: (c.totalClientsCount || 0) + 1 } : c
+          );
+          snapshotToSave.notifications = [notif, ...(snapshotToSave.notifications || [])];
+          snapshotToSave.auditLogs = [newLog, ...(snapshotToSave.auditLogs || [])];
+          snapshotToSave.lastUpdated = nowIso;
+          snapshotToSave.hasCustomModifications = true;
+        } else {
+          snapshotToSave = {
+            currentUserId: userId,
+            companies: companies.map((c) =>
+              c.id === targetCompanyId ? { ...c, totalClientsCount: (c.totalClientsCount || 0) + 1 } : c
+            ),
+            vendors,
+            users: [newUser, ...users],
+            roles,
+            stages,
+            workflows,
+            serviceCategories,
+            clients: [newClient, ...clients],
+            documents,
+            tasks,
+            invoices,
+            messages,
+            auditLogs: [newLog, ...auditLogs],
+            notifications: [notif, ...notifications],
+            leads,
+            leadCategories,
+            leadSources,
+            leadStages,
+            transactions,
+            crmBranding,
+            billingSettings,
+            lastUpdated: nowIso,
+            hasCustomModifications: true,
+          };
+        }
+
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(snapshotToSave));
+
+        if (broadcastChannelRef.current) {
+          broadcastChannelRef.current.postMessage({
+            type: 'CRM_TAB_UPDATE',
+            snapshot: snapshotToSave,
+          });
+        }
+
+        saveCRMDataToCloud(snapshotToSave, true).catch(() => {});
+        fetch('/api/crm/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(snapshotToSave),
+        }).catch(() => {});
+      } catch (e) {
+        console.error('Registration persistence error:', e);
+      }
 
       try {
         confetti({
@@ -1688,7 +1838,34 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return { success: true, client: newClient, user: newUser };
     },
-    [users, companies, recordAuditLog]
+    [
+      users,
+      companies,
+      vendors,
+      roles,
+      stages,
+      workflows,
+      serviceCategories,
+      clients,
+      documents,
+      tasks,
+      invoices,
+      messages,
+      auditLogs,
+      notifications,
+      leads,
+      leadCategories,
+      leadSources,
+      leadStages,
+      transactions,
+      crmBranding,
+      billingSettings,
+      setActiveTab,
+      setCurrentUser,
+      setIsAuthenticated,
+      setSelectedClientId,
+      setSelectedCompanyId,
+    ]
   );
 
   // Client Apply For Service from Services Catalog
@@ -4536,6 +4713,30 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
+      // Find user before removing to get email
+      const targetUser = users.find((u) => u.id === id);
+
+      // Record in permanent deleted set
+      try {
+        let deletedIds: string[] = [];
+        const rawDel = localStorage.getItem(DELETED_USERS_STORAGE_KEY);
+        if (rawDel) deletedIds = JSON.parse(rawDel);
+        if (!deletedIds.includes(id)) deletedIds.push(id);
+        if (targetUser?.email && !deletedIds.includes(targetUser.email.toLowerCase().trim())) {
+          deletedIds.push(targetUser.email.toLowerCase().trim());
+        }
+        localStorage.setItem(DELETED_USERS_STORAGE_KEY, JSON.stringify(deletedIds));
+
+        // Clean active user profile cache if it held the deleted user
+        const activeProfileRaw = localStorage.getItem(ACTIVE_USER_PROFILE_KEY);
+        if (activeProfileRaw) {
+          const cached = JSON.parse(activeProfileRaw);
+          if (cached?.id === id || (targetUser?.email && cached?.email?.toLowerCase().trim() === targetUser.email.toLowerCase().trim())) {
+            localStorage.removeItem(ACTIVE_USER_PROFILE_KEY);
+          }
+        }
+      } catch {}
+
       setUsers((prev) => {
         const next = (prev || []).filter((u) => u && u.id !== id);
         try {
@@ -4573,12 +4774,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         try {
           localStorage.removeItem(AUTH_STORAGE_KEY);
           localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+          localStorage.removeItem(ACTIVE_USER_PROFILE_KEY);
         } catch {}
       }
 
-      recordAuditLog('User Deleted', 'Users', `Deleted user account ID ${id}`);
+      recordAuditLog('User Deleted', 'Users', `Permanently deleted user account ID ${id} (${targetUser?.name || targetUser?.email || ''})`);
     },
-    [currentUser.id, currentUser.role, recordAuditLog]
+    [currentUser.id, currentUser.role, users, recordAuditLog]
   );
 
   const updateUserProfile = useCallback(
@@ -5286,12 +5488,40 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           timeline: initialTimeline,
           paidAmount,
           paymentStatus,
+          originCountry: applicationData.originCountry || 'United Arab Emirates',
+          countryOfApplying: applicationData.countryOfApplying || 'United Arab Emirates',
           invoiceId: generatedInvoice?.id,
           createdAt: timestamp,
           updatedAt: timestamp,
         };
 
         setVisaApplications((prev) => [newApplication, ...prev]);
+
+        // Automatically create online lead in Master/Admin Panel
+        const newLead: Lead = {
+          id: `lead-vsa-${Date.now()}`,
+          refNo: `LD-ONL-${year}-${randomDigits}`,
+          name: applicationData.clientName,
+          email: applicationData.clientEmail,
+          phone: applicationData.clientPhone || '',
+          nationality: applicationData.clientNationality || applicationData.originCountry || 'United Arab Emirates',
+          serviceInterested: `${applicationData.targetCountry} ${applicationData.visaType}`,
+          source: 'Online Application',
+          status: 'new',
+          category: 'Visa Application',
+          priority: 'high',
+          estimatedValue: applicationData.totalAmount,
+          notes: `Online customer visa application #${appNumber} for ${applicationData.targetCountry} (${applicationData.visaType}). Origin: ${applicationData.originCountry || 'Not Specified'}, Applying from: ${applicationData.countryOfApplying || 'Not Specified'}. Awaiting Admin/Master assignment to staff.`,
+          companyId: applicationData.companyId || currentUser.companyId || 'comp-1',
+          assignedToStaffId: '',
+          assignedStaffName: 'Unassigned (Action Required)',
+          originCountry: applicationData.originCountry || 'United Arab Emirates',
+          countryOfApplying: applicationData.countryOfApplying || 'United Arab Emirates',
+          onlineApplicationRef: appNumber,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        setLeads((prev) => [newLead, ...prev]);
 
         // Notifications
         const clientNotif: NotificationItem = {
@@ -5307,14 +5537,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const adminNotif: NotificationItem = {
           id: `notif-vsa-adm-${Date.now()}`,
           userId: 'all_admins',
-          title: `New Visa Application: ${applicationData.clientName} (${applicationData.targetCountry})`,
-          message: `Application #${appNumber} filed. Speed: ${applicationData.processingSpeed}. Total Fee: AED ${applicationData.totalAmount.toLocaleString()}.`,
+          title: `New Online Application: ${applicationData.clientName} (${applicationData.targetCountry})`,
+          message: `Application #${appNumber} filed. Origin: ${applicationData.originCountry || 'N/A'}, From: ${applicationData.countryOfApplying || 'N/A'}. Awaiting assignment.`,
           type: 'visa_application',
           read: false,
           timestamp,
         };
 
-        setNotifications((prev) => [clientNotif, adminNotif, ...prev]);
+        const assignActionNotif: NotificationItem = {
+          id: `notif-assign-${Date.now()}`,
+          userId: 'all_admins',
+          title: `Action Required: Assign Online Lead #${newLead.refNo}`,
+          message: `New online application from ${applicationData.clientName} for ${applicationData.targetCountry} Visa is in the queue. Assign to a staff member.`,
+          type: 'assignment',
+          read: false,
+          timestamp,
+        };
+
+        setNotifications((prev) => [clientNotif, adminNotif, assignActionNotif, ...prev]);
 
         recordAuditLog(
           'Visa Application Filed',
@@ -5528,6 +5768,211 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [visaApplications, recordAuditLog]
   );
 
+  const confirmNomodPayment = useCallback(
+    (
+      appId: string,
+      result: {
+        paymentId: string;
+        reference: string;
+        authCode?: string;
+        cardBrand?: string;
+        last4?: string;
+        amount: number;
+        currency?: string;
+        paidAt?: string;
+        customerName?: string;
+      }
+    ) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const timestamp = result.paidAt || new Date().toISOString();
+      const year = new Date().getFullYear();
+
+      // Find target visa application
+      const targetApp = visaApplications.find((a) => a.id === appId);
+      let generatedInvoice: Invoice | undefined;
+
+      if (targetApp) {
+        const invId = targetApp.invoiceId || `inv-nomod-${Date.now()}`;
+        const invNumber = `INV-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        generatedInvoice = {
+          id: invId,
+          invoiceNumber: invNumber,
+          clientId: targetApp.clientId,
+          clientName: targetApp.clientName,
+          clientEmail: targetApp.clientEmail,
+          clientPhone: targetApp.clientPhone || '+971 50 000 0000',
+          clientAddress: 'Dubai, United Arab Emirates',
+          clientPassport: targetApp.clientPassportNo,
+          companyId: targetApp.companyId || currentUser.companyId || 'comp-1',
+          companyName: 'ADCS Corporate Services LLC',
+          serviceName: `${targetApp.targetCountry} ${targetApp.visaType} (${targetApp.processingSpeed})`,
+          subtotal: targetApp.serviceFee,
+          vatRate: 5,
+          vatAmount: targetApp.vatAmount,
+          governmentFees: targetApp.governmentFee,
+          grandTotal: targetApp.totalAmount,
+          amountPaid: result.amount || targetApp.totalAmount,
+          balanceAmount: Math.max(0, targetApp.totalAmount - (result.amount || targetApp.totalAmount)),
+          status: 'paid',
+          issueDate: timestamp.split('T')[0],
+          dueDate: timestamp.split('T')[0],
+          paymentMethod: 'Online Gateway',
+          nomodPaymentId: result.paymentId,
+          nomodAuthCode: result.authCode,
+          nomodTransactionDetails: {
+            reference: result.reference,
+            cardBrand: result.cardBrand,
+            last4: result.last4,
+            paidAt: timestamp,
+          },
+          transactionRef: result.reference,
+          notes: `Settled via Nomod Gateway API. Auth Code: ${result.authCode || 'APPROVED'}. Ref: ${result.reference}`,
+          items: [
+            {
+              id: `item-gov-${Date.now()}`,
+              description: `${targetApp.targetCountry} Official Consular & Government Fee`,
+              quantity: 1,
+              unitPrice: targetApp.governmentFee,
+              total: targetApp.governmentFee,
+              isGovernmentFee: true,
+            },
+            {
+              id: `item-srv-${Date.now()}`,
+              description: `PRO Dossier Processing & Submission Service (${targetApp.processingSpeed})`,
+              quantity: 1,
+              unitPrice: targetApp.serviceFee,
+              total: targetApp.serviceFee,
+              isGovernmentFee: false,
+            },
+          ],
+          issuedByUserId: currentUser.id,
+          issuedByUserName: 'Nomod Payment Gateway',
+          createdAt: timestamp,
+        };
+
+        // Update invoices state
+        setInvoices((prev) => {
+          const filtered = prev.filter((i) => i.id !== invId);
+          return [generatedInvoice!, ...filtered];
+        });
+
+        // Record Transaction in Ledger
+        const tx: Transaction = {
+          id: `tx-nomod-${Date.now()}`,
+          transactionNumber: `TXN-NOMOD-${year}-${Math.floor(10000 + Math.random() * 90000)}`,
+          clientId: targetApp.clientId,
+          clientName: targetApp.clientName,
+          companyId: targetApp.companyId || 'comp-1',
+          companyName: 'ADCS Corporate Services LLC',
+          type: 'service_fee',
+          category: 'Online Visa Payment',
+          amount: result.amount || targetApp.totalAmount,
+          paymentMethod: 'Online Gateway',
+          referenceNumber: result.reference,
+          invoiceId: invId,
+          date: timestamp.split('T')[0],
+          status: 'completed',
+          notes: `Nomod payment settled for ${targetApp.targetCountry} Visa (${targetApp.applicationNumber}). Card: ${result.cardBrand || 'Card'} (•••• ${result.last4 || '0000'})`,
+          recordedByUserId: currentUser.id,
+          recordedByUserName: 'Nomod Gateway',
+          createdAt: timestamp,
+        };
+        setTransactions((prev) => [tx, ...prev]);
+
+        // Update Visa Application
+        const paymentTimelineEvent: VisaTimelineEvent = {
+          id: `vtl-pay-${Date.now()}`,
+          title: 'Online Payment Settled via Nomod',
+          description: `Full payment of AED ${(result.amount || targetApp.totalAmount).toLocaleString()} verified via Nomod Gateway API. Ref: ${result.reference}. Card: ${result.cardBrand || 'Online Card'} (•••• ${result.last4 || '0000'}). Auth: ${result.authCode || 'APPROVED'}.`,
+          stage: 'documents_verification',
+          timestamp,
+          updatedBy: 'Nomod Gateway Provider',
+          status: 'completed',
+        };
+
+        setVisaApplications((prev) =>
+          prev.map((app) => {
+            if (app.id !== appId) return app;
+            return {
+              ...app,
+              paidAmount: result.amount || app.totalAmount,
+              paymentStatus: 'paid',
+              paymentProvider: 'nomod',
+              nomodPaymentId: result.paymentId,
+              nomodTransactionDetails: {
+                reference: result.reference,
+                cardBrand: result.cardBrand,
+                last4: result.last4,
+                authCode: result.authCode,
+                paidAt: timestamp,
+              },
+              invoiceId: invId,
+              updatedAt: timestamp,
+              timeline: [...app.timeline, paymentTimelineEvent],
+            };
+          })
+        );
+
+        recordAuditLog(
+          'Nomod Payment Verified',
+          'Payments',
+          `Nomod online payment of AED ${(result.amount || targetApp.totalAmount).toLocaleString()} approved for ${targetApp.clientName} (#${targetApp.applicationNumber}). Ref: ${result.reference}`
+        );
+
+        return { success: true, invoice: generatedInvoice };
+      }
+
+      return { success: false, error: 'Visa application not found' };
+    },
+    [visaApplications, currentUser, recordAuditLog]
+  );
+
+  const assignLeadToStaff = useCallback(
+    (leadId: string, employeeId: string, notes?: string) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const targetUser = users.find((u) => u.id === employeeId);
+      const staffName = targetUser?.name || 'Assigned Specialist';
+
+      setLeads((prev) =>
+        prev.map((l) => {
+          if (l.id !== leadId) return l;
+          return {
+            ...l,
+            assignedToStaffId: employeeId,
+            assignedStaffName: staffName,
+            status: l.status === 'new' ? 'contacted' : l.status,
+            notes: notes ? `${l.notes ? l.notes + '\n\n' : ''}[Assigned by ${currentUser.name}]: ${notes}` : l.notes,
+            updatedAt: new Date().toISOString(),
+          };
+        })
+      );
+
+      // Notification to staff
+      if (targetUser) {
+        const staffNotif: NotificationItem = {
+          id: `notif-assign-staff-${Date.now()}`,
+          userId: employeeId,
+          title: `New Lead Assigned to You`,
+          message: `Admin / Master assigned lead #${leadId} to you for prompt follow-up.`,
+          type: 'assignment',
+          read: false,
+          timestamp: new Date().toISOString(),
+        };
+        setNotifications((prev) => [staffNotif, ...prev]);
+      }
+
+      recordAuditLog(
+        'Lead Assigned to Staff',
+        'Leads',
+        `Assigned lead ID ${leadId} to ${staffName} (${employeeId})`
+      );
+    },
+    [users, currentUser.name, recordAuditLog]
+  );
+
   // Worldwide Visa Catalog Management (Admin & Master)
   const addVisaCountry = useCallback(
     (country: VisaCountryOption) => {
@@ -5681,7 +6126,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [recordAuditLog]);
 
   // Computed Filtered Views (Strict Employee Data Isolation & Branch Filtering)
-  const isEmployeeRole = currentUser?.role === 'employee';
+  const isEmployeeRole = currentUser?.role === 'employee' || currentUser?.role === 'agent';
   const isClientRole = currentUser?.role === 'client';
 
   const filteredCompanies = (companies || []).filter((comp) => {
@@ -5879,9 +6324,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const isAssigned =
         l.assignedEmployeeId === currentUser?.id ||
         (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(currentUser?.id)) ||
-        l.createdByUserId === currentUser?.id ||
-        !l.assignedEmployeeId ||
-        (currentUser?.companyId && l.companyId === currentUser.companyId);
+        (l as any).assignedToStaffId === currentUser?.id ||
+        l.createdByUserId === currentUser?.id;
       return Boolean(isAssigned);
     }
 
@@ -6206,6 +6650,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addVisaTimelineMilestone,
         uploadVisaDocument,
         deleteVisaApplication,
+        confirmNomodPayment,
+        assignLeadToStaff,
 
         sendMessage,
         markMessagesAsRead,

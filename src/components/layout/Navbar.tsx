@@ -30,6 +30,8 @@ import {
   Menu,
   Layers,
   Tag,
+  Wand2,
+  Camera,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
@@ -135,8 +137,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         return 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-300 dark:border-blue-800';
       case 'employee':
         return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
+      case 'agent':
+        return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800';
       case 'client':
         return 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300 dark:border-amber-800';
+      default:
+        return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700';
     }
   };
 
@@ -402,6 +408,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="absolute right-0 mt-1.5 w-56 bg-white dark:bg-slate-900 rounded-md shadow-lg border border-slate-200 dark:border-slate-800 py-1 z-50 animate-in fade-in">
                   <button
                     onClick={() => {
+                      setActiveTab('photo_studio');
+                      setShowQuickAddDropdown(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/50"
+                  >
+                    <Wand2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Gemini AI Photo & Doc Studio</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('ai_advisor');
+                      setShowQuickAddDropdown(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/50"
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>AI Visa Country Intelligence</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
                       setActiveTab('visa');
                       setShowQuickAddDropdown(false);
                     }}
@@ -482,6 +510,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
           )}
+
+          {/* AI Photo & Doc Studio Shortcut */}
+          <button
+            onClick={() => setActiveTab('photo_studio')}
+            className="p-2 rounded-md transition-all border flex items-center gap-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shadow-2xs cursor-pointer"
+            title="Gemini AI Biometric Passport Photo Creator & Document Editor"
+          >
+            <Wand2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden lg:inline font-bold">
+              AI Photo Studio
+            </span>
+            <span className="px-1.5 py-0.2 text-[9px] rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 font-bold hidden sm:inline">
+              Gemini
+            </span>
+          </button>
 
           {/* Worldwide Visas Shortcut */}
           <button

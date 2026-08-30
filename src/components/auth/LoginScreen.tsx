@@ -47,6 +47,7 @@ export const LoginScreen: React.FC = () => {
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
   const [regPhone, setRegPhone] = useState('');
   const [regNationality, setRegNationality] = useState('United Arab Emirates');
   const [regCompanyName, setRegCompanyName] = useState('');
@@ -408,21 +409,59 @@ export const LoginScreen: React.FC = () => {
                       </>
                     )}
                   </button>
+
+                  {/* Switch to Client Registration CTA */}
+                  <div className="pt-3 border-t border-slate-800/80 text-center">
+                    <p className="text-xs text-slate-400">
+                      New Investor, Business Owner, or Client?{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMode('register');
+                          setRegError(null);
+                        }}
+                        className="text-emerald-400 hover:text-emerald-300 font-bold underline transition-colors cursor-pointer ml-1 inline-flex items-center gap-1"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Register as Client</span>
+                      </button>
+                    </p>
+                  </div>
                 </form>
               </div>
             ) : (
               /* Client Self-Registration Form */
               <div>
-                <div className="mb-5">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-2xl font-bold text-white tracking-tight">Client Account Setup</h2>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">
-                      SELF-SERVICE
-                    </span>
+                <div className="mb-5 flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-2xl font-bold text-white tracking-tight">Client Account Setup</h2>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">
+                        SELF-SERVICE
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Register to apply for UAE visas, company setup, tax clearance, and track services.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Register to apply for UAE visas, company setup, tax clearance, and track services.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const suffix = Math.floor(100 + Math.random() * 900);
+                      setRegFullName(`Investor Tariq Al-Mansoor`);
+                      setRegEmail(`investor${suffix}@dubai-ventures.ae`);
+                      setRegPassword('Client@2026!');
+                      setRegPhone('+971 50 888 7766');
+                      setRegNationality('United Arab Emirates');
+                      setRegCompanyName('Al-Mansoor Global Holdings');
+                      setRegPassport(`N8899${suffix}`);
+                      setRegError(null);
+                    }}
+                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-700/50 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    <span>Autofill Sample</span>
+                  </button>
                 </div>
 
                 {/* Error Banner */}
@@ -431,6 +470,21 @@ export const LoginScreen: React.FC = () => {
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
                     <div className="flex-1">
                       <p className="font-semibold">{regError}</p>
+                      {regError.includes('already exists') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmail(regEmail);
+                            setAuthMode('login');
+                            setLoginError(null);
+                            setRegError(null);
+                          }}
+                          className="mt-2 text-xs font-bold text-emerald-400 hover:text-emerald-300 underline inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Lock className="w-3 h-3" />
+                          <span>Click here to Sign In with {regEmail}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -470,26 +524,40 @@ export const LoginScreen: React.FC = () => {
                   {/* Password & Mobile */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                        Portal Password *
-                      </label>
-                      <input
-                        type="password"
-                        required
-                        minLength={6}
-                        value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                        placeholder="Min. 6 characters"
-                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-300">
+                          Portal Password *
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-medium">Min. 6 chars</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showRegPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          value={regPassword}
+                          onChange={(e) => setRegPassword(e.target.value)}
+                          placeholder="Create strong password"
+                          className="w-full pl-3.5 pr-10 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegPassword(!showRegPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors p-1"
+                          title={showRegPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                        Phone / WhatsApp
+                        Phone / WhatsApp *
                       </label>
                       <input
                         type="tel"
+                        required
                         value={regPhone}
                         onChange={(e) => setRegPhone(e.target.value)}
                         placeholder="+971 50 123 4567"
@@ -558,7 +626,7 @@ export const LoginScreen: React.FC = () => {
                         Preferred Branch / Entity
                       </label>
                       <select
-                        value={regCompanyId}
+                        value={regCompanyId || companies[0]?.id || ''}
                         onChange={(e) => setRegCompanyId(e.target.value)}
                         className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
                       >
@@ -591,12 +659,117 @@ export const LoginScreen: React.FC = () => {
                     )}
                   </button>
 
-                  <p className="text-[10px] text-center text-slate-500 mt-2">
-                    By registering, you gain access to direct service applications, document clearance tracking, and official invoices.
-                  </p>
+                  {/* Switch to Sign In CTA */}
+                  <div className="pt-3 border-t border-slate-800/80 text-center">
+                    <p className="text-xs text-slate-400">
+                      Already have an account?{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMode('login');
+                          setLoginError(null);
+                        }}
+                        className="text-blue-400 hover:text-blue-300 font-bold underline transition-colors cursor-pointer ml-1 inline-flex items-center gap-1"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Sign In here</span>
+                      </button>
+                    </p>
+                  </div>
                 </form>
               </div>
             )}
+
+            {/* Quick 1-Click Demo Logins for All 5 System Roles */}
+            <div className="mt-6 pt-5 border-t border-slate-800/80">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  ⚡ Quick Demo Login (Choose Role)
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono">1-Click Fast Sign-In</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-left">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('master@adcs.ae');
+                    setPassword('Master@2026!');
+                    login('master@adcs.ae', 'Master@2026!');
+                  }}
+                  className="p-2.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/50 border border-purple-800/50 text-purple-200 transition-all text-xs font-semibold cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-[11px]">👑 Master Admin</span>
+                    <span className="text-[9px] px-1 rounded bg-purple-800/60 text-purple-300 font-mono">All Access</span>
+                  </div>
+                  <p className="text-[10px] text-purple-300/80 mt-0.5 truncate">master@adcs.ae</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('admin@adcs.ae');
+                    setPassword('Admin@2026!');
+                    login('admin@adcs.ae', 'Admin@2026!');
+                  }}
+                  className="p-2.5 rounded-xl bg-blue-950/40 hover:bg-blue-900/50 border border-blue-800/50 text-blue-200 transition-all text-xs font-semibold cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-[11px]">🏢 Branch Admin</span>
+                    <span className="text-[9px] px-1 rounded bg-blue-800/60 text-blue-300 font-mono">Manager</span>
+                  </div>
+                  <p className="text-[10px] text-blue-300/80 mt-0.5 truncate">admin@adcs.ae</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('employee@adcs.ae');
+                    setPassword('Employee@2026!');
+                    login('employee@adcs.ae', 'Employee@2026!');
+                  }}
+                  className="p-2.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/50 text-emerald-200 transition-all text-xs font-semibold cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-[11px]">📋 PRO Specialist</span>
+                    <span className="text-[9px] px-1 rounded bg-emerald-800/60 text-emerald-300 font-mono">Staff</span>
+                  </div>
+                  <p className="text-[10px] text-emerald-300/80 mt-0.5 truncate">employee@adcs.ae</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('agent@adcs.ae');
+                    setPassword('Agent@2026!');
+                    login('agent@adcs.ae', 'Agent@2026!');
+                  }}
+                  className="p-2.5 rounded-xl bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50 text-indigo-200 transition-all text-xs font-semibold cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-[11px]">🤝 Partner / Agent</span>
+                    <span className="text-[9px] px-1 rounded bg-indigo-800/60 text-indigo-300 font-mono">Agent</span>
+                  </div>
+                  <p className="text-[10px] text-indigo-300/80 mt-0.5 truncate">agent@adcs.ae</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('client@adcs.ae');
+                    setPassword('Client@2026!');
+                    login('client@adcs.ae', 'Client@2026!');
+                  }}
+                  className="p-2.5 rounded-xl bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/50 text-amber-200 transition-all text-xs font-semibold cursor-pointer group col-span-2 sm:col-span-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-[11px]">👤 Client Portal</span>
+                    <span className="text-[9px] px-1 rounded bg-amber-800/60 text-amber-300 font-mono">Client</span>
+                  </div>
+                  <p className="text-[10px] text-amber-300/80 mt-0.5 truncate">client@adcs.ae</p>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

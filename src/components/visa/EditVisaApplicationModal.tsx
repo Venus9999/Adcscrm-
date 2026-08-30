@@ -33,6 +33,8 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
   const [clientPhone, setClientPhone] = useState('');
   const [clientPassportNo, setClientPassportNo] = useState('');
   const [clientNationality, setClientNationality] = useState('');
+  const [originCountry, setOriginCountry] = useState('');
+  const [countryOfApplying, setCountryOfApplying] = useState('');
   const [targetCountry, setTargetCountry] = useState('');
   const [visaType, setVisaType] = useState('');
   const [entryType, setEntryType] = useState<'Single Entry' | 'Multiple Entry'>('Single Entry');
@@ -53,6 +55,8 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
       setClientPhone(application.clientPhone || '');
       setClientPassportNo(application.clientPassportNo || '');
       setClientNationality(application.clientNationality || '');
+      setOriginCountry(application.originCountry || application.clientNationality || '');
+      setCountryOfApplying(application.countryOfApplying || 'United Arab Emirates');
       setTargetCountry(application.targetCountry || '');
       setVisaType(application.visaType || '');
       setEntryType((application.entryType as any) || 'Single Entry');
@@ -86,6 +90,8 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
       clientPhone: clientPhone.trim(),
       clientPassportNo: clientPassportNo.trim(),
       clientNationality: clientNationality.trim(),
+      originCountry: originCountry.trim() || undefined,
+      countryOfApplying: countryOfApplying.trim() || undefined,
       targetCountry: targetCountry.trim(),
       visaType: visaType.trim(),
       entryType,
@@ -204,6 +210,33 @@ export const EditVisaApplicationModal: React.FC<EditVisaApplicationModalProps> =
                   type="text"
                   value={clientNationality}
                   onChange={(e) => setClientNationality(e.target.value)}
+                  className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Origin Country (Passport / Citizenship)
+                </label>
+                <input
+                  type="text"
+                  value={originCountry}
+                  onChange={(e) => setOriginCountry(e.target.value)}
+                  placeholder="e.g. India, United Kingdom, Pakistan"
+                  className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Country of Applying (Current Residence / Submission Location)
+                </label>
+                <input
+                  type="text"
+                  value={countryOfApplying}
+                  onChange={(e) => setCountryOfApplying(e.target.value)}
+                  placeholder="e.g. United Arab Emirates, Saudi Arabia, Qatar"
                   className="w-full py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
               </div>

@@ -55,9 +55,33 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     deleteLeadNote,
     currentUser,
     companies,
+    assignLeadToStaff,
   } = useCRM();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'notes'>('overview');
+  const [assignmentFeedback, setAssignmentFeedback] = useState('');
+
+  const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
+
+  const currentAssignedIds = useMemo(() => {
+    if (lead.assignedEmployeeIds && lead.assignedEmployeeIds.length > 0) {
+      return lead.assignedEmployeeIds;
+    }
+    if (lead.assignedEmployeeId) {
+      return [lead.assignedEmployeeId];
+    }
+    return [];
+  }, [lead.assignedEmployeeIds, lead.assignedEmployeeId]);
+
+  const handleToggleStaffAssign = (staffId: string) => {
+    const next = currentAssignedIds.includes(staffId)
+      ? currentAssignedIds.filter((id) => id !== staffId)
+      : [...currentAssignedIds, staffId];
+
+    updateLead(lead.id, { assignedEmployeeIds: next });
+    setAssignmentFeedback(next.length > 0 ? `Updated (${next.length} assigned)` : 'Lead unassigned');
+    setTimeout(() => setAssignmentFeedback(''), 3000);
+  };
 
   // Task Creation State
   const [showAddTaskForm, setShowAddTaskForm] = useState(false);
@@ -498,27 +522,75 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 </div>
 
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                    <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Case Ownership & Officers</span>
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Case Ownership & Staff Assignment</span>
+                    </span>
+                    {assignmentFeedback && (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full animate-fade-in">
+                        ✓ {assignmentFeedback}
+                      </span>
+                    )}
+                  </div>
+
+                  {isAdminOrMaster && (
+                    <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                          Admin: Assign Multiple Staff & Agents
+                        </label>
+                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                          {currentAssignedIds.length} Selected
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                        {activeEmployees.map((emp) => {
+                          const isAssigned = currentAssignedIds.includes(emp.id);
+                          return (
+                            <button
+                              key={emp.id}
+                              type="button"
+                              onClick={() => handleToggleStaffAssign(emp.id)}
+                              className={`flex items-center gap-2 p-1.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                                isAssigned
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-semibold'
+                                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400'
+                              }`}
+                            >
+                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
+                                isAssigned ? 'border-white bg-white text-blue-600' : 'border-slate-300 bg-slate-50'
+                              }`}>
+                                {isAssigned && <span className="text-[10px] font-bold leading-none">✓</span>}
+                              </div>
+                              <span className="truncate flex-1">{emp.name}</span>
+                              <span className={`text-[9px] capitalize ${isAssigned ? 'text-blue-100' : 'text-slate-400'}`}>
+                                {emp.role}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-1.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-slate-500 shrink-0">Assigned Staff:</span>
+                      <span className="text-slate-500 shrink-0">Currently Assigned:</span>
                       <div className="flex flex-wrap items-center justify-end gap-1">
-                        {(lead.assignedEmployeeNames && lead.assignedEmployeeNames.length > 0) ? (
-                          lead.assignedEmployeeNames.map((name, i) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded text-[11px] font-bold"
-                            >
-                              {name}
-                            </span>
-                          ))
-                        ) : lead.assignedEmployeeName ? (
-                          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded text-[11px] font-bold">
-                            {lead.assignedEmployeeName}
-                          </span>
+                        {currentAssignedIds.length > 0 ? (
+                          currentAssignedIds.map((id, i) => {
+                            const u = users.find((user) => user.id === id);
+                            return (
+                              <span
+                                key={i}
+                                className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded text-[11px] font-bold flex items-center gap-1"
+                              >
+                                <span>{u?.name || id}</span>
+                                <span className="text-[9px] text-blue-500">({u?.role || 'Staff'})</span>
+                              </span>
+                            );
+                          })
                         ) : (
                           <span className="text-slate-400 italic">Unassigned</span>
                         )}

@@ -114,6 +114,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     companyId: '',
     vendorId: '',
     referredBy: '',
+    assignedEmployeeIds: [] as string[],
   });
 
   // Add Service Form State
@@ -210,6 +211,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
       companyId: client.companyId,
       vendorId: client.vendorId || '',
       referredBy: client.referredBy || '',
+      assignedEmployeeIds: client.assignedEmployeeIds || (client.assignedAdminId ? [client.assignedAdminId] : []),
     });
     setShowEditClientModal(true);
   };
@@ -679,6 +681,39 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <p className="font-semibold text-slate-900 dark:text-white mt-0.5">
                       {users.find((u) => u.id === client.assignedAdminId)?.name || 'Admin'}
                     </p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Assigned Staff & Agents:</span>
+                      {(currentUser.role === 'master' || currentUser.role === 'admin') && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditClientModal()}
+                          className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                        >
+                          + Manage Staff
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {client.assignedEmployeeIds && client.assignedEmployeeIds.length > 0 ? (
+                        client.assignedEmployeeIds.map((empId) => {
+                          const emp = users.find((u) => u.id === empId);
+                          return (
+                            <span
+                              key={empId}
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-xs font-semibold flex items-center gap-1.5"
+                            >
+                              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                              <span>{emp?.name || empId}</span>
+                              <span className="text-[10px] text-blue-500 capitalize">({emp?.role || 'Staff'})</span>
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="text-slate-400 italic text-xs">No employees or agents assigned</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1676,6 +1711,65 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                       placeholder="e.g. Marina Gate Tower 1, Apt 1402, Dubai Marina, Dubai"
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     />
+                  </div>
+
+                  {/* Multi-Staff Assignment for Client */}
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-bold text-slate-800 dark:text-slate-200">
+                        Assigned Case Officers / Staff & Agents
+                      </label>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                        {editFormData.assignedEmployeeIds.length} Assigned
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                      <p className="text-[11px] text-slate-500">
+                        Check all employees/agents who have permission to view, manage, and process this client dossier:
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                        {(users || [])
+                          .filter((u) => u && (u.role === 'employee' || u.role === 'agent' || u.role === 'admin' || u.role === 'master'))
+                          .map((u) => {
+                            const isSelected = editFormData.assignedEmployeeIds.includes(u.id);
+                            return (
+                              <button
+                                type="button"
+                                key={u.id}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setEditFormData({
+                                      ...editFormData,
+                                      assignedEmployeeIds: editFormData.assignedEmployeeIds.filter((id) => id !== u.id),
+                                    });
+                                  } else {
+                                    setEditFormData({
+                                      ...editFormData,
+                                      assignedEmployeeIds: [...editFormData.assignedEmployeeIds, u.id],
+                                    });
+                                  }
+                                }}
+                                className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-900 dark:text-blue-200 font-semibold'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  readOnly
+                                  className="rounded text-blue-600 focus:ring-blue-500 pointer-events-none"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs truncate">{u.name}</p>
+                                  <span className="text-[10px] text-slate-400 capitalize">{u.role}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
                   </div>
                 </div>
 

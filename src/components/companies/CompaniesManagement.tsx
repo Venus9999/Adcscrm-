@@ -52,6 +52,7 @@ export const CompaniesManagement: React.FC = () => {
     email: '',
     currency: 'AED',
     assignedAdminIds: [] as string[],
+    employeeIds: [] as string[],
     bankName: 'Emirates NBD',
     accountNumber: '1029384756',
     iban: 'AE12033102938475601',
@@ -72,6 +73,7 @@ export const CompaniesManagement: React.FC = () => {
       email: 'info@branch.ae',
       currency: 'AED',
       assignedAdminIds: [currentUser.role === 'admin' || currentUser.role === 'master' ? currentUser.id : 'user-master'],
+      employeeIds: [] as string[],
       bankName: 'Emirates NBD',
       accountNumber: '1029384756',
       iban: 'AE12033102938475601',
@@ -94,6 +96,7 @@ export const CompaniesManagement: React.FC = () => {
       email: comp.email,
       currency: comp.currency,
       assignedAdminIds: comp.assignedAdminIds || [comp.adminId],
+      employeeIds: comp.employeeIds || [],
       bankName: comp.bankDetails?.bankName || 'Emirates NBD',
       accountNumber: comp.bankDetails?.accountNumber || '1029384756',
       iban: comp.bankDetails?.iban || 'AE12033102938475601',
@@ -128,7 +131,9 @@ export const CompaniesManagement: React.FC = () => {
         phone: formData.phone,
         email: formData.email,
         currency: formData.currency,
+        adminId: formData.assignedAdminIds[0] || editingCompany.adminId || 'user-master',
         assignedAdminIds: formData.assignedAdminIds,
+        employeeIds: formData.employeeIds,
         bankDetails: {
           bankName: formData.bankName,
           accountName: formData.name,
@@ -160,7 +165,7 @@ export const CompaniesManagement: React.FC = () => {
         },
         adminId: formData.assignedAdminIds[0] || currentUser.id || 'user-master',
         assignedAdminIds: formData.assignedAdminIds,
-        employeeIds: [],
+        employeeIds: formData.employeeIds,
         currency: formData.currency,
       });
     }
@@ -168,6 +173,7 @@ export const CompaniesManagement: React.FC = () => {
   };
 
   const adminUsers = (users || []).filter((u) => u && (u.role === 'admin' || u.role === 'master'));
+  const staffAndAgentUsers = (users || []).filter((u) => u && (u.role === 'employee' || u.role === 'agent'));
 
   return (
     <div className="space-y-6">
@@ -466,28 +472,106 @@ export const CompaniesManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Assign Branch Administrator
-                </label>
-                <select
-                  multiple
-                  value={formData.assignedAdminIds}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions, (option: HTMLOptionElement) => option.value);
-                    setFormData({ ...formData, assignedAdminIds: selected });
-                  }}
-                  className="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 h-20"
-                >
-                  {adminUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  Hold Ctrl/Cmd to select multiple administrators.
-                </span>
+              {/* Multi-Admin Assignment */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Assign Branch Administrators
+                  </label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                    {formData.assignedAdminIds.length} Selected
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-28 overflow-y-auto pr-1">
+                  {adminUsers.map((u) => {
+                    const isSelected = formData.assignedAdminIds.includes(u.id);
+                    return (
+                      <button
+                        type="button"
+                        key={u.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            if (formData.assignedAdminIds.length > 1) {
+                              setFormData({
+                                ...formData,
+                                assignedAdminIds: formData.assignedAdminIds.filter((id) => id !== u.id),
+                              });
+                            }
+                          } else {
+                            setFormData({
+                              ...formData,
+                              assignedAdminIds: [...formData.assignedAdminIds, u.id],
+                            });
+                          }
+                        }}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-900 dark:text-blue-200 font-semibold'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          className="rounded text-blue-600 focus:ring-blue-500 pointer-events-none"
+                        />
+                        <span className="truncate flex-1">{u.name}</span>
+                        <span className="text-[10px] text-slate-400 capitalize">{u.role}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Multi-Staff & Agent Assignment to Company */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Assign Staff & Field Agents to Branch
+                  </label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                    {formData.employeeIds.length} Assigned
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-32 overflow-y-auto pr-1">
+                  {staffAndAgentUsers.map((u) => {
+                    const isSelected = formData.employeeIds.includes(u.id);
+                    return (
+                      <button
+                        type="button"
+                        key={u.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setFormData({
+                              ...formData,
+                              employeeIds: formData.employeeIds.filter((id) => id !== u.id),
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              employeeIds: [...formData.employeeIds, u.id],
+                            });
+                          }
+                        }}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-semibold'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          className="rounded text-emerald-600 focus:ring-emerald-500 pointer-events-none"
+                        />
+                        <span className="truncate flex-1">{u.name}</span>
+                        <span className="text-[10px] text-slate-400 capitalize">{u.role}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">

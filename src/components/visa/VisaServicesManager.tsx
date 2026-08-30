@@ -31,6 +31,7 @@ import {
   Tag,
   Star,
   FileCheck,
+  Wand2,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { VisaCountryOption } from '../../data/countriesData';
@@ -40,6 +41,8 @@ import { VisaTimelineModal } from './VisaTimelineModal';
 import { EditVisaServiceModal } from './EditVisaServiceModal';
 import { EditVisaCountryModal } from './EditVisaCountryModal';
 import { EditVisaApplicationModal } from './EditVisaApplicationModal';
+import { AIVisaCountryAdvisor } from './AIVisaCountryAdvisor';
+import { AIImageStudio } from '../ai/AIImageStudio';
 
 type VisaServiceType = VisaCountryOption['visaTypes'][number];
 
@@ -59,7 +62,7 @@ export const VisaServicesManager: React.FC = () => {
     resetVisaCountryCatalog,
   } = useCRM();
 
-  const [activeTab, setActiveTab] = useState<'applications' | 'catalog'>('applications');
+  const [activeTab, setActiveTab] = useState<'applications' | 'catalog' | 'ai_advisor' | 'photo_studio'>('applications');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
@@ -358,31 +361,61 @@ export const VisaServicesManager: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         {/* Navigation Tabs & Search Controls */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 pt-3 pb-3 gap-3">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-2">
             <button
               onClick={() => setActiveTab('applications')}
-              className={`py-2 px-4 rounded-xl text-xs font-bold transition-all ${
+              className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                 activeTab === 'applications'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              Active Applications & Tracker ({displayApplications.length})
+              <FileText className="w-3.5 h-3.5" />
+              <span>Applications & Tracker ({displayApplications.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('catalog')}
-              className={`py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+              className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
                 activeTab === 'catalog'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <span>Worldwide Visa Catalog & Fees ({filteredCatalogCountries.length})</span>
+              <Globe className="w-3.5 h-3.5" />
+              <span>Visa Catalog & Fees ({filteredCatalogCountries.length})</span>
               {isMasterOrAdmin && (
                 <span className="px-1.5 py-0.2 text-[10px] rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-mono font-bold">
                   Editable
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => setActiveTab('ai_advisor')}
+              className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'ai_advisor'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>AI Visa Country Intelligence</span>
+              <span className="px-1.5 py-0.2 text-[9px] rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                Search Grounded
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('photo_studio')}
+              className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'photo_studio'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Wand2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>AI Photo & Document Studio</span>
+              <span className="px-1.5 py-0.2 text-[9px] rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                Gemini 3.1
+              </span>
             </button>
           </div>
 
@@ -810,6 +843,20 @@ export const VisaServicesManager: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 3: AI Visa Country Intelligence & Search Grounding */}
+        {activeTab === 'ai_advisor' && (
+          <div className="p-6">
+            <AIVisaCountryAdvisor />
+          </div>
+        )}
+
+        {/* TAB 4: AI Visa Photo & Document Studio */}
+        {activeTab === 'photo_studio' && (
+          <div className="p-6">
+            <AIImageStudio />
           </div>
         )}
       </div>

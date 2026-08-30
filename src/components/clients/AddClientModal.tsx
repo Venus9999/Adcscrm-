@@ -229,23 +229,62 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Assigned Employee
-                </label>
-                <select
-                  value={formData.assignedEmployeeIds[0]}
-                  onChange={(e) => setFormData({ ...formData, assignedEmployeeIds: [e.target.value] })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                >
-                  {(users || [])
-                    .filter((u) => u && (u.role === 'employee' || u.role === 'admin' || u.role === 'master'))
-                    .map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.role.toUpperCase()})
-                      </option>
-                    ))}
-                </select>
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Assigned Staff / PRO Specialists & Agents
+                  </label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                    {formData.assignedEmployeeIds.length} Selected
+                  </span>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Assign one or multiple employees/agents to collaborate on this client dossier:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-36 overflow-y-auto pr-1">
+                    {(users || [])
+                      .filter((u) => u && (u.role === 'employee' || u.role === 'agent' || u.role === 'admin' || u.role === 'master'))
+                      .map((u) => {
+                        const isSelected = formData.assignedEmployeeIds.includes(u.id);
+                        return (
+                          <button
+                            type="button"
+                            key={u.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setFormData({
+                                  ...formData,
+                                  assignedEmployeeIds: formData.assignedEmployeeIds.filter((id) => id !== u.id),
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  assignedEmployeeIds: [...formData.assignedEmployeeIds, u.id],
+                                });
+                              }
+                            }}
+                            className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-900 dark:text-blue-200 font-semibold'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              readOnly
+                              className="rounded text-blue-600 focus:ring-blue-500 pointer-events-none"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs truncate">{u.name}</p>
+                              <span className="text-[10px] text-slate-400 capitalize">{u.role}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

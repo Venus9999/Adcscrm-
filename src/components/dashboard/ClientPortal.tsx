@@ -19,12 +19,15 @@ import {
   Plus,
   Eye,
   Plane,
+  Wand2,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { ClientService, DocumentItem, VisaApplication } from '../../types/crm';
 import { VisaApplicationModal } from '../visa/VisaApplicationModal';
 import { VisaTimelineModal } from '../visa/VisaTimelineModal';
 import { ApplyServicesView } from './ApplyServicesView';
+import { AIVisaCountryAdvisor } from '../visa/AIVisaCountryAdvisor';
+import { AIImageStudio } from '../ai/AIImageStudio';
 
 export const ClientPortal: React.FC = () => {
   const {
@@ -39,15 +42,20 @@ export const ClientPortal: React.FC = () => {
     createInvoice,
     recordPayment,
     visaApplications,
+    selectedClientId,
   } = useCRM();
 
-  // Pick client profile corresponding to current logged-in user or first client
+  // Pick client profile corresponding to current logged-in user or selected client
   const client =
-    clients.find((c) => c.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+    clients.find((c) => c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
+    (selectedClientId ? clients.find((c) => c.id === selectedClientId) : null) ||
+    clients.find((c) => c.id === currentUser.id) ||
     clients.find((c) => c.id === 'client-1') ||
     clients[0];
 
-  const [activeTab, setActiveTab] = useState<'tracker' | 'apply_services' | 'visa_services' | 'documents' | 'payments' | 'messages'>('tracker');
+  const [activeTab, setActiveTab] = useState<
+    'tracker' | 'apply_services' | 'visa_services' | 'ai_advisor' | 'photo_studio' | 'documents' | 'payments' | 'messages'
+  >('tracker');
   const [selectedServiceIndex, setSelectedServiceIndex] = useState(0);
   const [chatMessage, setChatMessage] = useState('');
   const [uploadCategory, setUploadCategory] = useState<DocumentItem['category']>('Passport');
@@ -201,6 +209,28 @@ export const ClientPortal: React.FC = () => {
           >
             <Globe className="w-4 h-4" />
             <span>Worldwide Visas ({clientVisaApps.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('ai_advisor')}
+            className={`px-3.5 py-2 rounded-md transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'ai_advisor'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>AI Visa Intelligence</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('photo_studio')}
+            className={`px-3.5 py-2 rounded-md transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'photo_studio'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-800'
+            }`}
+          >
+            <Wand2 className="w-4 h-4" />
+            <span>AI Photo Studio</span>
           </button>
           <button
             onClick={() => setActiveTab('documents')}
@@ -542,6 +572,20 @@ export const ClientPortal: React.FC = () => {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tab: AI Visa Country Intelligence & Search Grounding */}
+      {activeTab === 'ai_advisor' && (
+        <div className="space-y-6">
+          <AIVisaCountryAdvisor initialNationality={client.nationality} />
+        </div>
+      )}
+
+      {/* Tab: AI Photo & Document Studio */}
+      {activeTab === 'photo_studio' && (
+        <div className="space-y-6">
+          <AIImageStudio />
         </div>
       )}
 

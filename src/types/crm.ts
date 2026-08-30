@@ -1,4 +1,4 @@
-export type UserRole = 'master' | 'admin' | 'employee' | 'client';
+export type UserRole = 'master' | 'admin' | 'employee' | 'agent' | 'client';
 
 export interface UserPermissions {
   canCreateClients: boolean;
@@ -108,6 +108,15 @@ export interface InvoiceBillingSettings {
   termsAndConditions: string;
   invoiceFooterNote: string;
   footerNotes?: string;
+  // Nomod Online Payment Gateway Configuration
+  nomodEnabled?: boolean;
+  nomodApiKey?: string;
+  nomodPublishableKey?: string;
+  nomodSecretKey?: string;
+  nomodAccountId?: string;
+  nomodLiveMode?: boolean;
+  nomodCurrencyDefault?: string;
+  nomodPaymentLinkTemplate?: string;
   signatory?: {
     name?: string;
     title?: string;
@@ -587,6 +596,10 @@ export interface Invoice {
   amountPaid: number;
   balanceAmount: number;
   paymentMethod: 'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway';
+  paymentProvider?: string;
+  nomodPaymentId?: string;
+  nomodAuthCode?: string;
+  nomodTransactionDetails?: any;
   transactionRef?: string;
   issueDate: string;
   dueDate: string;
@@ -682,6 +695,11 @@ export interface Lead {
   tags?: string[];
   followUpDate?: string;
   convertedClientId?: string;
+  originCountry?: string;
+  countryOfApplying?: string;
+  onlineApplicationRef?: string;
+  assignedToStaffId?: string;
+  assignedStaffName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -805,6 +823,10 @@ export interface VisaApplication {
   clientNationality: string;
   companyId?: string;
   
+  // Origin & Applying Countries (Required by Consular & Processing Rules)
+  originCountry: string; // Country of Origin / Citizenship / Passport Country
+  countryOfApplying: string; // Country of Applying (Current Residence / Location of Submission)
+  
   // Destination Country & Program
   targetCountry: string;
   targetCountryCode: string;
@@ -842,7 +864,21 @@ export interface VisaApplication {
   totalAmount: number;
   paidAmount: number;
   paymentStatus: 'unpaid' | 'paid' | 'partially_paid';
+  paymentMethod?: string;
+  paymentProvider?: 'nomod' | 'stripe' | 'manual';
+  nomodPaymentId?: string;
+  nomodPaymentUrl?: string;
+  nomodPaymentStatus?: 'pending' | 'paid' | 'failed';
+  nomodTransactionDetails?: {
+    reference?: string;
+    authCode?: string;
+    cardBrand?: string;
+    last4?: string;
+    paidAt?: string;
+    channel?: string;
+  };
   invoiceId?: string;
+  invoiceNumber?: string;
   
   // Documents & Timeline
   uploadedDocuments: VisaUploadedDoc[];
