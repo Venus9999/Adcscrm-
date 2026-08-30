@@ -352,6 +352,9 @@ const AUTH_STORAGE_KEY = 'adcs_crm_auth_session_v2';
 const CURRENT_USER_STORAGE_KEY = 'adcs_crm_active_user_id_v2';
 const ACTIVE_USER_PROFILE_KEY = 'adcs_crm_active_user_profile_v2';
 const DELETED_USERS_STORAGE_KEY = 'adcs_crm_deleted_user_ids';
+const DELETED_VISA_APPS_STORAGE_KEY = 'adcs_crm_deleted_visa_app_ids';
+const DELETED_VISA_COUNTRIES_STORAGE_KEY = 'adcs_crm_deleted_visa_country_codes';
+const DELETED_VISA_SERVICES_STORAGE_KEY = 'adcs_crm_deleted_visa_service_ids';
 
 export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Load saved state or default
@@ -639,10 +642,40 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTransactions(parsed.transactions);
     }
     if (parsed.visaApplications && Array.isArray(parsed.visaApplications)) {
-      setVisaApplications(parsed.visaApplications);
+      let deletedAppIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_VISA_APPS_STORAGE_KEY);
+        if (delRaw) deletedAppIds = JSON.parse(delRaw);
+      } catch {}
+      const cleanApps = (parsed.visaApplications || []).filter(
+        (a: any) => a && a.id && !deletedAppIds.includes(a.id)
+      );
+      setVisaApplications(cleanApps);
     }
     if (parsed.visaCountryCatalog && Array.isArray(parsed.visaCountryCatalog)) {
-      setVisaCountryCatalog(parsed.visaCountryCatalog);
+      let deletedCountryCodes: string[] = [];
+      let deletedServiceIds: string[] = [];
+      try {
+        const delCodesRaw = localStorage.getItem(DELETED_VISA_COUNTRIES_STORAGE_KEY);
+        if (delCodesRaw) deletedCountryCodes = JSON.parse(delCodesRaw);
+        const delSrvRaw = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY);
+        if (delSrvRaw) deletedServiceIds = JSON.parse(delSrvRaw);
+      } catch {}
+
+      const cleanCatalog = (parsed.visaCountryCatalog || [])
+        .filter(
+          (c: any) =>
+            c &&
+            c.countryCode &&
+            !deletedCountryCodes.includes(c.countryCode.toLowerCase().trim())
+        )
+        .map((c: any) => ({
+          ...c,
+          visaTypes: (c.visaTypes || []).filter(
+            (vt: any) => vt && vt.id && !deletedServiceIds.includes(vt.id)
+          ),
+        }));
+      setVisaCountryCatalog(cleanCatalog);
     }
     if (parsed.crmBranding) {
       setCrmBranding(parsed.crmBranding);
@@ -5234,6 +5267,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const snapshot = {
         currentUserId: currentUser.id,
         companies,
+        departments,
         vendors,
         users,
         roles,
@@ -5252,6 +5286,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         leadSources,
         leadStages,
         transactions,
+        visaApplications,
+        visaCountryCatalog,
         crmBranding,
         billingSettings,
         lastUpdated: new Date().toISOString(),
@@ -5771,15 +5807,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (id: string) => {
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      isLocalDebounceSavingRef.current = true;
 
-      const target = visaApplications.find((a) => a.id === id);
+      try {
+        const delRaw = localStorage.getItem(DELETED_VISA_APPS_STORAGE_KEY);
+        const list: string[] = delRaw ? JSON.parse(delRaw) : [];
+        if (!list.includes(id)) {
+          list.push(id);
+          localStorage.setItem(DELETED_VISA_APPS_STORAGE_KEY, JSON.stringify(list));
+        }
+      } catch {}
+
+      const target = (visaApplications || []).find((a) => a && a.id === id);
       setVisaApplications((prev) => (prev || []).filter((a) => a && a.id !== id));
 
       if (target) {
         recordAuditLog(
           'Visa Application Deleted',
           'Services',
-          `Deleted visa application #${target.applicationNumber} for ${target.clientName}`
+          `Deleted visa application #${target.applicationNumber || id} for ${target.clientName || 'Applicant'}`
         );
       }
     },
@@ -5996,15 +6042,26 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (country: VisaCountryOption) => {
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      isLocalDebounceSavingRef.current = true;
+
+      const normalizedCode = country.countryCode.toLowerCase().trim();
+      try {
+        const delRaw = localStorage.getItem(DELETED_VISA_COUNTRIES_STORAGE_KEY);
+        if (delRaw) {
+          const list: string[] = JSON.parse(delRaw);
+          const filtered = list.filter((c) => c !== normalizedCode);
+          localStorage.setItem(DELETED_VISA_COUNTRIES_STORAGE_KEY, JSON.stringify(filtered));
+        }
+      } catch {}
 
       setVisaCountryCatalog((prev) => {
-        const existingIdx = prev.findIndex((c) => c.countryCode.toLowerCase() === country.countryCode.toLowerCase());
+        const existingIdx = (prev || []).findIndex((c) => c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode);
         if (existingIdx >= 0) {
           const next = [...prev];
           next[existingIdx] = country;
           return next;
         }
-        return [country, ...prev];
+        return [country, ...(prev || [])];
       });
 
       recordAuditLog(
@@ -6020,10 +6077,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (countryCode: string, updates: Partial<VisaCountryOption>) => {
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      isLocalDebounceSavingRef.current = true;
 
+      const normalizedCode = countryCode.toLowerCase().trim();
       setVisaCountryCatalog((prev) =>
-        prev.map((c) =>
-          c.countryCode.toLowerCase() === countryCode.toLowerCase()
+        (prev || []).map((c) =>
+          c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode
             ? { ...c, ...updates }
             : c
         )
@@ -6042,10 +6101,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (countryCode: string) => {
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      isLocalDebounceSavingRef.current = true;
 
-      const target = visaCountryCatalog.find((c) => c.countryCode.toLowerCase() === countryCode.toLowerCase());
+      const normalizedCode = countryCode.toLowerCase().trim();
+      try {
+        const delRaw = localStorage.getItem(DELETED_VISA_COUNTRIES_STORAGE_KEY);
+        const list: string[] = delRaw ? JSON.parse(delRaw) : [];
+        if (!list.includes(normalizedCode)) {
+          list.push(normalizedCode);
+          localStorage.setItem(DELETED_VISA_COUNTRIES_STORAGE_KEY, JSON.stringify(list));
+        }
+      } catch {}
+
+      const target = (visaCountryCatalog || []).find((c) => c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode);
       setVisaCountryCatalog((prev) =>
-        prev.filter((c) => c.countryCode.toLowerCase() !== countryCode.toLowerCase())
+        (prev || []).filter((c) => c && c.countryCode && c.countryCode.toLowerCase().trim() !== normalizedCode)
       );
 
       if (target) {
@@ -6063,13 +6133,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (countryCode: string, service: VisaCountryOption['visaTypes'][0]) => {
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      isLocalDebounceSavingRef.current = true;
+
+      const normalizedCode = countryCode.toLowerCase().trim();
+      try {
+        const delRaw = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY);
+        if (delRaw) {
+          const list: string[] = JSON.parse(delRaw);
+          const filtered = list.filter((s) => s !== service.id);
+          localStorage.setItem(DELETED_VISA_SERVICES_STORAGE_KEY, JSON.stringify(filtered));
+        }
+      } catch {}
 
       setVisaCountryCatalog((prev) =>
-        prev.map((c) => {
-          if (c.countryCode.toLowerCase() !== countryCode.toLowerCase()) return c;
-          const exists = (c.visaTypes || []).some((vt) => vt.id === service.id);
+        (prev || []).map((c) => {
+          if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
+          const exists = (c.visaTypes || []).some((vt) => vt && vt.id === service.id);
           const nextTypes = exists
-            ? c.visaTypes.map((vt) => (vt.id === service.id ? service : vt))
+            ? (c.visaTypes || []).map((vt) => (vt && vt.id === service.id ? service : vt))
             : [...(c.visaTypes || []), service];
           return { ...c, visaTypes: nextTypes };
         })
@@ -6088,12 +6169,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (countryCode: string, serviceId: string, updates: Partial<VisaCountryOption['visaTypes'][0]>) => {
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      isLocalDebounceSavingRef.current = true;
 
+      const normalizedCode = countryCode.toLowerCase().trim();
       setVisaCountryCatalog((prev) =>
-        prev.map((c) => {
-          if (c.countryCode.toLowerCase() !== countryCode.toLowerCase()) return c;
+        (prev || []).map((c) => {
+          if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
           const nextTypes = (c.visaTypes || []).map((vt) =>
-            vt.id === serviceId ? { ...vt, ...updates } : vt
+            vt && vt.id === serviceId ? { ...vt, ...updates } : vt
           );
           return { ...c, visaTypes: nextTypes };
         })
@@ -6112,13 +6195,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (countryCode: string, serviceId: string) => {
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      isLocalDebounceSavingRef.current = true;
+
+      const normalizedCode = countryCode.toLowerCase().trim();
+      try {
+        const delRaw = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY);
+        const list: string[] = delRaw ? JSON.parse(delRaw) : [];
+        if (!list.includes(serviceId)) {
+          list.push(serviceId);
+          localStorage.setItem(DELETED_VISA_SERVICES_STORAGE_KEY, JSON.stringify(list));
+        }
+      } catch {}
 
       setVisaCountryCatalog((prev) =>
-        prev.map((c) => {
-          if (c.countryCode.toLowerCase() !== countryCode.toLowerCase()) return c;
+        (prev || []).map((c) => {
+          if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
           return {
             ...c,
-            visaTypes: (c.visaTypes || []).filter((vt) => vt.id !== serviceId),
+            visaTypes: (c.visaTypes || []).filter((vt) => vt && vt.id !== serviceId),
           };
         })
       );
@@ -6135,11 +6229,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const resetVisaCountryCatalog = useCallback(() => {
     hasUserEditedRef.current = true;
     lastAppliedRemoteIsoRef.current = new Date().toISOString();
+    isLocalDebounceSavingRef.current = true;
+    try {
+      localStorage.removeItem(DELETED_VISA_COUNTRIES_STORAGE_KEY);
+      localStorage.removeItem(DELETED_VISA_SERVICES_STORAGE_KEY);
+    } catch {}
     setVisaCountryCatalog(WORLD_VISA_COUNTRIES);
     recordAuditLog(
       'Worldwide Visa Catalog Reset',
       'Services',
-      'Reset worldwide visa country directory and fee schedules to system defaults.'
+      'Reset worldwide visa country directory to default international consular database.'
     );
   }, [recordAuditLog]);
 

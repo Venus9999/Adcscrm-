@@ -119,8 +119,8 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
 
   // Add Service Form State
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
-  const [newServiceCatId, setNewServiceCatId] = useState(serviceCategories[0]?.id || '');
-  const [newServicePrice, setNewServicePrice] = useState<number>(serviceCategories[0]?.defaultPrice || 0);
+  const [newServiceCatId, setNewServiceCatId] = useState(serviceCategories?.[0]?.id || '');
+  const [newServicePrice, setNewServicePrice] = useState<number>(serviceCategories?.[0]?.defaultPrice || 0);
 
   // Note form
   const [noteText, setNoteText] = useState('');
@@ -195,20 +195,20 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
   const handleOpenEditClientModal = () => {
     setEditFormData({
       avatar: client.avatar || '',
-      firstName: client.firstName,
-      lastName: client.lastName,
-      email: client.email,
-      mobile: client.mobile,
-      whatsapp: client.whatsapp,
+      firstName: client.firstName || '',
+      lastName: client.lastName || '',
+      email: client.email || '',
+      mobile: client.mobile || '',
+      whatsapp: client.whatsapp || '',
       nationality: client.nationality || 'United Arab Emirates',
       gender: (client.gender as 'Male' | 'Female' | 'Other') || 'Male',
       status: (client.status as 'active' | 'completed' | 'on_hold' | 'cancelled') || 'active',
-      passportNo: client.passportNo,
-      passportExpiry: client.passportExpiry,
+      passportNo: client.passportNo || '',
+      passportExpiry: client.passportExpiry || '',
       emiratesId: client.emiratesId || '',
       emiratesIdExpiry: client.emiratesIdExpiry || '',
       residentialAddress: client.residentialAddress || '',
-      companyId: client.companyId,
+      companyId: client.companyId || (companies?.[0]?.id || 'comp-1'),
       vendorId: client.vendorId || '',
       referredBy: client.referredBy || '',
       assignedEmployeeIds: client.assignedEmployeeIds || (client.assignedAdminId ? [client.assignedAdminId] : []),
@@ -231,10 +231,10 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
 
   const handleSaveClientDetails = (e: React.FormEvent) => {
     e.preventDefault();
-    const selVendor = vendors.find((v) => v.id === editFormData.vendorId);
+    const selVendor = (vendors || []).find((v) => v && v.id === editFormData.vendorId);
     updateClient(client.id, {
       ...editFormData,
-      fullName: `${editFormData.firstName.trim()} ${editFormData.lastName.trim()}`,
+      fullName: `${(editFormData.firstName || '').trim()} ${(editFormData.lastName || '').trim()}`.trim() || client.fullName,
       vendorName: selVendor ? selVendor.name : undefined,
     });
     setShowEditClientModal(false);
@@ -430,16 +430,16 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
             />
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-white">{client.fullName}</h2>
+                <h2 className="text-xl font-bold text-white">{client.fullName || `${client.firstName || ''} ${client.lastName || ''}`}</h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
-                  {client.refNo}
+                  {client.refNo || 'REF-CLIENT'}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 uppercase">
-                  {client.paymentStatus.replace('_', ' ')}
+                  {(client.paymentStatus || 'unpaid').replace('_', ' ')}
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span>{client.nationality}</span>
+                <span>{client.nationality || 'UAE Resident'}</span>
                 <span>&bull;</span>
                 <span>{company ? company.name : 'Master Group'}</span>
                 {client.vendorName && (
@@ -469,7 +469,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 Outstanding Balance
               </span>
               <div className="text-lg font-bold text-emerald-400 font-mono">
-                AED {client.outstandingAmount.toLocaleString()}
+                AED {(client.outstandingAmount ?? 0).toLocaleString()}
               </div>
             </div>
             <button
@@ -565,7 +565,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
             }`}
           >
-            Internal Notes ({client.notes.length})
+            Internal Notes ({(client.notes || []).length})
           </button>
           <button
             onClick={() => setActiveTab('calls')}
@@ -575,7 +575,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
             }`}
           >
-            Call Logs ({client.calls.length})
+            Call Logs ({(client.calls || []).length})
           </button>
           <button
             onClick={() => setActiveTab('tasks')}
@@ -598,9 +598,9 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
                   <div className="text-xs text-slate-500 font-medium">Passport Validity</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white mt-1 font-mono">
-                    {client.passportNo}
+                    {client.passportNo || 'N/A'}
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Expiry Date: {client.passportExpiry}</p>
+                  <p className="text-xs text-slate-500 mt-1">Expiry Date: {client.passportExpiry || 'N/A'}</p>
                 </div>
 
                 <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
@@ -614,9 +614,9 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
                   <div className="text-xs text-slate-500 font-medium">Current Work Stage</div>
                   <div className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-1">
-                    {client.currentStageName}
+                    {client.currentStageName || 'Application Processing'}
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Status: {client.paymentStatus.toUpperCase()}</p>
+                  <p className="text-xs text-slate-500 mt-1">Status: {(client.paymentStatus || 'unpaid').toUpperCase()}</p>
                 </div>
               </div>
 
@@ -944,7 +944,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <button
                       onClick={() => {
                         setSelectedServiceId(srv.id);
-                        setTargetStageId(srv.currentStageId || stages[0]?.id || 'stage-1');
+                        setTargetStageId(srv.currentStageId || stages?.[0]?.id || 'stage-1');
                         setShowStageModal(true);
                       }}
                       className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
@@ -958,17 +958,17 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                   <div>
                     <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Stage Timeline</h5>
                     <div className="space-y-2">
-                      {srv.stageHistory.map((sh, idx) => (
+                      {(srv.stageHistory || []).map((sh, idx) => (
                         <div
                           key={sh.id || idx}
                           className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                         >
                           <div>
-                            <span className="font-bold text-blue-600">{sh.toStage}</span>
+                            <span className="font-bold text-blue-600">{sh.toStage || 'Processing'}</span>
                             {sh.remarks && <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5">{sh.remarks}</p>}
                           </div>
                           <span className="text-[10px] text-slate-400 shrink-0">
-                            {new Date(sh.timestamp).toLocaleDateString()} by {sh.updatedByUserName}
+                            {sh.timestamp ? new Date(sh.timestamp).toLocaleDateString() : 'Recent'} by {sh.updatedByUserName || 'Staff'}
                           </span>
                         </div>
                       ))}
@@ -1109,7 +1109,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">Invoices & Financial Records</h3>
                   <p className="text-xs text-slate-500">
-                    Total: AED {client.totalAmount.toLocaleString()} &bull; Paid: AED {client.paidAmount.toLocaleString()} &bull; Outstanding: AED {client.outstandingAmount.toLocaleString()}
+                    Total: AED {(client.totalAmount ?? 0).toLocaleString()} &bull; Paid: AED {(client.paidAmount ?? 0).toLocaleString()} &bull; Outstanding: AED {(client.outstandingAmount ?? 0).toLocaleString()}
                   </p>
                 </div>
                 {onOpenInvoiceModal && (
@@ -1139,25 +1139,25 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                               : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                           }`}
                         >
-                          {inv.status}
+                          {inv.status || 'pending'}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">{inv.serviceName}</p>
                       <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-3">
-                        <span>Total: AED {inv.grandTotal.toLocaleString()}</span>
+                        <span>Total: AED {(inv.grandTotal ?? 0).toLocaleString()}</span>
                         <span>&bull;</span>
-                        <span className="text-emerald-600 font-semibold">Paid: AED {inv.amountPaid.toLocaleString()}</span>
+                        <span className="text-emerald-600 font-semibold">Paid: AED {(inv.amountPaid ?? 0).toLocaleString()}</span>
                         <span>&bull;</span>
-                        <span className="text-rose-600 font-semibold">Balance: AED {inv.balanceAmount.toLocaleString()}</span>
+                        <span className="text-rose-600 font-semibold">Balance: AED {(inv.balanceAmount ?? 0).toLocaleString()}</span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {inv.balanceAmount > 0 && (
+                      {(inv.balanceAmount ?? 0) > 0 && (
                         <button
                           onClick={() => {
                             setSelectedInvoiceId(inv.id);
-                            setPayAmount(inv.balanceAmount);
+                            setPayAmount(inv.balanceAmount || 0);
                             setShowPayModal(true);
                           }}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
@@ -1365,19 +1365,19 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
               </form>
 
               <div className="space-y-3">
-                {client.notes.length === 0 ? (
+                {(client.notes || []).length === 0 ? (
                   <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs text-slate-400">
                     No notes recorded yet for this client.
                   </div>
                 ) : (
-                  client.notes.map((note) => (
+                  (client.notes || []).map((note) => (
                     <div
                       key={note.id}
                       className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 group hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                     >
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 dark:text-white">{note.userName}</span>
+                          <span className="font-bold text-slate-900 dark:text-white">{note.userName || 'Staff Member'}</span>
                           {note.type && (
                             <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-mono">
                               {note.type.replace('_', ' ')}
@@ -1391,9 +1391,9 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-slate-400">
-                            {new Date(note.createdAt).toLocaleDateString()} {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {note.createdAt ? new Date(note.createdAt).toLocaleDateString() : 'Recent'}
                           </span>
-                          {(currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.id === note.userId) && (
+                          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.id === note.userId) && (
                             <button
                               onClick={() => deleteClientNote(client.id, note.id)}
                               className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-600 transition-all cursor-pointer"
@@ -1429,21 +1429,27 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
               </div>
 
               <div className="space-y-3">
-                {client.calls.map((call) => (
-                  <div
-                    key={call.id}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30"
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-900 dark:text-white">
-                      <span className="capitalize">{call.type} Logged by {call.userName}</span>
-                      <span className="text-[10px] text-slate-400 font-normal">
-                        {new Date(call.date).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{call.summary}</p>
-                    <div className="text-[11px] text-emerald-600 font-medium mt-1">Outcome: {call.outcome}</div>
+                {(client.calls || []).length === 0 ? (
+                  <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs text-slate-400">
+                    No communication logs recorded yet for this client.
                   </div>
-                ))}
+                ) : (
+                  (client.calls || []).map((call) => (
+                    <div
+                      key={call.id}
+                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30"
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-900 dark:text-white">
+                        <span className="capitalize">{call.type} Logged by {call.userName || 'Staff'}</span>
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          {call.date ? new Date(call.date).toLocaleDateString() : 'Recent'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{call.summary}</p>
+                      {call.outcome && <div className="text-[11px] text-emerald-600 font-medium mt-1">Outcome: {call.outcome}</div>}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}

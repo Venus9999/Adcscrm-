@@ -228,19 +228,27 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
     if (!selectedCountry || !selectedVisaType) return;
     setIsSubmitting(true);
 
-    const clientObj = clients.find((c) => c.id === selectedClientIdState) || clients[0];
+    const clientObj = (clients || []).find((c) => c && c.id === selectedClientIdState) || clients?.[0] || {
+      id: selectedClientIdState || 'client-walkin',
+      fullName: applicantName || 'Walk-in Client',
+      email: applicantEmail || 'client@example.com',
+      phone: applicantPhone || '+971 50 000 0000',
+      passportNo: applicantPassportNo || 'P89201948',
+      nationality: applicantNationality || 'UAE Resident',
+      companyId: selectedCompanyId !== 'all' ? selectedCompanyId : companies?.[0]?.id || 'comp-1',
+    };
 
     const result = applyForVisaService(
       {
         clientId: clientObj.id,
-        clientName: applicantName || clientObj.fullName,
-        clientEmail: applicantEmail || clientObj.email,
-        clientPhone: applicantPhone || clientObj.phone,
+        clientName: applicantName || clientObj.fullName || 'Applicant',
+        clientEmail: applicantEmail || clientObj.email || 'client@example.com',
+        clientPhone: applicantPhone || clientObj.phone || '+971 50 000 0000',
         clientPassportNo: applicantPassportNo || clientObj.passportNo || 'P89201948',
         clientNationality: applicantNationality || clientObj.nationality || 'UAE Resident',
         originCountry: originCountry || applicantNationality || 'United Arab Emirates',
         countryOfApplying: countryOfApplying || 'United Arab Emirates',
-        companyId: clientObj.companyId || (selectedCompanyId !== 'all' ? selectedCompanyId : companies[0]?.id || 'comp-1'),
+        companyId: clientObj.companyId || (selectedCompanyId !== 'all' ? selectedCompanyId : companies?.[0]?.id || 'comp-1'),
         targetCountry: selectedCountry.countryName,
         targetCountryCode: selectedCountry.countryCode,
         targetCountryFlag: selectedCountry.flag,

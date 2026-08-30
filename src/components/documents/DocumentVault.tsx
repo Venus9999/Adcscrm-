@@ -42,7 +42,7 @@ export const DocumentVault: React.FC = () => {
 
   // Upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedClientId, setFormClientId] = useState(clients[0]?.id || '');
+  const [selectedClientId, setFormClientId] = useState(clients?.[0]?.id || '');
   const [docName, setDocName] = useState('');
   const [docCategory, setDocCategory] = useState<DocumentItem['category']>('Passport');
   const [docExpiry, setDocExpiry] = useState('');

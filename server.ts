@@ -341,6 +341,8 @@ async function startServer() {
         leadStages: payload.leadStages !== undefined ? (Array.isArray(payload.leadStages) ? payload.leadStages : []) : (existing.leadStages || []),
         users: payload.users !== undefined ? (Array.isArray(payload.users) ? payload.users : []) : (existing.users || []),
         companies: payload.companies !== undefined ? (Array.isArray(payload.companies) ? payload.companies : []) : (existing.companies || []),
+        visaApplications: payload.visaApplications !== undefined ? (Array.isArray(payload.visaApplications) ? payload.visaApplications : []) : (existing.visaApplications || []),
+        visaCountryCatalog: payload.visaCountryCatalog !== undefined ? (Array.isArray(payload.visaCountryCatalog) ? payload.visaCountryCatalog : []) : (existing.visaCountryCatalog || []),
         lastUpdated: payload.lastUpdated || new Date().toISOString(),
       };
 
