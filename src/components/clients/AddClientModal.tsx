@@ -38,6 +38,8 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
     email: '',
     residentialAddress: '',
     companyId: selectedCompanyId !== 'all' ? selectedCompanyId : companies[0]?.id || 'comp-1',
+    pricingTier: 'b2b' as 'b2b' | 'b2c',
+    corporateDiscountPercent: 15,
     vendorId: '',
     referredBy: '',
     assignedAdminId: currentUser.role === 'admin' || currentUser.role === 'master' ? currentUser.id : 'user-master',
@@ -46,6 +48,17 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
     tags: ['New Client'],
     initialServiceId: serviceCategories[0]?.id || '',
   });
+
+  // When company selection changes, synchronize default discount
+  useEffect(() => {
+    const targetComp = companies.find((c) => c.id === formData.companyId);
+    if (targetComp) {
+      setFormData((prev) => ({
+        ...prev,
+        corporateDiscountPercent: targetComp.corporateDiscountPercent ?? 15,
+      }));
+    }
+  }, [formData.companyId, companies]);
 
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway'>('Bank Transfer');
@@ -103,6 +116,8 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
         email: formData.email.trim(),
         residentialAddress: formData.residentialAddress.trim(),
         companyId: formData.companyId,
+        pricingTier: formData.pricingTier,
+        corporateDiscountPercent: formData.pricingTier === 'b2b' ? formData.corporateDiscountPercent : undefined,
         vendorId: formData.vendorId || undefined,
         vendorName: selectedVendor ? selectedVendor.name : undefined,
         referredBy: formData.referredBy.trim() || undefined,
@@ -191,9 +206,23 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                 >
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {c.name} ({c.corporateDiscountPercent ?? 15}% Discount)
                     </option>
                   ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Pricing Tier *
+                </label>
+                <select
+                  value={formData.pricingTier}
+                  onChange={(e) => setFormData({ ...formData, pricingTier: e.target.value as 'b2b' | 'b2c' })}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold text-blue-600 dark:text-blue-400"
+                >
+                  <option value="b2b">🏢 Corporate (B2B Discounted)</option>
+                  <option value="b2c">👤 Individual (B2C Direct Rate)</option>
                 </select>
               </div>
 
@@ -228,6 +257,30 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />
               </div>
+
+              {formData.pricingTier === 'b2b' && (
+                <div className="sm:col-span-2 lg:col-span-4 p-3 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl border border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-600 text-white">
+                      B2B Discount Enabled
+                    </span>
+                    <span className="text-xs text-indigo-900 dark:text-indigo-200 font-medium">
+                      Applied to this client&apos;s service fees automatically
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Corporate Discount %:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={formData.corporateDiscountPercent}
+                      onChange={(e) => setFormData({ ...formData, corporateDiscountPercent: Number(e.target.value) || 0 })}
+                      className="w-16 p-1 bg-white dark:bg-slate-900 rounded-lg text-xs font-bold font-mono text-center border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="sm:col-span-2">
                 <div className="flex items-center justify-between mb-1">
@@ -471,11 +524,15 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                 className="w-full p-2.5 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-200 dark:border-blue-800 font-medium"
               >
                 <option value="">-- No Service (Register Client Profile Only) --</option>
-                {serviceCategories.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} — Professional Fee: AED {s.defaultPrice.toLocaleString()} + Gov: AED {s.governmentFees.toLocaleString()}
-                  </option>
-                ))}
+                {serviceCategories.map((s) => {
+                  const b2cRate = s.priceB2C ?? s.defaultPrice;
+                  const b2bRate = s.priceB2B ?? Math.round(b2cRate * (1 - (formData.corporateDiscountPercent / 100)));
+                  return (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {formData.pricingTier === 'b2b' ? `B2B Rate: AED ${b2bRate.toLocaleString()}` : `B2C Rate: AED ${b2cRate.toLocaleString()}`} + Gov: AED {s.governmentFees.toLocaleString()}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -484,22 +541,50 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
               const selectedSrv = serviceCategories.find((s) => s.id === formData.initialServiceId);
               if (!selectedSrv) return null;
 
-              const price = selectedSrv.defaultPrice;
+              const isB2B = formData.pricingTier === 'b2b';
+              const b2cBasePrice = selectedSrv.priceB2C ?? selectedSrv.defaultPrice ?? 0;
+              const discPercent = formData.corporateDiscountPercent ?? 15;
+
+              let finalPrice = b2cBasePrice;
+              let discountAmount = 0;
+
+              if (isB2B) {
+                if (selectedSrv.priceB2B !== undefined && selectedSrv.priceB2B > 0) {
+                  finalPrice = selectedSrv.priceB2B;
+                  discountAmount = Math.max(0, b2cBasePrice - selectedSrv.priceB2B);
+                } else {
+                  discountAmount = Math.round(b2cBasePrice * (discPercent / 100));
+                  finalPrice = Math.max(0, b2cBasePrice - discountAmount);
+                }
+              }
+
               const gov = selectedSrv.governmentFees;
-              const vat = Math.round(price * 0.05);
-              const grandTotal = price + vat + gov;
+              const vat = Math.round(finalPrice * 0.05);
+              const grandTotal = finalPrice + vat + gov;
 
               return (
                 <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-blue-100 dark:border-slate-800 space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Invoice Amount Breakdown</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Invoice Amount Breakdown</span>
+                      {isB2B && discountAmount > 0 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          B2B Corporate Discount (-AED {discountAmount.toLocaleString()})
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">Total: AED {grandTotal.toLocaleString()}</span>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50">
-                      <p className="text-[10px] text-slate-500">Service Fee</p>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">AED {price.toLocaleString()}</p>
+                      <p className="text-[10px] text-slate-500">{isB2B ? 'B2B Service Fee' : 'B2C Service Fee'}</p>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        AED {finalPrice.toLocaleString()}
+                        {isB2B && discountAmount > 0 && (
+                          <span className="block text-[9px] text-slate-400 line-through">AED {b2cBasePrice.toLocaleString()}</span>
+                        )}
+                      </p>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50">
                       <p className="text-[10px] text-slate-500">VAT (5%)</p>

@@ -172,10 +172,17 @@ const SERVICE_CATALOG: ServiceOffering[] = [
 ];
 
 export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, onServiceApplied }) => {
-  const { applyForService, departments } = useCRM();
+  const { applyForService, departments, serviceCategories, companies } = useCRM();
 
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [activeServiceModal, setActiveServiceModal] = useState<ServiceOffering | null>(null);
+
+  // Determine B2B vs B2C pricing & Corporate Discounts
+  const clientCompany = companies.find((c) => c.id === client.companyId);
+  const isDirectClient = !!client.isDirectRegistration || client.pricingTier === 'b2c' || (!client.companyId);
+  const isB2B = !isDirectClient;
+  const clientDiscountType = client.discountType || clientCompany?.corporateDiscountType || 'percentage';
+  const clientDiscountVal = client.discountValue ?? (clientDiscountType === 'fixed' ? (clientCompany?.corporateDiscountValue ?? 500) : (client.corporateDiscountPercent ?? clientCompany?.corporateDiscountPercent ?? 15));
 
   // Form State inside Apply Modal
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -185,6 +192,48 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
   const [payNow, setPayNow] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState<string | null>(null);
+
+  // Helper to get effective price for a service item
+  const getServicePricing = (service: ServiceOffering) => {
+    // Check if matching in CRM serviceCategories
+    const matchedCategory = serviceCategories.find((c) => c.id === service.id || c.name.toLowerCase() === service.name.toLowerCase());
+    const baseB2C = matchedCategory?.priceB2C ?? matchedCategory?.defaultPrice ?? service.basePrice;
+    
+    let effectivePrice = baseB2C;
+    let discountAmount = 0;
+    let discountPercent = 0;
+
+    if (isB2B) {
+      if (client.customServiceRate !== undefined && client.customServiceRate > 0) {
+        effectivePrice = client.customServiceRate;
+        discountAmount = Math.max(0, baseB2C - client.customServiceRate);
+        discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+      } else if (matchedCategory?.priceB2B !== undefined && matchedCategory.priceB2B > 0 && !client.discountValue) {
+        effectivePrice = matchedCategory.priceB2B;
+        discountAmount = Math.max(0, baseB2C - matchedCategory.priceB2B);
+        discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : (clientDiscountType === 'percentage' ? clientDiscountVal : 15);
+      } else if (clientDiscountType === 'fixed') {
+        discountAmount = Math.min(baseB2C, clientDiscountVal);
+        discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+        effectivePrice = Math.max(0, baseB2C - discountAmount);
+      } else {
+        // percentage
+        discountPercent = clientDiscountVal;
+        discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
+        effectivePrice = Math.max(0, baseB2C - discountAmount);
+      }
+    }
+
+    return {
+      baseB2C,
+      effectivePrice,
+      discountAmount,
+      discountPercent,
+      discountType: clientDiscountType,
+      discountVal: clientDiscountVal,
+      govFee: matchedCategory?.governmentFees ?? service.govFee,
+    };
+  };
 
   const filteredCatalog = SERVICE_CATALOG.filter((item) => {
     if (selectedCategoryFilter === 'all') return true;
@@ -208,7 +257,8 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
   };
 
   const calculateTotal = (service: ServiceOffering) => {
-    let total = service.basePrice + service.govFee;
+    const { effectivePrice, govFee } = getServicePricing(service);
+    let total = effectivePrice + govFee;
     service.options.forEach((opt) => {
       if (selectedOptions.includes(opt.id)) {
         total += opt.price;
@@ -264,13 +314,25 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
               <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 uppercase tracking-wider">
                 Direct Government & Corporate Clearance
               </span>
+              {isB2B ? (
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 uppercase tracking-wider flex items-center gap-1">
+                  <Building2 className="w-3 h-3" />
+                  <span>
+                    Corporate B2B Account ({clientDiscountType === 'fixed' ? `AED ${clientDiscountVal.toLocaleString()} Fixed Discount` : `${clientDiscountVal}% Discount`} Active)
+                  </span>
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 uppercase tracking-wider">
+                  Direct Client Portal (B2C Rates)
+                </span>
+              )}
             </div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mt-1.5 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-amber-400" />
               <span>Apply for Official UAE Services</span>
             </h2>
             <p className="text-xs text-blue-100 mt-1 max-w-2xl leading-relaxed">
-              Select verified residency visas, mainland/free zone trade licensing, tax registrations, or certified document attestations. Applications are routed directly to licensed officers and tracked in real time.
+              Select verified residency visas, mainland/free zone trade licensing, tax registrations, or certified document attestations. Applications are routed directly to licensed PRO officers and tracked in real time.
             </p>
           </div>
 
@@ -313,62 +375,83 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
 
       {/* Service Catalog Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredCatalog.map((service) => (
-          <div
-            key={service.id}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 flex flex-col justify-between hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-all shadow-xs hover:shadow-md"
-          >
-            <div>
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase tracking-wider">
-                  {service.badge}
-                </span>
-                <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {service.processingTime}
-                </span>
-              </div>
+        {filteredCatalog.map((service) => {
+          const pricing = getServicePricing(service);
+          const totalEstimated = pricing.effectivePrice + pricing.govFee;
 
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
-                {service.name}
-              </h3>
-
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                {service.description}
-              </p>
-
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Package Inclusions:
-                </div>
-                {service.features.map((feat, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                    <span>{feat}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          return (
+            <div
+              key={service.id}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 flex flex-col justify-between hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-all shadow-xs hover:shadow-md"
+            >
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Est. Fee</span>
-                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  AED {(service.basePrice + service.govFee).toLocaleString()}
-                </span>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase tracking-wider">
+                      {service.badge}
+                    </span>
+                    {isB2B && pricing.discountAmount > 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                        {pricing.discountPercent}% OFF
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {service.processingTime}
+                  </span>
+                </div>
+
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
+                  {service.name}
+                </h3>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                  {service.description}
+                </p>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Package Inclusions:
+                  </div>
+                  {service.features.map((feat, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleOpenModal(service)}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <span>Apply Now</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    {isB2B ? 'Corporate B2B Total' : 'Total Est. Fee'}
+                  </span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                      AED {totalEstimated.toLocaleString()}
+                    </span>
+                    {isB2B && pricing.discountAmount > 0 && (
+                      <span className="text-xs text-slate-400 line-through">
+                        AED {(pricing.baseB2C + pricing.govFee).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenModal(service)}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span>Apply Now</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Application & Customization Modal */}
@@ -517,48 +600,61 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
                 </div>
 
                 {/* Payment Option & Price Summary */}
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
-                  <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
-                    <span>Professional Processing Fee:</span>
-                    <span>AED {activeServiceModal.basePrice.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
-                    <span>Official UAE Government & Typing Fee:</span>
-                    <span>AED {activeServiceModal.govFee.toLocaleString()}</span>
-                  </div>
+                {(() => {
+                  const pricing = getServicePricing(activeServiceModal);
+                  return (
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                      <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                        <span>Standard Professional Service Fee:</span>
+                        <span>AED {pricing.baseB2C.toLocaleString()}</span>
+                      </div>
 
-                  {selectedOptions.length > 0 && (
-                    <div className="flex items-center justify-between text-xs text-blue-600 dark:text-blue-400">
-                      <span>Selected Upgrades ({selectedOptions.length}):</span>
-                      <span>
-                        AED{' '}
-                        {(activeServiceModal.options || [])
-                          .filter((o) => o && selectedOptions.includes(o.id))
-                          .reduce((sum, o) => sum + (o?.price || 0), 0)
-                          .toLocaleString()}
-                      </span>
+                      {isB2B && pricing.discountAmount > 0 && (
+                        <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                          <span>Corporate B2B Discount ({pricing.discountPercent}% OFF):</span>
+                          <span>- AED {pricing.discountAmount.toLocaleString()}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                        <span>Official UAE Government & Typing Fee:</span>
+                        <span>AED {pricing.govFee.toLocaleString()}</span>
+                      </div>
+
+                      {selectedOptions.length > 0 && (
+                        <div className="flex items-center justify-between text-xs text-blue-600 dark:text-blue-400">
+                          <span>Selected Upgrades ({selectedOptions.length}):</span>
+                          <span>
+                            AED{' '}
+                            {(activeServiceModal.options || [])
+                              .filter((o) => o && selectedOptions.includes(o.id))
+                              .reduce((sum, o) => sum + (o?.price || 0), 0)
+                              .toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between font-bold text-sm text-slate-900 dark:text-white">
+                        <span>Total Amount Payable:</span>
+                        <span className="text-base text-blue-600 dark:text-blue-400">
+                          AED {calculateTotal(activeServiceModal).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={payNow}
+                            onChange={(e) => setPayNow(e.target.checked)}
+                            className="w-4 h-4 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>Process and record initial payment immediately</span>
+                        </label>
+                      </div>
                     </div>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between font-bold text-sm text-slate-900 dark:text-white">
-                    <span>Total Amount Payable:</span>
-                    <span className="text-base text-blue-600 dark:text-blue-400">
-                      AED {calculateTotal(activeServiceModal).toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={payNow}
-                        onChange={(e) => setPayNow(e.target.checked)}
-                        className="w-4 h-4 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span>Process and record initial payment immediately</span>
-                    </label>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Modal CTAs */}
                 <div className="flex items-center justify-end gap-3 pt-2">

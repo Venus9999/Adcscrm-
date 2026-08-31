@@ -51,6 +51,9 @@ export const CompaniesManagement: React.FC = () => {
     phone: '+971 4 ',
     email: '',
     currency: 'AED',
+    corporateDiscountType: 'percentage' as 'percentage' | 'fixed',
+    corporateDiscountValue: 15,
+    corporateDiscountPercent: 15,
     assignedAdminIds: [] as string[],
     employeeIds: [] as string[],
     bankName: 'Emirates NBD',
@@ -72,6 +75,9 @@ export const CompaniesManagement: React.FC = () => {
       phone: '+971 4 399 0000',
       email: 'info@branch.ae',
       currency: 'AED',
+      corporateDiscountType: 'percentage',
+      corporateDiscountValue: 15,
+      corporateDiscountPercent: 15,
       assignedAdminIds: [currentUser.role === 'admin' || currentUser.role === 'master' ? currentUser.id : 'user-master'],
       employeeIds: [] as string[],
       bankName: 'Emirates NBD',
@@ -84,6 +90,8 @@ export const CompaniesManagement: React.FC = () => {
 
   const handleOpenEdit = (comp: Company) => {
     setEditingCompany(comp);
+    const discType = comp.corporateDiscountType || 'percentage';
+    const discVal = comp.corporateDiscountValue ?? comp.corporateDiscountPercent ?? 15;
     setFormData({
       name: comp.name ?? '',
       tradeLicenseNo: comp.tradeLicenseNo ?? '',
@@ -95,6 +103,9 @@ export const CompaniesManagement: React.FC = () => {
       phone: comp.phone ?? '',
       email: comp.email ?? '',
       currency: comp.currency ?? 'AED',
+      corporateDiscountType: discType,
+      corporateDiscountValue: discVal,
+      corporateDiscountPercent: discType === 'percentage' ? discVal : (comp.corporateDiscountPercent ?? 15),
       assignedAdminIds: comp.assignedAdminIds || (comp.adminId ? [comp.adminId] : []),
       employeeIds: comp.employeeIds || [],
       bankName: comp.bankDetails?.bankName || 'Emirates NBD',
@@ -119,6 +130,9 @@ export const CompaniesManagement: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const discountVal = Number(formData.corporateDiscountValue) || 0;
+    const discountPercent = formData.corporateDiscountType === 'percentage' ? discountVal : Math.min(100, Math.round((discountVal / 3000) * 100));
+
     if (editingCompany) {
       updateCompany(editingCompany.id, {
         name: formData.name,
@@ -131,6 +145,9 @@ export const CompaniesManagement: React.FC = () => {
         phone: formData.phone,
         email: formData.email,
         currency: formData.currency,
+        corporateDiscountType: formData.corporateDiscountType,
+        corporateDiscountValue: discountVal,
+        corporateDiscountPercent: discountPercent,
         adminId: formData.assignedAdminIds[0] || editingCompany.adminId || 'user-master',
         assignedAdminIds: formData.assignedAdminIds,
         employeeIds: formData.employeeIds,
@@ -155,6 +172,9 @@ export const CompaniesManagement: React.FC = () => {
         phone: formData.phone,
         email: formData.email,
         whatsapp: formData.phone,
+        corporateDiscountType: formData.corporateDiscountType,
+        corporateDiscountValue: discountVal,
+        corporateDiscountPercent: discountPercent,
         logo: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=200&q=80',
         bankDetails: {
           bankName: formData.bankName,
@@ -260,6 +280,22 @@ export const CompaniesManagement: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">TRN / Tax No:</span>
                     <span className="font-mono text-slate-700 dark:text-slate-300">{comp.trn}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Corporate B2B Discount:</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                      {comp.corporateDiscountType === 'fixed' ? (
+                        <>
+                          <span>AED {(comp.corporateDiscountValue ?? 500).toLocaleString()}</span>
+                          <span className="text-[9px] opacity-75 font-normal">Fixed Off</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>{comp.corporateDiscountValue ?? comp.corporateDiscountPercent ?? 15}%</span>
+                          <span className="text-[9px] opacity-75 font-normal">Off Catalog</span>
+                        </>
+                      )}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">Contact Phone:</span>
@@ -441,6 +477,89 @@ export const CompaniesManagement: React.FC = () => {
                   placeholder="e.g. Al Saada Tower, Business Bay, Dubai"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />
+              </div>
+
+              {/* Corporate B2B Service Discount (2 Forms: % or Fixed Amount) */}
+              <div className="p-3.5 bg-indigo-50/70 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-800/60 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                      Corporate B2B Partner Discount
+                    </label>
+                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+                      Default discount applied to service fees when registering clients under this company
+                    </p>
+                  </div>
+
+                  {/* Discount Type Toggle */}
+                  <div className="flex p-0.5 bg-indigo-200/60 dark:bg-indigo-900/60 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          corporateDiscountType: 'percentage',
+                          corporateDiscountValue: formData.corporateDiscountType === 'percentage' ? formData.corporateDiscountValue : 15,
+                        });
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                        formData.corporateDiscountType === 'percentage'
+                          ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                          : 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-900'
+                      }`}
+                    >
+                      % Percentage
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          corporateDiscountType: 'fixed',
+                          corporateDiscountValue: formData.corporateDiscountType === 'fixed' ? formData.corporateDiscountValue : 500,
+                        });
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                        formData.corporateDiscountType === 'fixed'
+                          ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                          : 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-900'
+                      }`}
+                    >
+                      AED Fixed Amount
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 pt-1">
+                  <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                    {formData.corporateDiscountType === 'percentage'
+                      ? 'Discount Percentage (% deducted from standard retail fees)'
+                      : 'Fixed Discount Amount (AED deducted per service)'}
+                  </span>
+                  <div className="relative w-36 shrink-0">
+                    <input
+                      type="number"
+                      min="0"
+                      max={formData.corporateDiscountType === 'percentage' ? 100 : 50000}
+                      value={formData.corporateDiscountValue}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          corporateDiscountValue: Number(e.target.value),
+                          corporateDiscountPercent:
+                            formData.corporateDiscountType === 'percentage'
+                              ? Number(e.target.value)
+                              : formData.corporateDiscountPercent,
+                        })
+                      }
+                      placeholder={formData.corporateDiscountType === 'percentage' ? '15' : '500'}
+                      className="w-full p-2 pl-3 pr-10 bg-white dark:bg-slate-900 rounded-xl text-xs font-bold font-mono text-center border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none">
+                      {formData.corporateDiscountType === 'percentage' ? '%' : 'AED'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Bank Details */}

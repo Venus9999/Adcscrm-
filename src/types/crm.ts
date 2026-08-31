@@ -239,6 +239,8 @@ export interface BankDetails {
   swift: string;
 }
 
+export type DiscountType = 'percentage' | 'fixed';
+
 export interface Company {
   id: string;
   name: string;
@@ -261,6 +263,9 @@ export interface Company {
   stampUrl?: string;
   showSignatory?: boolean;
   showStamp?: boolean;
+  corporateDiscountType?: DiscountType; // 'percentage' | 'fixed'
+  corporateDiscountValue?: number; // % value (e.g. 15) or AED fixed amount (e.g. 500)
+  corporateDiscountPercent?: number; // Registered company default discount % for service catalog
   adminId: string;
   assignedAdminIds?: string[];
   employeeIds: string[];
@@ -294,6 +299,10 @@ export interface ServiceCategory {
   code: string;
   category: 'Visa Processing' | 'Business Setup' | 'Document Clearing' | 'PRO Services' | 'Recruitment' | 'Attestation' | string;
   defaultPrice: number;
+  priceB2C?: number; // Retail / Direct Client Price (AED)
+  priceB2B?: number; // Corporate / Registered Company Price (AED)
+  b2bDiscountPercent?: number; // Corporate discount percentage (e.g. 15%)
+  pricingTierAvailable?: 'all' | 'b2b_only' | 'b2c_only'; // Target visibility
   governmentFees: number;
   estimatedDays: number;
   description: string;
@@ -421,6 +430,12 @@ export interface ClientService {
   categoryName?: string;
   notes?: string;
   price: number;
+  originalPrice?: number;
+  discountType?: DiscountType; // 'percentage' | 'fixed'
+  discountValue?: number; // % value or AED fixed amount
+  discountAmount?: number; // Net AED discounted
+  discountPercent?: number;
+  pricingTier?: 'b2c' | 'b2b';
   governmentFees: number;
   advancePaid: number;
   balance: number;
@@ -472,6 +487,12 @@ export interface Client {
   category?: string;
   type?: string;
   status?: string;
+  pricingTier?: 'b2c' | 'b2b';
+  discountType?: DiscountType; // 'percentage' | 'fixed'
+  discountValue?: number; // % or AED amount for this client
+  customServiceRate?: number; // Custom rate agreed for this client
+  corporateDiscountPercent?: number;
+  isDirectRegistration?: boolean;
   vendorId?: string;
   vendorName?: string;
   referredBy?: string;
@@ -603,6 +624,11 @@ export interface Invoice {
   serviceId?: string;
   serviceName: string;
   subtotal: number;
+  discountType?: DiscountType;
+  discountValue?: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  pricingTier?: 'b2c' | 'b2b';
   vatRate: number; // e.g. 5%
   vatAmount: number;
   governmentFees: number;

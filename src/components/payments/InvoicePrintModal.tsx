@@ -248,6 +248,14 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 <span>Professional Fee Subtotal:</span>
                 <span className="font-mono font-semibold">{billingSettings.currency || 'AED'} {invoice.subtotal.toLocaleString()}</span>
               </div>
+              {invoice.discountAmount !== undefined && invoice.discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>
+                    Corporate B2B Discount ({invoice.discountType === 'fixed' ? `AED ${invoice.discountValue?.toLocaleString()} Fixed` : `${invoice.discountPercent || invoice.discountValue}%`}):
+                  </span>
+                  <span className="font-mono font-semibold">- {billingSettings.currency || 'AED'} {invoice.discountAmount.toLocaleString()}</span>
+                </div>
+              )}
               {invoice.governmentFees > 0 && (
                 <div className="flex justify-between text-slate-600">
                   <span>Government Authority Fees:</span>

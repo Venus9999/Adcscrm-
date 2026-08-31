@@ -116,8 +116,40 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     companyId: '',
     vendorId: '',
     referredBy: '',
+    pricingTier: 'b2b' as 'b2b' | 'b2c',
+    discountType: 'percentage' as 'percentage' | 'fixed',
+    discountValue: 0,
+    corporateDiscountPercent: 0,
+    customServiceRate: 0,
     assignedEmployeeIds: [] as string[],
   });
+
+  // Helper for computing service default fee based on client settings
+  const calculateDefaultServicePrice = (catId: string) => {
+    const cat = serviceCategories.find((c) => c.id === catId);
+    if (!cat) return 0;
+    const baseB2C = cat.priceB2C ?? cat.defaultPrice ?? 0;
+    const isDirect = !!client.isDirectRegistration || client.pricingTier === 'b2c' || (!client.companyId);
+    if (isDirect) {
+      return baseB2C;
+    }
+    if (client.customServiceRate !== undefined && client.customServiceRate > 0) {
+      return client.customServiceRate;
+    }
+    const dType = client.discountType || company?.corporateDiscountType || 'percentage';
+    const dVal = client.discountValue ?? (dType === 'fixed' ? (company?.corporateDiscountValue ?? 0) : (client.corporateDiscountPercent ?? company?.corporateDiscountPercent ?? 15));
+    if (dType === 'fixed' && dVal > 0) {
+      return Math.max(0, baseB2C - dVal);
+    }
+    if (dType === 'percentage' && dVal > 0) {
+      const discount = Math.round(baseB2C * (dVal / 100));
+      return Math.max(0, baseB2C - discount);
+    }
+    if (cat.priceB2B !== undefined && cat.priceB2B > 0) {
+      return cat.priceB2B;
+    }
+    return baseB2C;
+  };
 
   // Add Service Form State
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
@@ -213,6 +245,11 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
       companyId: client.companyId || (companies?.[0]?.id || 'comp-1'),
       vendorId: client.vendorId || '',
       referredBy: client.referredBy || '',
+      pricingTier: client.pricingTier || (client.isDirectRegistration ? 'b2c' : 'b2b'),
+      discountType: client.discountType || company?.corporateDiscountType || 'percentage',
+      discountValue: client.discountValue ?? (company?.corporateDiscountValue || 0),
+      corporateDiscountPercent: client.corporateDiscountPercent ?? (company?.corporateDiscountPercent || 15),
+      customServiceRate: client.customServiceRate || 0,
       assignedEmployeeIds: client.assignedEmployeeIds || (client.assignedAdminId ? [client.assignedAdminId] : []),
     });
     setShowEditClientModal(true);
@@ -682,6 +719,31 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                       {users.find((u) => u.id === client.assignedAdminId)?.name || 'Admin'}
                     </p>
                   </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+                    <span className="text-slate-400 block text-[11px]">Pricing Tier & Terms:</span>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
+                        client.pricingTier === 'b2c' || client.isDirectRegistration || !client.companyId
+                          ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      }`}>
+                        {client.pricingTier === 'b2c' || client.isDirectRegistration || !client.companyId ? 'B2C Direct Rate' : 'Corporate B2B Rate'}
+                      </span>
+                      {client.customServiceRate ? (
+                        <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                          (Custom: AED {client.customServiceRate.toLocaleString()})
+                        </span>
+                      ) : (client.discountType === 'fixed' && (client.discountValue || company?.corporateDiscountValue)) ? (
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                          (AED {(client.discountValue ?? company?.corporateDiscountValue ?? 0).toLocaleString()} Fixed OFF)
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                          ({client.corporateDiscountPercent ?? company?.corporateDiscountPercent ?? 15}% OFF)
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <div className="sm:col-span-2">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Assigned Staff & Agents:</span>
@@ -915,7 +977,12 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Registered Client Services</h3>
                 <button
-                  onClick={() => setShowAddServiceModal(true)}
+                  onClick={() => {
+                    const initialCatId = serviceCategories?.[0]?.id || '';
+                    setNewServiceCatId(initialCatId);
+                    setNewServicePrice(calculateDefaultServicePrice(initialCatId));
+                    setShowAddServiceModal(true);
+                  }}
                   className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1725,6 +1792,111 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     />
                   </div>
 
+                  {/* Pricing Tier & Dynamic B2B Discount Customization */}
+                  <div className="sm:col-span-2 p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
+                        <DollarSign className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span>Client Pricing Tier & Dynamic B2B Rate</span>
+                      </label>
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">
+                        Finance & Service Catalogue
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                          Pricing Category / Tier
+                        </label>
+                        <select
+                          value={editFormData.pricingTier}
+                          onChange={(e) =>
+                            setEditFormData({
+                              ...editFormData,
+                              pricingTier: e.target.value as 'b2b' | 'b2c',
+                            })
+                          }
+                          className="w-full p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                        >
+                          <option value="b2b">Corporate B2B (Discounted / Custom Rates)</option>
+                          <option value="b2c">Direct Client B2C (Standard Public Rates)</option>
+                        </select>
+                      </div>
+
+                      {editFormData.pricingTier === 'b2b' && (
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                            B2B Discount Form
+                          </label>
+                          <div className="grid grid-cols-2 gap-1.5 p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => setEditFormData({ ...editFormData, discountType: 'percentage' })}
+                              className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+                                editFormData.discountType === 'percentage'
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Percentage (%)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditFormData({ ...editFormData, discountType: 'fixed' })}
+                              className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+                                editFormData.discountType === 'fixed'
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Fix Amount (AED)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {editFormData.pricingTier === 'b2b' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                            {editFormData.discountType === 'fixed' ? 'Fixed Discount (AED)' : 'Percentage Discount (%)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={editFormData.discountValue || (editFormData.discountType === 'fixed' ? 0 : editFormData.corporateDiscountPercent || 0)}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setEditFormData({
+                                ...editFormData,
+                                discountValue: val,
+                                corporateDiscountPercent: editFormData.discountType === 'percentage' ? val : editFormData.corporateDiscountPercent,
+                              });
+                            }}
+                            className="w-full p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-mono text-xs font-semibold"
+                            placeholder={editFormData.discountType === 'fixed' ? 'e.g. 500' : 'e.g. 15'}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                            Custom Client Service Rate (AED) <span className="text-slate-400 font-normal">(Optional fixed rate)</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={editFormData.customServiceRate || ''}
+                            onChange={(e) => setEditFormData({ ...editFormData, customServiceRate: Number(e.target.value) || 0 })}
+                            placeholder="e.g. 1800 (Overrides catalog)"
+                            className="w-full p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Multi-Staff Assignment for Client */}
                   <div className="sm:col-span-2">
                     <div className="flex items-center justify-between mb-1">
@@ -2018,14 +2190,14 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     value={newServiceCatId}
                     onChange={(e) => {
                       setNewServiceCatId(e.target.value);
-                      const cat = serviceCategories.find((c) => c.id === e.target.value);
-                      if (cat) setNewServicePrice(cat.defaultPrice);
+                      const computedPrice = calculateDefaultServicePrice(e.target.value);
+                      setNewServicePrice(computedPrice);
                     }}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                   >
                     {serviceCategories.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} (AED {s.defaultPrice.toLocaleString()})
+                        {s.name} (Catalog: AED {(s.priceB2C ?? s.defaultPrice).toLocaleString()})
                       </option>
                     ))}
                   </select>

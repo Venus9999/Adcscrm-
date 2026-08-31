@@ -41,6 +41,7 @@ import {
   VisaUploadedDoc,
   Department,
   SmtpSettings,
+  DiscountType,
 } from '../types/crm';
 import {
   INITIAL_COMPANIES,
@@ -2090,8 +2091,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         category: 'visa',
         categoryName: 'Residency & Immigration',
         notes: 'Client registered online via Self-Service Portal. File opened and awaiting document verification.',
+        pricingTier: 'b2c',
         price: 3500,
         governmentFees: 1200,
+        discountAmount: 0,
+        discountPercent: 0,
         advancePaid: 0,
         balance: 4700,
         status: 'active',
@@ -2144,6 +2148,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         nationality: data.nationality || 'United Arab Emirates',
         companyName: data.companyName || `${cleanName}'s Portfolio`,
         companyId: targetCompanyId,
+        pricingTier: 'b2c',
+        isDirectRegistration: true,
         category: 'individual',
         type: 'individual',
         status: 'active',
@@ -2365,10 +2371,33 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const srvInstanceId = `srv-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       const invId = `inv-${Date.now()}`;
       const invNumber = `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-      const price = srvCat.defaultPrice || 0;
+
+      // B2B vs B2C Pricing & Corporate Discounts
+      const isDirectClient = !!targetClient.isDirectRegistration || targetClient.pricingTier === 'b2c' || (!targetClient.companyId && !targetCompanyId);
+      const pricingTier: 'b2b' | 'b2c' = isDirectClient ? 'b2c' : (targetClient.pricingTier || 'b2b');
+
+      const b2cBasePrice = srvCat.priceB2C ?? srvCat.defaultPrice ?? 0;
+      const corporateDiscountPercent = compObj?.corporateDiscountPercent ?? srvCat.b2bDiscountPercent ?? 15;
+
+      let finalPrice = b2cBasePrice;
+      let discountAmount = 0;
+      let discountPercent = 0;
+
+      if (pricingTier === 'b2b') {
+        if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0) {
+          finalPrice = srvCat.priceB2B;
+          discountAmount = Math.max(0, b2cBasePrice - srvCat.priceB2B);
+          discountPercent = b2cBasePrice > 0 ? Math.round((discountAmount / b2cBasePrice) * 100) : corporateDiscountPercent;
+        } else {
+          discountPercent = corporateDiscountPercent;
+          discountAmount = Math.round(b2cBasePrice * (corporateDiscountPercent / 100));
+          finalPrice = Math.max(0, b2cBasePrice - discountAmount);
+        }
+      }
+
       const govFees = srvCat.governmentFees || 0;
-      const vat = Math.round(price * 0.05);
-      const grandTotal = price + govFees + vat;
+      const vat = Math.round(finalPrice * 0.05);
+      const grandTotal = finalPrice + govFees + vat;
 
       const newInvoice: Invoice = {
         id: invId,
@@ -2382,7 +2411,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         companyId: compId,
         companyName: companyName,
         serviceName: srvCat.name,
-        subtotal: price,
+        pricingTier: pricingTier,
+        discountAmount: discountAmount,
+        discountPercent: discountPercent,
+        subtotal: finalPrice,
         vatRate: 5,
         vatAmount: vat,
         governmentFees: govFees,
@@ -2393,7 +2425,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         issueDate: new Date().toISOString().split('T')[0],
         dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
         paymentMethod: 'Bank Transfer',
-        notes: notes || `Service application filed online for "${srvCat.name}". Invoice automatically generated.`,
+        notes: notes || `Service application filed online for "${srvCat.name}". ${pricingTier === 'b2b' ? `[Corporate B2B Rate: ${discountPercent}% discount applied - Saved AED ${discountAmount.toLocaleString()}]` : '[Direct Client B2C Rate]'}. Invoice automatically generated.`,
         items: [
           ...(govFees > 0
             ? [
@@ -2409,10 +2441,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             : []),
           {
             id: `item-srv-${Date.now()}`,
-            description: `Professional Filing & Processing Fee: ${srvCat.name}`,
+            description: `${srvCat.name} - Professional Service Fee ${pricingTier === 'b2b' ? `(Corporate B2B Rate - ${discountPercent}% Discount)` : '(Standard B2C Retail Rate)'}`,
             quantity: 1,
-            unitPrice: price,
-            total: price,
+            unitPrice: finalPrice,
+            total: finalPrice,
             isGovernmentFee: false,
           },
         ],
@@ -2433,8 +2465,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         serviceId: srvCat.id,
         serviceName: srvCat.name,
         category: srvCat.category,
-        price: price,
+        pricingTier: pricingTier,
+        price: finalPrice,
         governmentFees: govFees,
+        discountAmount: discountAmount,
+        discountPercent: discountPercent,
         advancePaid: 0,
         balance: grandTotal,
         invoiceId: invId,
@@ -2458,7 +2493,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             updatedByUserName: currentUser.name,
             updatedByUserRole: currentUser.role,
             timestamp: new Date().toISOString(),
-            remarks: `Service requested online via Client Portal. Notes: ${notes || 'Standard application'}. Auto-generated Invoice #${invNumber}.`,
+            remarks: `Service requested online via Client Portal. Tier: ${pricingTier.toUpperCase()} (${pricingTier === 'b2b' ? `${discountPercent}% Corporate discount` : 'B2C standard'}). Notes: ${notes || 'Standard application'}. Auto-generated Invoice #${invNumber}.`,
           },
         ],
       };
@@ -2638,7 +2673,37 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             status: 'pending' as const,
           }));
 
-          const price = srvCat.defaultPrice;
+          const pricingTier: 'b2b' | 'b2c' = clientData.pricingTier || (clientData.companyId ? 'b2b' : 'b2c');
+          const baseB2C = srvCat.priceB2C ?? srvCat.defaultPrice ?? 0;
+          
+          const clientDiscountType: DiscountType = clientData.discountType || companyObj?.corporateDiscountType || 'percentage';
+          const clientDiscountVal = clientData.discountValue ?? (clientDiscountType === 'fixed' ? (companyObj?.corporateDiscountValue ?? 500) : (clientData.corporateDiscountPercent ?? companyObj?.corporateDiscountPercent ?? 15));
+
+          let price = baseB2C;
+          let discountAmount = 0;
+          let discountPercent = 0;
+
+          if (pricingTier === 'b2b') {
+            if (clientData.customServiceRate !== undefined && clientData.customServiceRate > 0) {
+              price = clientData.customServiceRate;
+              discountAmount = Math.max(0, baseB2C - clientData.customServiceRate);
+              discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+            } else if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0 && !clientData.discountValue) {
+              price = srvCat.priceB2B;
+              discountAmount = Math.max(0, baseB2C - srvCat.priceB2B);
+              discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : (clientDiscountType === 'percentage' ? clientDiscountVal : 15);
+            } else if (clientDiscountType === 'fixed') {
+              discountAmount = Math.min(baseB2C, clientDiscountVal);
+              discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+              price = Math.max(0, baseB2C - discountAmount);
+            } else {
+              // percentage
+              discountPercent = clientDiscountVal;
+              discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
+              price = Math.max(0, baseB2C - discountAmount);
+            }
+          }
+
           const govFees = srvCat.governmentFees;
           const vat = Math.round(price * 0.05);
           const grandTotal = price + vat + govFees;
@@ -2666,6 +2731,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             companyName: companyName,
             serviceId: srvInstanceId,
             serviceName: srvCat.name,
+            pricingTier: pricingTier,
+            discountType: clientDiscountType,
+            discountValue: clientDiscountVal,
+            discountAmount: discountAmount,
+            discountPercent: discountPercent,
             subtotal: price,
             vatRate: 5,
             vatAmount: vat,
@@ -2679,11 +2749,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
             paidDate: advancePaid > 0 ? new Date().toISOString().split('T')[0] : undefined,
             status: balance === 0 ? 'paid' : advancePaid > 0 ? 'partially_paid' : 'unpaid',
-            notes: `Auto-generated Tax Invoice for registered service "${srvCat.name}". ${initialPayment?.notes || ''}`.trim(),
+            notes: `Auto-generated Tax Invoice for registered service "${srvCat.name}". ${
+              pricingTier === 'b2b'
+                ? `[Corporate B2B Rate: ${clientDiscountType === 'fixed' ? `AED ${clientDiscountVal.toLocaleString()} Fixed Discount` : `${discountPercent}% Discount`} applied for ${companyName}]`
+                : '[Standard B2C Rate]'
+            }. ${initialPayment?.notes || ''}`.trim(),
             items: [
               {
                 id: `item-${Date.now()}-1`,
-                description: `${srvCat.name} - Professional Service Fee`,
+                description: `${srvCat.name} - Professional Service Fee ${
+                  pricingTier === 'b2b'
+                    ? `(Corporate B2B Rate: ${clientDiscountType === 'fixed' ? `AED ${clientDiscountVal.toLocaleString()} Fixed Off` : `${discountPercent}% Off`})`
+                    : '(Standard B2C Retail Rate)'
+                }`,
                 qty: 1,
                 unitPrice: price,
                 amount: price,
@@ -2748,8 +2826,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             serviceId: srvCat.id,
             serviceName: srvCat.name,
             category: srvCat.category,
+            pricingTier: pricingTier,
             price: price,
             governmentFees: govFees,
+            discountAmount: discountAmount,
+            discountPercent: discountPercent,
             advancePaid: advancePaid,
             balance: balance,
             invoiceId: invId,
@@ -3100,7 +3181,45 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const empId = assignedEmployeeId || currentUser.id;
       const empName = users.find((u) => u.id === empId)?.name || currentUser.name;
-      const price = customPrice !== undefined ? customPrice : srvCat.defaultPrice;
+
+      const companyObj = companies.find((c) => c.id === targetClient.companyId);
+      const companyName = companyObj?.name || 'ADCS Corporate Gateway LLC';
+
+      const pricingTier: 'b2b' | 'b2c' = targetClient.pricingTier || (targetClient.companyId ? 'b2b' : 'b2c');
+      const baseB2C = srvCat.priceB2C ?? srvCat.defaultPrice ?? 0;
+      
+      const clientDiscountType: DiscountType = targetClient.discountType || companyObj?.corporateDiscountType || 'percentage';
+      const clientDiscountVal = targetClient.discountValue ?? (clientDiscountType === 'fixed' ? (companyObj?.corporateDiscountValue ?? 500) : (targetClient.corporateDiscountPercent ?? companyObj?.corporateDiscountPercent ?? 15));
+
+      let price = baseB2C;
+      let discountAmount = 0;
+      let discountPercent = 0;
+
+      if (customPrice !== undefined && customPrice >= 0) {
+        price = customPrice;
+        discountAmount = Math.max(0, baseB2C - customPrice);
+        discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+      } else if (pricingTier === 'b2b') {
+        if (targetClient.customServiceRate !== undefined && targetClient.customServiceRate > 0) {
+          price = targetClient.customServiceRate;
+          discountAmount = Math.max(0, baseB2C - targetClient.customServiceRate);
+          discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+        } else if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0 && !targetClient.discountValue) {
+          price = srvCat.priceB2B;
+          discountAmount = Math.max(0, baseB2C - srvCat.priceB2B);
+          discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : (clientDiscountType === 'percentage' ? clientDiscountVal : 15);
+        } else if (clientDiscountType === 'fixed') {
+          discountAmount = Math.min(baseB2C, clientDiscountVal);
+          discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+          price = Math.max(0, baseB2C - discountAmount);
+        } else {
+          // percentage
+          discountPercent = clientDiscountVal;
+          discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
+          price = Math.max(0, baseB2C - discountAmount);
+        }
+      }
+
       const govFees = srvCat.governmentFees;
       const vat = Math.round(price * 0.05);
       const grandTotal = price + vat + govFees;
@@ -3109,9 +3228,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const balance = Math.max(0, grandTotal - advancePaid);
       const paymentMethod = initialPayment?.paymentMethod || 'Bank Transfer';
       const receiptNum = advancePaid > 0 ? `RCP-2026-${Math.floor(1000 + Math.random() * 9000)}` : undefined;
-
-      const companyObj = companies.find((c) => c.id === targetClient.companyId);
-      const companyName = companyObj?.name || 'ADCS Corporate Gateway LLC';
 
       const srvInstanceId = `cl-srv-${Date.now()}`;
       const invId = `inv-${Date.now()}`;
@@ -3133,6 +3249,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         companyName: companyName,
         serviceId: srvInstanceId,
         serviceName: srvCat.name,
+        pricingTier: pricingTier,
+        discountType: clientDiscountType,
+        discountValue: clientDiscountVal,
+        discountAmount: discountAmount,
+        discountPercent: discountPercent,
         subtotal: price,
         vatRate: 5,
         vatAmount: vat,
@@ -3146,11 +3267,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
         paidDate: advancePaid > 0 ? new Date().toISOString().split('T')[0] : undefined,
         status: balance === 0 ? 'paid' : advancePaid > 0 ? 'partially_paid' : 'unpaid',
-        notes: `Auto-generated Tax Invoice for registered service "${srvCat.name}". ${initialPayment?.notes || ''}`.trim(),
+        notes: `Auto-generated Tax Invoice for registered service "${srvCat.name}". ${
+          pricingTier === 'b2b'
+            ? `[Corporate B2B Rate: ${clientDiscountType === 'fixed' ? `AED ${clientDiscountVal.toLocaleString()} Fixed Discount` : `${discountPercent}% Discount`} applied for ${companyName}]`
+            : '[Standard B2C Rate]'
+        }. ${initialPayment?.notes || ''}`.trim(),
         items: [
           {
             id: `item-${Date.now()}-1`,
-            description: `${srvCat.name} - Professional Service Fee`,
+            description: `${srvCat.name} - Professional Service Fee ${
+              pricingTier === 'b2b'
+                ? `(Corporate B2B Rate: ${clientDiscountType === 'fixed' ? `AED ${clientDiscountVal.toLocaleString()} Fixed Off` : `${discountPercent}% Off`})`
+                : '(Standard B2C Retail Rate)'
+            }`,
             qty: 1,
             unitPrice: price,
             amount: price,
@@ -3215,8 +3344,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         serviceId: srvCat.id,
         serviceName: srvCat.name,
         category: srvCat.category,
+        pricingTier: pricingTier,
         price: price,
         governmentFees: govFees,
+        discountAmount: discountAmount,
+        discountPercent: discountPercent,
         advancePaid: advancePaid,
         balance: balance,
         invoiceId: invId,
