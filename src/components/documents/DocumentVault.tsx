@@ -20,9 +20,13 @@ import {
   X,
   FileSpreadsheet,
   FileImage,
+  PenTool,
+  Sparkles,
+  Edit3,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { DocumentItem } from '../../types/crm';
+import { PDFEditorModal } from './PDFEditorModal';
 
 export const DocumentVault: React.FC = () => {
   const {
@@ -54,6 +58,10 @@ export const DocumentVault: React.FC = () => {
 
   // Preview Modal State
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
+
+  // PDF Editor Modal State
+  const [showPdfEditor, setShowPdfEditor] = useState(false);
+  const [pdfEditorDoc, setPdfEditorDoc] = useState<DocumentItem | null>(null);
 
   // Filtered documents
   const filteredDocs = (documents || []).filter((doc) => {
@@ -153,17 +161,30 @@ export const DocumentVault: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setFileDataUrl('');
-            setFileSizeText('');
-            setShowUploadModal(true);
-          }}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-colors self-start sm:self-auto"
-        >
-          <Upload className="w-3.5 h-3.5" />
-          <span>Upload New File</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => {
+              setPdfEditorDoc(null);
+              setShowPdfEditor(true);
+            }}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 flex items-center gap-1.5 transition-colors"
+          >
+            <PenTool className="w-3.5 h-3.5" />
+            <span>Open PDF Editor</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setFileDataUrl('');
+              setFileSizeText('');
+              setShowUploadModal(true);
+            }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload New File</span>
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -407,6 +428,18 @@ export const DocumentVault: React.FC = () => {
                       <span>Preview</span>
                     </button>
 
+                    <button
+                      onClick={() => {
+                        setPdfEditorDoc(doc);
+                        setShowPdfEditor(true);
+                      }}
+                      className="text-emerald-600 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-1"
+                      title="Edit, annotate and e-sign this PDF"
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      <span>Edit / Sign</span>
+                    </button>
+
                     <a
                       href={doc.fileUrl}
                       download={doc.name}
@@ -639,6 +672,19 @@ export const DocumentVault: React.FC = () => {
               </span>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const docToEdit = previewDoc;
+                    setPreviewDoc(null);
+                    setPdfEditorDoc(docToEdit);
+                    setShowPdfEditor(true);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>Edit / Annotate PDF</span>
+                </button>
+
                 <a
                   href={previewDoc.fileUrl}
                   download={previewDoc.name}
@@ -659,6 +705,18 @@ export const DocumentVault: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* PDF Editor Modal */}
+      {showPdfEditor && (
+        <PDFEditorModal
+          isOpen={showPdfEditor}
+          onClose={() => {
+            setShowPdfEditor(false);
+            setPdfEditorDoc(null);
+          }}
+          initialDocument={pdfEditorDoc}
+        />
       )}
     </div>
   );

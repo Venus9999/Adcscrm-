@@ -352,6 +352,7 @@ const AUTH_STORAGE_KEY = 'adcs_crm_auth_session_v2';
 const CURRENT_USER_STORAGE_KEY = 'adcs_crm_active_user_id_v2';
 const ACTIVE_USER_PROFILE_KEY = 'adcs_crm_active_user_profile_v2';
 const DELETED_USERS_STORAGE_KEY = 'adcs_crm_deleted_user_ids';
+const DELETED_VENDORS_STORAGE_KEY = 'adcs_crm_deleted_vendor_ids';
 const DELETED_VISA_APPS_STORAGE_KEY = 'adcs_crm_deleted_visa_app_ids';
 const DELETED_VISA_COUNTRIES_STORAGE_KEY = 'adcs_crm_deleted_visa_country_codes';
 const DELETED_VISA_SERVICES_STORAGE_KEY = 'adcs_crm_deleted_visa_service_ids';
@@ -362,7 +363,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [companies, setCompanies] = useState<Company[]>(INITIAL_COMPANIES);
   const [departments, setDepartments] = useState<Department[]>(INITIAL_DEPARTMENTS);
-  const [vendors, setVendors] = useState<Vendor[]>(INITIAL_VENDORS);
+  const [vendors, setVendors] = useState<Vendor[]>(() => {
+    try {
+      let deletedVendorIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY);
+        if (delRaw) deletedVendorIds = JSON.parse(delRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.vendors) {
+          const list = Array.isArray(parsed.vendors)
+            ? parsed.vendors
+            : Object.values(parsed.vendors);
+          return (list as any[]).filter((v: any) => v && v.id && !deletedVendorIds.includes(v.id));
+        }
+      }
+      return (INITIAL_VENDORS || []).filter((v) => !deletedVendorIds.includes(v.id));
+    } catch {
+      return INITIAL_VENDORS || [];
+    }
+  });
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [roles, setRoles] = useState<RoleDefinition[]>(INITIAL_ROLES);
   const [stages, setStages] = useState<WorkStage[]>(INITIAL_STAGES);
@@ -580,7 +606,54 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } else if (parsed.departments) {
       setDepartments(INITIAL_DEPARTMENTS);
     }
-    if (parsed.vendors && Array.isArray(parsed.vendors)) setVendors(parsed.vendors);
+    // Sync and extract tombstones from snapshot
+    let deletedVendorIds: string[] = [];
+    let deletedAppIds: string[] = [];
+    let deletedCountryCodes: string[] = [];
+    let deletedServiceIds: string[] = [];
+    try {
+      const delVendRaw = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY);
+      if (delVendRaw) deletedVendorIds = JSON.parse(delVendRaw);
+      const delAppRaw = localStorage.getItem(DELETED_VISA_APPS_STORAGE_KEY);
+      if (delAppRaw) deletedAppIds = JSON.parse(delAppRaw);
+      const delCodesRaw = localStorage.getItem(DELETED_VISA_COUNTRIES_STORAGE_KEY);
+      if (delCodesRaw) deletedCountryCodes = JSON.parse(delCodesRaw);
+      const delSrvRaw = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY);
+      if (delSrvRaw) deletedServiceIds = JSON.parse(delSrvRaw);
+
+      if (Array.isArray(parsed.deletedVendorIds)) {
+        parsed.deletedVendorIds.forEach((id: string) => {
+          if (id && !deletedVendorIds.includes(id)) deletedVendorIds.push(id);
+        });
+        localStorage.setItem(DELETED_VENDORS_STORAGE_KEY, JSON.stringify(deletedVendorIds));
+      }
+      if (Array.isArray(parsed.deletedVisaAppIds)) {
+        parsed.deletedVisaAppIds.forEach((id: string) => {
+          if (id && !deletedAppIds.includes(id)) deletedAppIds.push(id);
+        });
+        localStorage.setItem(DELETED_VISA_APPS_STORAGE_KEY, JSON.stringify(deletedAppIds));
+      }
+      if (Array.isArray(parsed.deletedVisaCountryCodes)) {
+        parsed.deletedVisaCountryCodes.forEach((code: string) => {
+          const norm = (code || '').toLowerCase().trim();
+          if (norm && !deletedCountryCodes.includes(norm)) deletedCountryCodes.push(norm);
+        });
+        localStorage.setItem(DELETED_VISA_COUNTRIES_STORAGE_KEY, JSON.stringify(deletedCountryCodes));
+      }
+      if (Array.isArray(parsed.deletedVisaServiceIds)) {
+        parsed.deletedVisaServiceIds.forEach((id: string) => {
+          if (id && !deletedServiceIds.includes(id)) deletedServiceIds.push(id);
+        });
+        localStorage.setItem(DELETED_VISA_SERVICES_STORAGE_KEY, JSON.stringify(deletedServiceIds));
+      }
+    } catch {}
+
+    if (parsed.vendors && Array.isArray(parsed.vendors)) {
+      const cleanVendors = (parsed.vendors || []).filter(
+        (v: Vendor) => v && v.id && !deletedVendorIds.includes(v.id)
+      );
+      setVendors(cleanVendors);
+    }
     if (parsed.roles && Array.isArray(parsed.roles)) setRoles(parsed.roles);
     if (parsed.workflows && Array.isArray(parsed.workflows)) setWorkflows(parsed.workflows);
     if (parsed.users && Array.isArray(parsed.users)) {
@@ -713,38 +786,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.transactions && Array.isArray(parsed.transactions)) {
       setTransactions(parsed.transactions);
     }
-    // Sync and extract tombstones from snapshot
-    let deletedAppIds: string[] = [];
-    let deletedCountryCodes: string[] = [];
-    let deletedServiceIds: string[] = [];
-    try {
-      const delAppRaw = localStorage.getItem(DELETED_VISA_APPS_STORAGE_KEY);
-      if (delAppRaw) deletedAppIds = JSON.parse(delAppRaw);
-      const delCodesRaw = localStorage.getItem(DELETED_VISA_COUNTRIES_STORAGE_KEY);
-      if (delCodesRaw) deletedCountryCodes = JSON.parse(delCodesRaw);
-      const delSrvRaw = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY);
-      if (delSrvRaw) deletedServiceIds = JSON.parse(delSrvRaw);
-
-      if (Array.isArray(parsed.deletedVisaAppIds)) {
-        parsed.deletedVisaAppIds.forEach((id: string) => {
-          if (id && !deletedAppIds.includes(id)) deletedAppIds.push(id);
-        });
-        localStorage.setItem(DELETED_VISA_APPS_STORAGE_KEY, JSON.stringify(deletedAppIds));
-      }
-      if (Array.isArray(parsed.deletedVisaCountryCodes)) {
-        parsed.deletedVisaCountryCodes.forEach((code: string) => {
-          const norm = (code || '').toLowerCase().trim();
-          if (norm && !deletedCountryCodes.includes(norm)) deletedCountryCodes.push(norm);
-        });
-        localStorage.setItem(DELETED_VISA_COUNTRIES_STORAGE_KEY, JSON.stringify(deletedCountryCodes));
-      }
-      if (Array.isArray(parsed.deletedVisaServiceIds)) {
-        parsed.deletedVisaServiceIds.forEach((id: string) => {
-          if (id && !deletedServiceIds.includes(id)) deletedServiceIds.push(id);
-        });
-        localStorage.setItem(DELETED_VISA_SERVICES_STORAGE_KEY, JSON.stringify(deletedServiceIds));
-      }
-    } catch {}
 
     if (parsed.visaApplications !== undefined) {
       const rawApps = Array.isArray(parsed.visaApplications)
@@ -1081,6 +1122,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       deletedVisaAppIds: (() => {
         try {
           const raw = localStorage.getItem(DELETED_VISA_APPS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      deletedVendorIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY);
           return raw ? JSON.parse(raw) : [];
         } catch {
           return [];
@@ -3733,12 +3782,58 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Vendors Management
   const addVendor = useCallback(
     (vendorData: Omit<Vendor, 'id' | 'createdAt'>): Vendor => {
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      const newId = `vend-${Date.now()}`;
       const newVendor: Vendor = {
         ...vendorData,
-        id: `vend-${Date.now()}`,
-        createdAt: new Date().toISOString(),
+        id: newId,
+        createdAt: nowIso,
       };
-      setVendors((prev) => [newVendor, ...prev]);
+
+      // Remove from tombstone if re-adding
+      let nextDeletedVendorIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY);
+        if (delRaw) {
+          const list: string[] = JSON.parse(delRaw);
+          nextDeletedVendorIds = list.filter((vId) => vId !== newId);
+          localStorage.setItem(DELETED_VENDORS_STORAGE_KEY, JSON.stringify(nextDeletedVendorIds));
+        }
+      } catch {}
+
+      let nextVendors: Vendor[] = [];
+      setVendors((prev) => {
+        nextVendors = [newVendor, ...(prev || [])];
+        return nextVendors;
+      });
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.vendors = nextVendors.length > 0 ? nextVendors : [newVendor, ...(parsed.vendors || [])];
+          parsed.deletedVendorIds = nextDeletedVendorIds;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+          }
+
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
+
       recordAuditLog('Vendor Profile Created', 'Vendors', `Created new partner/vendor "${newVendor.name}" (${newVendor.category})`);
       return newVendor;
     },
@@ -3747,8 +3842,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateVendor = useCallback(
     (id: string, updates: Partial<Vendor>) => {
-      setVendors((prev) =>
-        prev.map((v) => {
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      let nextVendors: Vendor[] = [];
+      setVendors((prev) => {
+        nextVendors = (prev || []).map((v) => {
           if (v.id === id) {
             const cleanUpdates: Partial<Vendor> = {};
             (Object.keys(updates) as Array<keyof Vendor>).forEach((key) => {
@@ -3764,8 +3865,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             };
           }
           return v;
-        })
-      );
+        });
+        return nextVendors;
+      });
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.vendors = nextVendors;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+          }
+
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
+
       recordAuditLog('Vendor Profile Updated', 'Vendors', `Updated vendor profile ID ${id}`);
     },
     [recordAuditLog]
@@ -3773,10 +3898,52 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteVendor = useCallback(
     (id: string) => {
-      setVendors((prev) => (prev || []).filter((v) => v && v.id !== id));
-      recordAuditLog('Vendor Profile Deleted', 'Vendors', `Deleted vendor partner ID ${id}`);
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      let nextDeletedVendorIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY);
+        nextDeletedVendorIds = delRaw ? JSON.parse(delRaw) : [];
+        if (!nextDeletedVendorIds.includes(id)) {
+          nextDeletedVendorIds.push(id);
+          localStorage.setItem(DELETED_VENDORS_STORAGE_KEY, JSON.stringify(nextDeletedVendorIds));
+        }
+      } catch {}
+
+      const target = (vendors || []).find((v) => v && v.id === id);
+      const nextVendors = (vendors || []).filter((v) => v && v.id !== id);
+      setVendors(nextVendors);
+
+      // Immediate synchronous persistence to localStorage, BroadcastChannel, Server API, and Cloud
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.vendors = nextVendors;
+          parsed.deletedVendorIds = nextDeletedVendorIds;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+          }
+
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
+
+      recordAuditLog('Vendor Profile Deleted', 'Vendors', `Deleted vendor partner ID ${id} (${target?.name || ''})`);
     },
-    [recordAuditLog]
+    [vendors, recordAuditLog]
   );
 
   // Transactions Management

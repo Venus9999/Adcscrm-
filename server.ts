@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import { getVisaCountryInsights, generateOrEditImageWithGemini } from './server/geminiService';
+import { getVisaCountryInsights, generateOrEditImageWithGemini, analyzeDocumentWithGemini } from './server/geminiService';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -262,6 +262,29 @@ async function startServer() {
     }
   });
 
+  // POST /api/ai/pdf-assistant - Adobe Acrobat AI Assistant for document Q&A, field extraction, translations, and summarization
+  app.post('/api/ai/pdf-assistant', async (req, res) => {
+    try {
+      const { queryType, documentTitle, documentText, base64ImageOrPdf, mimeType, customQuestion, targetLanguage } = req.body || {};
+      const result = await analyzeDocumentWithGemini({
+        queryType: queryType || 'summarize',
+        documentTitle,
+        documentText,
+        base64ImageOrPdf,
+        mimeType,
+        customQuestion,
+        targetLanguage,
+      });
+      return res.json(result);
+    } catch (err: any) {
+      console.error('Error in /api/ai/pdf-assistant:', err);
+      return res.status(500).json({
+        success: false,
+        error: err.message || 'Failed to process document with AI',
+      });
+    }
+  });
+
   // GET /api/crm/status - Fast lightweight polling endpoint for real-time cross-browser sync
   app.get('/api/crm/status', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -277,6 +300,7 @@ async function startServer() {
           lastUpdated: data.lastUpdated || null,
           usersCount: data.users?.length || 0,
           clientsCount: data.clients?.length || 0,
+          vendorsCount: data.vendors?.length || 0,
           leadsCount: data.leads?.length || 0,
           departmentsCount: data.departments?.length || 0,
           invoicesCount: data.invoices?.length || 0,
@@ -300,6 +324,7 @@ async function startServer() {
         const data = JSON.parse(raw);
         // Ensure critical array keys are always arrays
         if (!data.leads || !Array.isArray(data.leads)) data.leads = [];
+        if (!data.vendors || !Array.isArray(data.vendors)) data.vendors = [];
         if (!data.departments || !Array.isArray(data.departments)) data.departments = [];
         if (!data.leadCategories || !Array.isArray(data.leadCategories)) data.leadCategories = [];
         if (!data.leadSources || !Array.isArray(data.leadSources)) data.leadSources = [];
@@ -335,6 +360,7 @@ async function startServer() {
         ...existing,
         ...payload,
         leads: payload.leads !== undefined ? (Array.isArray(payload.leads) ? payload.leads : []) : (existing.leads || []),
+        vendors: payload.vendors !== undefined ? (Array.isArray(payload.vendors) ? payload.vendors : []) : (existing.vendors || []),
         departments: payload.departments !== undefined ? (Array.isArray(payload.departments) ? payload.departments : []) : (existing.departments || []),
         leadCategories: payload.leadCategories !== undefined ? (Array.isArray(payload.leadCategories) ? payload.leadCategories : []) : (existing.leadCategories || []),
         leadSources: payload.leadSources !== undefined ? (Array.isArray(payload.leadSources) ? payload.leadSources : []) : (existing.leadSources || []),
@@ -343,6 +369,7 @@ async function startServer() {
         companies: payload.companies !== undefined ? (Array.isArray(payload.companies) ? payload.companies : []) : (existing.companies || []),
         visaApplications: payload.visaApplications !== undefined ? (Array.isArray(payload.visaApplications) ? payload.visaApplications : []) : (existing.visaApplications || []),
         visaCountryCatalog: payload.visaCountryCatalog !== undefined ? (Array.isArray(payload.visaCountryCatalog) ? payload.visaCountryCatalog : []) : (existing.visaCountryCatalog || []),
+        deletedVendorIds: payload.deletedVendorIds !== undefined ? payload.deletedVendorIds : (existing.deletedVendorIds || []),
         deletedVisaCountryCodes: payload.deletedVisaCountryCodes !== undefined ? payload.deletedVisaCountryCodes : (existing.deletedVisaCountryCodes || []),
         deletedVisaServiceIds: payload.deletedVisaServiceIds !== undefined ? payload.deletedVisaServiceIds : (existing.deletedVisaServiceIds || []),
         deletedVisaAppIds: payload.deletedVisaAppIds !== undefined ? payload.deletedVisaAppIds : (existing.deletedVisaAppIds || []),

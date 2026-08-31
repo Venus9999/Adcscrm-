@@ -15,6 +15,7 @@ import { AddClientModal } from './components/clients/AddClientModal';
 import { WorkStagesPipeline } from './components/pipeline/WorkStagesPipeline';
 import { CompaniesManagement } from './components/companies/CompaniesManagement';
 import { DocumentVault } from './components/documents/DocumentVault';
+import { PDFEditorModal } from './components/documents/PDFEditorModal';
 import { TasksManager } from './components/tasks/TasksManager';
 import { InvoicesPayments } from './components/payments/InvoicesPayments';
 import { MessagesHub } from './components/messages/MessagesHub';
@@ -118,6 +119,18 @@ const AppContent: React.FC = () => {
 
       case 'documents':
         return <DocumentVault />;
+
+      case 'pdf_editor':
+      case 'pdf':
+        return (
+          <div className="relative">
+            <DocumentVault />
+            <PDFEditorModal
+              isOpen={true}
+              onClose={() => setActiveTab('documents')}
+            />
+          </div>
+        );
 
       case 'tasks':
         return <TasksManager />;

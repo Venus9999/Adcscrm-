@@ -27,6 +27,7 @@ import {
   Smartphone,
   X,
   Wand2,
+  PenTool,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { PWAInstallModal } from '../common/PWAInstallModal';
@@ -180,6 +181,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       icon: FileCheck2,
       badge: urgentExpiriesCount > 0 ? urgentExpiriesCount : undefined,
       badgeColor: 'bg-rose-500 text-white',
+      allowedRoles: ['master', 'admin', 'employee', 'client'],
+    },
+    {
+      id: 'pdf_editor',
+      label: 'PDF Editor & e-Sign',
+      icon: PenTool,
       allowedRoles: ['master', 'admin', 'employee', 'client'],
     },
     {
