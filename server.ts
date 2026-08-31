@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { getVisaCountryInsights, generateOrEditImageWithGemini, analyzeDocumentWithGemini } from './server/geminiService';
+import { sendEmailViaSmtp, verifySmtpConnection, getEffectiveSmtpConfig } from './server/emailService';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -39,6 +40,92 @@ async function startServer() {
   // API Routes First
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString(), persistence: 'server_disk' });
+  });
+
+  // GET /api/smtp/status - Check server-level SMTP configuration state
+  app.get('/api/smtp/status', (req, res) => {
+    const config = getEffectiveSmtpConfig();
+    return res.json({
+      configured: Boolean(config.user && config.pass),
+      host: config.host,
+      port: config.port,
+      fromEmail: config.fromEmail,
+      fromName: config.fromName,
+      userProvided: Boolean(config.user),
+    });
+  });
+
+  // POST /api/smtp/test-connection - Verify and test SMTP credentials
+  app.post('/api/smtp/test-connection', async (req, res) => {
+    try {
+      const { smtpConfig, testRecipient } = req.body || {};
+      const verifyRes = await verifySmtpConnection(smtpConfig);
+      
+      if (!verifyRes.success) {
+        return res.status(400).json(verifyRes);
+      }
+
+      // If test recipient provided, send a quick test email
+      if (testRecipient && typeof testRecipient === 'string' && testRecipient.includes('@')) {
+        const sendRes = await sendEmailViaSmtp({
+          to: testRecipient,
+          subject: 'ADCS — Verification Notice',
+          body: `Hello,\n\nThis is an official verification notice from ADCS confirming that your email communication channel is operational.\n\nBest regards,\nADCS\n\n----------------------------------------\nPlease do not reply directly to this email. This is an automated email from ADCS.`,
+          smtpConfig,
+        });
+        return res.json({
+          ...verifyRes,
+          testEmailSent: sendRes.success,
+          testEmailMessageId: (sendRes as any).messageId,
+        });
+      }
+
+      return res.json(verifyRes);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/send-email - Dispatch real email with optional attachments to client inboxes
+  app.post('/api/send-email', async (req, res) => {
+    try {
+      const { to, subject, body, isHtml, cc, bcc, attachments, smtpConfig } = req.body || {};
+
+      if (!to || typeof to !== 'string' || !to.includes('@')) {
+        return res.status(400).json({ success: false, error: 'A valid recipient email is required.' });
+      }
+      if (!subject) {
+        return res.status(400).json({ success: false, error: 'Email subject is required.' });
+      }
+      if (!body) {
+        return res.status(400).json({ success: false, error: 'Email body is required.' });
+      }
+
+      // Dispatch via real SMTP
+      const sendResult = await sendEmailViaSmtp({
+        to,
+        subject,
+        body,
+        isHtml,
+        cc,
+        bcc,
+        attachments,
+        smtpConfig,
+      });
+
+      // Construct immediate 1-click fallback Web Gmail and mailto URLs
+      const webGmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${cc ? `&cc=${encodeURIComponent(cc)}` : ''}`;
+      const mailtoUrl = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${cc ? `&cc=${encodeURIComponent(cc)}` : ''}`;
+
+      return res.json({
+        ...sendResult,
+        webGmailUrl,
+        mailtoUrl,
+      });
+    } catch (err: any) {
+      console.error('Error in /api/send-email route:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Internal server email dispatch error' });
+    }
   });
 
   // POST /api/nomod/create-payment-link - Generate a Nomod checkout link with live API key support

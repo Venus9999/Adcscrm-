@@ -20,6 +20,14 @@ import {
   User,
   LogOut,
   Folder,
+  Paperclip,
+  Download,
+  FileText,
+  FileImage,
+  FileSpreadsheet,
+  File,
+  Server,
+  Settings,
 } from 'lucide-react';
 import { useGmail } from '../../context/GmailContext';
 import { useCRM } from '../../context/CRMContext';
@@ -50,7 +58,7 @@ export const GmailHub: React.FC = () => {
     requestSendEmail,
   } = useGmail();
 
-  const { clients, crmBranding } = useCRM();
+  const { clients, crmBranding, setActiveTab, currentUser } = useCRM();
 
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [composerRecipient, setComposerRecipient] = useState('');
@@ -59,7 +67,30 @@ export const GmailHub: React.FC = () => {
   const [quickVisaClientId, setQuickVisaClientId] = useState(clients[0]?.id || '');
   const [quickNotice, setQuickNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Handle Quick Visa Update via Gmail
+  // Format bytes helper
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  // Helper icon for file types
+  const renderFileIcon = (type: string, name: string) => {
+    if (type.includes('image') || name.match(/\.(jpg|jpeg|png|webp|svg)$/i)) {
+      return <FileImage className="w-4 h-4 text-emerald-500 shrink-0" />;
+    }
+    if (type.includes('pdf') || name.endsWith('.pdf')) {
+      return <FileText className="w-4 h-4 text-rose-500 shrink-0" />;
+    }
+    if (type.includes('sheet') || type.includes('excel') || name.match(/\.(xlsx|xls|csv)$/i)) {
+      return <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />;
+    }
+    return <File className="w-4 h-4 text-blue-500 shrink-0" />;
+  };
+
+  // Handle Quick Visa Update
   const handleQuickVisaDispatch = async () => {
     if (!quickVisaClientId) return;
     const res = await sendVisaStatusViaGmail(quickVisaClientId);
@@ -93,113 +124,9 @@ export const GmailHub: React.FC = () => {
     setIsComposerOpen(true);
   };
 
-  // If Not Connected to Google Gmail, render the Google Sign-in screen with official button style
-  if (!isConnected) {
-    return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 sm:p-12 text-center shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
-
-          <div className="relative z-10 max-w-xl mx-auto space-y-6">
-            <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 via-indigo-600 to-red-500 rounded-3xl flex items-center justify-center mx-auto shadow-xl shadow-blue-500/20 text-white">
-              <Mail className="w-10 h-10" />
-            </div>
-
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-200 dark:border-blue-800/60 mb-3">
-                <Sparkles className="w-3.5 h-3.5" /> Official Google Workspace Integration
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                Connect Your Gmail Account
-              </h2>
-              <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                Seamlessly synchronize official investor communications, dispatch UAE Visa status notifications, and track client inquiries directly inside <strong>{crmBranding.name}</strong>.
-              </p>
-            </div>
-
-            {authError && (
-              <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2.5 text-left">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            {/* Official Sign in with Google Button */}
-            <div className="flex flex-col items-center justify-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={connectGmail}
-                disabled={isAuthenticating}
-                className="gsi-material-button group relative inline-flex items-center justify-center px-6 py-3.5 rounded-2xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white font-semibold text-sm shadow-lg hover:shadow-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all cursor-pointer disabled:opacity-50"
-              >
-                <div className="flex items-center gap-3">
-                  <svg
-                    version="1.1"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 48 48"
-                    className="w-5 h-5 shrink-0"
-                  >
-                    <path
-                      fill="#EA4335"
-                      d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-                    />
-                    <path
-                      fill="#4285F4"
-                      d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-                    />
-                  </svg>
-                  <span>{isAuthenticating ? 'Connecting to Google...' : 'Sign in with Google (Gmail)'}</span>
-                </div>
-              </button>
-              <p className="text-[11px] text-slate-400">
-                Grant permission to read, compose, and send clearance emails securely.
-              </p>
-            </div>
-
-            {/* Feature highlights */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-slate-100 dark:border-slate-800 text-left">
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
-                <FileCheck2 className="w-5 h-5 text-emerald-500 mb-2" />
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Visa Status Alerts</h4>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  1-Click dispatch of official ICP/GDRFA updates to clients.
-                </p>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
-                <Mail className="w-5 h-5 text-blue-500 mb-2" />
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Live Inbox Hub</h4>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Browse incoming emails, threads, and communications in real-time.
-                </p>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
-                <ShieldCheck className="w-5 h-5 text-purple-500 mb-2" />
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Strict Confirmation</h4>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Mandatory user approval review before any email is sent or trashed.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {/* Top Banner: Connected Account Status & Quick Actions */}
+      {/* Top Banner: Communication Hub Status & Quick Actions */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
         <div className="flex items-center gap-3.5 min-w-0">
           <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shrink-0">
@@ -208,21 +135,44 @@ export const GmailHub: React.FC = () => {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                Gmail Communications Hub
+                Client Communications & Email Hub
               </h2>
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 text-[10px] font-bold border border-emerald-500/30 shrink-0 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> CONNECTED
+                <CheckCircle2 className="w-3 h-3" /> ACTIVE
               </span>
             </div>
             <p className="text-xs text-slate-500 truncate mt-0.5">
-              Account: <strong className="text-slate-800 dark:text-slate-200 font-semibold">{gmailProfile?.emailAddress || googleUser?.email}</strong>
-              {gmailProfile?.messagesTotal !== undefined && ` • ${gmailProfile.messagesTotal} Total Messages`}
+              Sender Profile: <strong className="text-slate-800 dark:text-slate-200 font-semibold">{googleUser?.email || gmailProfile?.emailAddress || 'info@adcs.ae'}</strong>
+              {gmailProfile?.messagesTotal !== undefined && ` • ${gmailProfile.messagesTotal} Total Records`}
+              {' • '}
+              <span className="text-blue-600 dark:text-blue-400 font-semibold">Max 2 MB Attachments Enabled</span>
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setActiveTab('smtp')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 cursor-pointer transition-all ${
+              crmBranding?.smtpSettings?.user && crmBranding?.smtpSettings?.pass
+                ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
+                : 'border-amber-500/40 bg-amber-50/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 animate-pulse'
+            }`}
+            title="Configure Outbound SMTP & Email Delivery Credentials"
+          >
+            <Server className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <span>Email & SMTP Settings</span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                crmBranding?.smtpSettings?.user && crmBranding?.smtpSettings?.pass
+                  ? 'bg-emerald-500'
+                  : 'bg-amber-500'
+              }`}
+            />
+          </button>
+
           <button
             type="button"
             onClick={() => {
@@ -241,20 +191,10 @@ export const GmailHub: React.FC = () => {
             type="button"
             onClick={() => fetchMessages()}
             disabled={isLoadingMessages}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
             title="Refresh Inbox"
           >
             <RefreshCw className={`w-4 h-4 ${isLoadingMessages ? 'animate-spin' : ''}`} />
-          </button>
-
-          <button
-            type="button"
-            onClick={disconnectGmail}
-            className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-400 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Disconnect Google Account"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Disconnect</span>
           </button>
         </div>
       </div>
@@ -393,17 +333,18 @@ export const GmailHub: React.FC = () => {
             {isLoadingMessages ? (
               <div className="p-8 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
                 <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
-                <span>Loading messages from Gmail...</span>
+                <span>Loading communications...</span>
               </div>
             ) : messages.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-xs">
                 <Mail className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700 mb-2" />
-                <p className="font-semibold text-slate-600 dark:text-slate-400">No emails found in this folder</p>
-                <p className="text-[11px] text-slate-400 mt-1">Try another search or folder</p>
+                <p className="font-semibold text-slate-600 dark:text-slate-400">No messages in this folder</p>
+                <p className="text-[11px] text-slate-400 mt-1">Click Compose to create a new client communication</p>
               </div>
             ) : (
               messages.map((item) => {
                 const isSelected = selectedMessage?.id === item.id;
+                const hasAtts = Boolean(item.hasAttachment || (item.attachments && item.attachments.length > 0));
                 return (
                   <div
                     key={item.id}
@@ -422,9 +363,16 @@ export const GmailHub: React.FC = () => {
                       >
                         {item.from || item.to || 'Unknown Sender'}
                       </span>
-                      <span className="text-[10px] text-slate-400 shrink-0 font-mono">
-                        {item.date ? new Date(item.date).toLocaleDateString() : ''}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {hasAtts && (
+                          <span title="Contains Attachment" className="text-slate-400">
+                            <Paperclip className="w-3 h-3 text-blue-500" />
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {item.date ? new Date(item.date).toLocaleDateString() : ''}
+                        </span>
+                      </div>
                     </div>
 
                     <p
@@ -450,7 +398,7 @@ export const GmailHub: React.FC = () => {
           {isLoadingDetail ? (
             <div className="p-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2 m-auto">
               <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-              <span>Fetching email payload from Google servers...</span>
+              <span>Fetching communication details...</span>
             </div>
           ) : selectedMessage ? (
             <div className="flex flex-col h-full">
@@ -471,13 +419,24 @@ export const GmailHub: React.FC = () => {
                       <span>Reply</span>
                     </button>
 
+                    <a
+                      href={`mailto:${selectedMessage.to || ''}?subject=${encodeURIComponent(
+                        selectedMessage.subject || ''
+                      )}`}
+                      className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      title="Open in default mail client"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Mail App</span>
+                    </a>
+
                     <button
                       type="button"
                       onClick={() =>
                         requestTrashEmail(selectedMessage.id, selectedMessage.subject || 'Email')
                       }
                       className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
-                      title="Move to Trash (Requires Confirmation)"
+                      title="Delete Record"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -507,7 +466,7 @@ export const GmailHub: React.FC = () => {
               </div>
 
               {/* Message Body Content */}
-              <div className="p-6 flex-1 overflow-y-auto text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-sans">
+              <div className="p-6 flex-1 overflow-y-auto text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-sans space-y-4">
                 {selectedMessage.bodyHtml ? (
                   <div
                     className="prose dark:prose-invert max-w-none text-xs"
@@ -515,6 +474,46 @@ export const GmailHub: React.FC = () => {
                   />
                 ) : (
                   <div className="whitespace-pre-wrap">{selectedMessage.bodyText}</div>
+                )}
+
+                {/* Attachments Display */}
+                {selectedMessage.attachments && selectedMessage.attachments.length > 0 && (
+                  <div className="pt-4 mt-6 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <Paperclip className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Attachments ({selectedMessage.attachments.length})</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {selectedMessage.attachments.map((att) => (
+                        <div
+                          key={att.id}
+                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {renderFileIcon(att.type, att.name)}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900 dark:text-white truncate text-xs" title={att.name}>
+                                {att.name}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-mono">
+                                {formatBytes(att.size)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <a
+                            href={att.dataUrl || '#'}
+                            download={att.name}
+                            className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors shrink-0"
+                            title="Download attachment"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -525,14 +524,14 @@ export const GmailHub: React.FC = () => {
                 Select an email to view full conversation
               </p>
               <p className="text-[11px] text-slate-400">
-                Or click Compose Email to send a direct message via Gmail
+                Or click Compose Email to draft, attach documents (up to 2 MB), and log a new message
               </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Gmail Composer Modal */}
+      {/* Composer Modal */}
       <GmailComposerModal
         isOpen={isComposerOpen}
         onClose={() => setIsComposerOpen(false)}

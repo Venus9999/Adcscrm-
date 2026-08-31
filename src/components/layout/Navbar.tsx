@@ -32,6 +32,7 @@ import {
   Tag,
   Wand2,
   Camera,
+  Server,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
@@ -547,19 +548,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* Gmail Communications Shortcut */}
+          {/* Communications Shortcut */}
           <button
             onClick={() => setActiveTab('gmail')}
-            className={`p-2 rounded-md transition-colors border flex items-center gap-1.5 text-xs font-semibold ${
-              isGmailConnected
-                ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/60 hover:bg-blue-100'
-                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-            title={isGmailConnected ? `Gmail Connected (${googleUser?.email})` : 'Connect Gmail Account'}
+            className="p-2 rounded-md transition-colors border flex items-center gap-1.5 text-xs font-semibold bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200/80 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer"
+            title="Client Communications & Email Hub"
           >
-            <Mail className={`w-4 h-4 ${isGmailConnected ? 'text-red-500' : 'text-slate-400'}`} />
+            <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className="hidden md:inline">
-              {isGmailConnected ? 'Gmail' : 'Connect Mail'}
+              Communications
             </span>
           </button>
 
@@ -932,6 +929,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <span>{isInstalled ? 'Mobile App Status' : isAndroid ? 'Install Android App (PWA)' : 'Install Mobile App (PWA)'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('smtp');
+                    setShowSystemMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-purple-600 dark:text-purple-400 font-semibold hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                >
+                  <Server className="w-4 h-4 text-purple-600" />
+                  <span>Email & SMTP Dispatch</span>
                 </button>
                 <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                 <button

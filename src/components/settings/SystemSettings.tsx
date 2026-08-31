@@ -5,6 +5,7 @@ import {
   Shield,
   Bell,
   CheckCircle2,
+  CheckCircle,
   Save,
   RotateCcw,
   Sliders,
@@ -17,6 +18,10 @@ import {
   RefreshCw,
   Send,
   Eye,
+  EyeOff,
+  Key,
+  Server,
+  ExternalLink,
   AlertCircle,
   HelpCircle,
   Building2,
@@ -42,11 +47,11 @@ import {
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
-import { VisaEmailTemplate, CRMBranding, InvoiceBillingSettings, LeadCategory, LeadSource, LeadStage } from '../../types/crm';
+import { VisaEmailTemplate, CRMBranding, InvoiceBillingSettings, LeadCategory, LeadSource, LeadStage, SmtpSettings } from '../../types/crm';
 import { DepartmentSettings } from './DepartmentSettings';
 
 interface SystemSettingsProps {
-  initialTab?: 'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync';
+  initialTab?: 'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'smtp' | 'stages' | 'security' | 'notifications' | 'cloud_sync';
 }
 
 export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'billing' }) => {
@@ -59,6 +64,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
     crmBranding,
     updateCRMBranding,
     resetCRMBrandingToDefault,
+    updateSmtpSettings,
     billingSettings,
     updateBillingSettings,
     resetBillingSettingsToDefault,
@@ -98,7 +104,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
   const isMaster = currentUser.role === 'master';
   const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'stages' | 'security' | 'notifications' | 'cloud_sync'>(
+  const [activeTab, setActiveTab] = useState<'billing' | 'departments' | 'lead_config' | 'branding' | 'visa_email' | 'smtp' | 'stages' | 'security' | 'notifications' | 'cloud_sync'>(
     (initialTab === 'lead_config' || initialTab === 'departments') && !isAdminOrMaster ? 'branding' : initialTab
   );
 
@@ -173,6 +179,27 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
   const [testClientId, setTestClientId] = useState<string>(clients[0]?.id || '');
   const [testSentSuccess, setTestSentSuccess] = useState<any>(null);
 
+  // SMTP & Outbound Email Dispatch Form State
+  const [smtpForm, setSmtpForm] = useState<SmtpSettings>(
+    crmBranding.smtpSettings || {
+      enabled: true,
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      user: '',
+      pass: '',
+      fromName: 'ADCS Corporate Services',
+      fromEmail: '',
+    }
+  );
+  const [smtpNotice, setSmtpNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState<{ success: boolean; message?: string; error?: string; details?: string } | null>(null);
+  const [testEmailRecipient, setTestEmailRecipient] = useState(currentUser.email || 'info@adcs.ae');
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null);
+
   // Duplicate rules state
   const [duplicateMobile, setDuplicateMobile] = useState(true);
   const [duplicatePassport, setDuplicatePassport] = useState(true);
@@ -189,6 +216,9 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
   React.useEffect(() => {
     setBrandForm(crmBranding);
     setEmailForm(crmBranding.visaEmailTemplate);
+    if (crmBranding.smtpSettings) {
+      setSmtpForm(crmBranding.smtpSettings);
+    }
     if (billingSettings) {
       setBillingForm(billingSettings);
     }
@@ -438,6 +468,163 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
     }
   };
 
+  // SMTP Quick Presets
+  const handleApplySmtpPreset = (preset: 'gmail' | 'outlook' | 'custom') => {
+    if (preset === 'gmail') {
+      setSmtpForm((prev) => ({
+        ...prev,
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        fromName: 'ADCS',
+        fromEmail: 'info@theadcs.com',
+      }));
+    } else if (preset === 'outlook') {
+      setSmtpForm((prev) => ({
+        ...prev,
+        host: 'smtp.office365.com',
+        port: 587,
+        secure: false,
+        fromName: 'ADCS',
+        fromEmail: 'info@theadcs.com',
+      }));
+    } else {
+      setSmtpForm((prev) => ({
+        ...prev,
+        host: 'mail.theadcs.com',
+        port: 465,
+        secure: true,
+        fromName: 'ADCS',
+        fromEmail: 'info@theadcs.com',
+      }));
+    }
+    setSmtpNotice({
+      type: 'success',
+      text: `Loaded preset configuration for ${preset === 'gmail' ? 'Gmail / Google Workspace' : preset === 'outlook' ? 'Microsoft 365 / Outlook' : 'Corporate Mail Server'}. Sender set to ADCS <info@theadcs.com>.`,
+    });
+    setTimeout(() => setSmtpNotice(null), 4000);
+  };
+
+  // Test SMTP Server Connection Handshake
+  const handleTestSmtpConnection = async () => {
+    if (!smtpForm.user || !smtpForm.pass) {
+      setSmtpTestResult({
+        success: false,
+        error: 'Missing Credentials',
+        details: 'Please enter both your Email / Username and Password / Google App Password before testing the connection.',
+      });
+      return;
+    }
+
+    setIsTestingSmtp(true);
+    setSmtpTestResult(null);
+
+    try {
+      const res = await fetch('/api/smtp/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: smtpForm.host,
+          port: Number(smtpForm.port),
+          secure: smtpForm.secure,
+          user: smtpForm.user,
+          pass: smtpForm.pass,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSmtpTestResult({
+          success: true,
+          message: data.message || `Successfully connected and authenticated with ${smtpForm.host}:${smtpForm.port} (${smtpForm.user})!`,
+        });
+      } else {
+        setSmtpTestResult({
+          success: false,
+          error: data.error || 'Connection handshake failed',
+          details: data.details || 'Unable to establish authenticated SMTP session. Please check your credentials or Google App Password.',
+        });
+      }
+    } catch (err: any) {
+      setSmtpTestResult({
+        success: false,
+        error: 'Network Error',
+        details: err.message || 'Failed to reach SMTP test endpoint.',
+      });
+    } finally {
+      setIsTestingSmtp(false);
+    }
+  };
+
+  // Save SMTP Settings
+  const handleSaveSmtpSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdminOrMaster) {
+      setSmtpNotice({ type: 'error', text: 'Restricted setting: Only Admin or Master users can configure SMTP dispatch.' });
+      return;
+    }
+
+    const res = updateSmtpSettings(smtpForm);
+    if (res.success) {
+      setSmtpNotice({ type: 'success', text: 'SMTP email server configuration saved and synchronized successfully!' });
+      setTimeout(() => setSmtpNotice(null), 5000);
+    } else {
+      setSmtpNotice({ type: 'error', text: res.error || 'Failed to save SMTP settings.' });
+    }
+  };
+
+  // Send Live Test Email
+  const handleSendLiveTestEmail = async () => {
+    if (!testEmailRecipient || !testEmailRecipient.includes('@')) {
+      setTestEmailResult({ success: false, error: 'Please enter a valid recipient email address.' });
+      return;
+    }
+
+    setIsSendingTestEmail(true);
+    setTestEmailResult(null);
+
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: testEmailRecipient,
+          subject: `ADCS — Verification Notice`,
+          body: `Dear Client,\n\nThis is an official verification notice from ADCS confirming that your communication channel is active and authenticated.\n\nBest regards,\nADCS\n\n----------------------------------------\nPlease do not reply directly to this email. This is an automated email from ADCS.`,
+          smtpConfig: {
+            host: smtpForm.host,
+            port: Number(smtpForm.port),
+            secure: smtpForm.secure,
+            user: smtpForm.user,
+            pass: smtpForm.pass,
+            fromName: 'ADCS',
+            fromEmail: smtpForm.fromEmail || 'info@theadcs.com',
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.delivered) {
+        setTestEmailResult({
+          success: true,
+          message: `Live email successfully delivered to ${testEmailRecipient} via SMTP! (Message ID: ${data.messageId || 'OK'})`,
+        });
+      } else {
+        setTestEmailResult({
+          success: false,
+          error: data.error || data.details || data.warning || 'Failed to deliver live test email. Check server response.',
+        });
+      }
+    } catch (err: any) {
+      setTestEmailResult({
+        success: false,
+        error: err.message || 'Error occurred while dispatching live test email.',
+      });
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
   const handleGlobalResetData = () => {
     if (confirm('Reset entire CRM database to fresh initial seed data?')) {
       resetToDefaultData();
@@ -544,6 +731,19 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
         >
           <Mail className="w-3.5 h-3.5" />
           <span>Reset Visa Email Template</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('smtp')}
+          className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'smtp'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Server className="w-3.5 h-3.5" />
+          <span>Email & SMTP Dispatch</span>
+          {!isAdminOrMaster && <Lock className="w-3 h-3 text-slate-400" />}
         </button>
 
         <button
@@ -2475,6 +2675,442 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Email & SMTP Outbound Server Configuration */}
+      {activeTab === 'smtp' && (
+        <div className="space-y-6">
+          {/* Header & Quick Intro */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+                  <Server className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Email & SMTP Outbound Server Configuration</span>
+                    <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-full">
+                      LIVE DISPATCH
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Connect your real Google Workspace / Gmail, Microsoft 365, or Corporate Webmail credentials to guarantee direct inbox delivery to clients.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-medium">Outbound SMTP Status:</span>
+                <span
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${
+                    smtpForm.enabled && smtpForm.user && smtpForm.pass
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      smtpForm.enabled && smtpForm.user && smtpForm.pass ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  />
+                  {smtpForm.enabled && smtpForm.user && smtpForm.pass ? 'Configured & Active' : 'Setup Required'}
+                </span>
+              </div>
+            </div>
+
+            {/* Explanatory Callout Banner */}
+            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs space-y-2">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-blue-900 dark:text-blue-200">
+                    Why configure custom SMTP?
+                  </p>
+                  <p className="text-blue-800/90 dark:text-blue-300 leading-relaxed text-[11.5px]">
+                    When sending quotation, invoice, or visa update emails from the CRM, outbound messages are routed through this authenticated mail server. Using your dedicated Google Workspace, Gmail (with 16-character App Password), or Corporate SMTP server ensures emails arrive directly in your clients' inboxes with 100% deliverability.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Notification alert banner */}
+            {smtpNotice && (
+              <div
+                className={`p-3.5 rounded-xl text-xs flex items-center justify-between gap-2 animate-in fade-in ${
+                  smtpNotice.type === 'success'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800'
+                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-800'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {smtpNotice.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  )}
+                  <span>{smtpNotice.text}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSmtpNotice(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Quick Provider Presets */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                1-Click Provider Quick-Fill:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleApplySmtpPreset('gmail')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    smtpForm.host === 'smtp.gmail.com'
+                      ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 ring-1 ring-blue-500/20'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-red-500" />
+                      Gmail / Workspace
+                    </span>
+                    {smtpForm.host === 'smtp.gmail.com' && (
+                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">Selected</span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-500">smtp.gmail.com : 465 (SSL)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplySmtpPreset('outlook')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    smtpForm.host === 'smtp.office365.com'
+                      ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 ring-1 ring-blue-500/20'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-500" />
+                      Microsoft 365 / Outlook
+                    </span>
+                    {smtpForm.host === 'smtp.office365.com' && (
+                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">Selected</span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-500">smtp.office365.com : 587 (TLS)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplySmtpPreset('custom')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    smtpForm.host === 'mail.adcs.ae'
+                      ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 ring-1 ring-blue-500/20'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Server className="w-3.5 h-3.5 text-purple-500" />
+                      Corporate / cPanel
+                    </span>
+                    {smtpForm.host === 'mail.adcs.ae' && (
+                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">Selected</span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-500">mail.adcs.ae : 465 (SSL)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* SMTP Main Settings Form */}
+            <form onSubmit={handleSaveSmtpSettings} className="space-y-4 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* SMTP Server Host */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <Server className="w-3 h-3 text-slate-400" />
+                    SMTP Host / Server
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. smtp.gmail.com or mail.yourdomain.com"
+                    value={smtpForm.host}
+                    onChange={(e) => setSmtpForm((prev) => ({ ...prev, host: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
+                  />
+                </div>
+
+                {/* SMTP Port & Secure Check */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Port
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="465 or 587"
+                      value={smtpForm.port}
+                      onChange={(e) => setSmtpForm((prev) => ({ ...prev, port: parseInt(e.target.value) || 465 }))}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      SSL / TLS Security
+                    </label>
+                    <select
+                      value={smtpForm.secure ? 'true' : 'false'}
+                      onChange={(e) => setSmtpForm((prev) => ({ ...prev, secure: e.target.value === 'true' }))}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                    >
+                      <option value="true">SSL / TLS (Port 465)</option>
+                      <option value="false">STARTTLS / Plain (Port 587)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* User / Email */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <Mail className="w-3 h-3 text-slate-400" />
+                    Authentication Email / Username
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. operations@adcs.ae or yourname@gmail.com"
+                    value={smtpForm.user}
+                    onChange={(e) => setSmtpForm((prev) => ({ ...prev, user: e.target.value, fromEmail: prev.fromEmail || e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
+                  />
+                  <p className="text-[10.5px] text-slate-500">
+                    The email address used to log in to the SMTP server.
+                  </p>
+                </div>
+
+                {/* Password / App Password */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                      <Key className="w-3 h-3 text-slate-400" />
+                      Password / Google App Password
+                    </label>
+                    {smtpForm.host.includes('gmail') && (
+                      <a
+                        href="https://myaccount.google.com/apppasswords"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10.5px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                      >
+                        <span>Create App Password</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showSmtpPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Enter mailbox password or 16-character App Password"
+                      value={smtpForm.pass}
+                      onChange={(e) => setSmtpForm((prev) => ({ ...prev, pass: e.target.value }))}
+                      className="w-full p-2.5 pr-10 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                    >
+                      {showSmtpPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10.5px] text-slate-500">
+                    For Gmail/Google Workspace accounts with 2-Step Verification, generate a 16-character <strong>App Password</strong> in Google Account Security.
+                  </p>
+                </div>
+
+                {/* From Name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Sender Display Name (Shows only ADCS)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ADCS"
+                    value={smtpForm.fromName || 'ADCS'}
+                    onChange={(e) => setSmtpForm((prev) => ({ ...prev, fromName: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-medium"
+                  />
+                  <p className="text-[10.5px] text-slate-500">
+                    The name that appears in the client's inbox. Default is <strong>ADCS</strong>.
+                  </p>
+                </div>
+
+                {/* From Email */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    From / Reply-To Address
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="info@theadcs.com"
+                    value={smtpForm.fromEmail || ''}
+                    onChange={(e) => setSmtpForm((prev) => ({ ...prev, fromEmail: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
+                  />
+                  <p className="text-[10.5px] text-slate-500">
+                    Dispatched from and replies directed to <strong>info@theadcs.com</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={handleTestSmtpConnection}
+                  disabled={isTestingSmtp}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                >
+                  {isTestingSmtp ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                  ) : (
+                    <Server className="w-3.5 h-3.5 text-blue-500" />
+                  )}
+                  <span>{isTestingSmtp ? 'Verifying Handshake...' : 'Test Connection Handshake'}</span>
+                </button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save SMTP Server Settings</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {/* Test Connection Results Box */}
+            {smtpTestResult && (
+              <div
+                className={`p-4 rounded-xl border text-xs space-y-2 animate-in fade-in ${
+                  smtpTestResult.success
+                    ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                    : 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold">
+                  {smtpTestResult.success ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  )}
+                  <span>
+                    {smtpTestResult.success ? 'SMTP Connection Successful!' : 'SMTP Connection Failed'}
+                  </span>
+                </div>
+                <p className="text-[11.5px] leading-relaxed">
+                  {smtpTestResult.message || smtpTestResult.error}
+                </p>
+                {smtpTestResult.details && (
+                  <div className="p-2.5 rounded-lg bg-black/10 dark:bg-black/30 text-[11px] font-mono whitespace-pre-wrap">
+                    {smtpTestResult.details}
+                  </div>
+                )}
+                {!smtpTestResult.success && (
+                  <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-1 space-y-1">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">Recommended Troubleshooting:</p>
+                    <ul className="list-disc list-inside space-y-0.5 text-[10.5px]">
+                      <li>For Gmail / Workspace: Ensure 2-Step Verification is active, and generate a 16-letter <strong>App Password</strong> instead of your regular password.</li>
+                      <li>Check that port 465 (SSL) or 587 (TLS) matches the security option.</li>
+                      <li>Ensure firewall or mail provider allows standard SMTP AUTH connections.</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Live Dispatch Test Box */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                <Send className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Send Live Test Email to Client / Inbox
+                </h4>
+                <p className="text-xs text-slate-500">
+                  Send a real live verification message right now to confirm delivery in your or your client's email inbox.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="w-full sm:flex-1 relative">
+                <input
+                  type="email"
+                  placeholder="Enter recipient email (e.g. client@example.com or your inbox)"
+                  value={testEmailRecipient}
+                  onChange={(e) => setTestEmailRecipient(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSendLiveTestEmail}
+                disabled={isSendingTestEmail}
+                className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 shrink-0"
+              >
+                {isSendingTestEmail ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                <span>{isSendingTestEmail ? 'Sending Live Email...' : 'Send Live Test Email'}</span>
+              </button>
+            </div>
+
+            {testEmailResult && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs space-y-1 animate-in fade-in ${
+                  testEmailResult.success
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold">
+                  {testEmailResult.success ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  )}
+                  <span>{testEmailResult.success ? 'Delivery Confirmed!' : 'Delivery Failed'}</span>
+                </div>
+                <p className="text-[11.5px] leading-relaxed">
+                  {testEmailResult.message || testEmailResult.error}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

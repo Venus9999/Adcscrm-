@@ -19,6 +19,7 @@ import {
   Globe,
   Sparkles,
   UserCheck,
+  ShieldCheck,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 
@@ -680,94 +681,14 @@ export const LoginScreen: React.FC = () => {
               </div>
             )}
 
-            {/* Quick 1-Click Demo Logins for All 5 System Roles */}
+            {/* Enterprise Security Footer */}
             <div className="mt-6 pt-5 border-t border-slate-800/80">
-              <div className="flex items-center justify-between mb-2.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  ⚡ Quick Demo Login (Choose Role)
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">1-Click Fast Sign-In</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-left">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('master@adcs.ae');
-                    setPassword('Master@2026!');
-                    login('master@adcs.ae', 'Master@2026!');
-                  }}
-                  className="p-2.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/50 border border-purple-800/50 text-purple-200 transition-all text-xs font-semibold cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-[11px]">👑 Master Admin</span>
-                    <span className="text-[9px] px-1 rounded bg-purple-800/60 text-purple-300 font-mono">All Access</span>
-                  </div>
-                  <p className="text-[10px] text-purple-300/80 mt-0.5 truncate">master@adcs.ae</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('admin@adcs.ae');
-                    setPassword('Admin@2026!');
-                    login('admin@adcs.ae', 'Admin@2026!');
-                  }}
-                  className="p-2.5 rounded-xl bg-blue-950/40 hover:bg-blue-900/50 border border-blue-800/50 text-blue-200 transition-all text-xs font-semibold cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-[11px]">🏢 Branch Admin</span>
-                    <span className="text-[9px] px-1 rounded bg-blue-800/60 text-blue-300 font-mono">Manager</span>
-                  </div>
-                  <p className="text-[10px] text-blue-300/80 mt-0.5 truncate">admin@adcs.ae</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('employee@adcs.ae');
-                    setPassword('Employee@2026!');
-                    login('employee@adcs.ae', 'Employee@2026!');
-                  }}
-                  className="p-2.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/50 text-emerald-200 transition-all text-xs font-semibold cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-[11px]">📋 PRO Specialist</span>
-                    <span className="text-[9px] px-1 rounded bg-emerald-800/60 text-emerald-300 font-mono">Staff</span>
-                  </div>
-                  <p className="text-[10px] text-emerald-300/80 mt-0.5 truncate">employee@adcs.ae</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('agent@adcs.ae');
-                    setPassword('Agent@2026!');
-                    login('agent@adcs.ae', 'Agent@2026!');
-                  }}
-                  className="p-2.5 rounded-xl bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50 text-indigo-200 transition-all text-xs font-semibold cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-[11px]">🤝 Partner / Agent</span>
-                    <span className="text-[9px] px-1 rounded bg-indigo-800/60 text-indigo-300 font-mono">Agent</span>
-                  </div>
-                  <p className="text-[10px] text-indigo-300/80 mt-0.5 truncate">agent@adcs.ae</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('client@adcs.ae');
-                    setPassword('Client@2026!');
-                    login('client@adcs.ae', 'Client@2026!');
-                  }}
-                  className="p-2.5 rounded-xl bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/50 text-amber-200 transition-all text-xs font-semibold cursor-pointer group col-span-2 sm:col-span-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-[11px]">👤 Client Portal</span>
-                    <span className="text-[9px] px-1 rounded bg-amber-800/60 text-amber-300 font-mono">Client</span>
-                  </div>
-                  <p className="text-[10px] text-amber-300/80 mt-0.5 truncate">client@adcs.ae</p>
-                </button>
+              <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="font-medium text-slate-400">Enterprise Encrypted Authentication</span>
+                </div>
+                <span className="font-mono text-[10px] text-slate-500">ADCS Security</span>
               </div>
             </div>
           </div>

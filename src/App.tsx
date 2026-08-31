@@ -150,6 +150,12 @@ const AppContent: React.FC = () => {
       case 'gmail':
         return <GmailHub />;
 
+      case 'smtp':
+      case 'smtp_settings':
+      case 'email_settings':
+      case 'email':
+        return <SystemSettings initialTab="smtp" />;
+
       case 'departments':
       case 'department':
         if (currentUser.role !== 'master' && currentUser.role !== 'admin') {

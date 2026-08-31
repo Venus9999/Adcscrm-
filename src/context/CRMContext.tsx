@@ -5,6 +5,7 @@ import {
   saveCRMDataToCloud,
   subscribeToCloudCRMData,
 } from '../services/firestoreStorage';
+import { signInWithGoogleAccount } from '../services/googleAuth';
 import {
   User,
   Company,
@@ -39,6 +40,7 @@ import {
   VisaTimelineEvent,
   VisaUploadedDoc,
   Department,
+  SmtpSettings,
 } from '../types/crm';
 import {
   INITIAL_COMPANIES,
@@ -80,6 +82,7 @@ interface CRMContextType {
   setCurrentUser: (user: User) => void;
   availableUsers: User[];
   login: (email: string, passwordOrPin: string) => Promise<{ success: boolean; user?: User; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => void;
   requestPasswordReset: (email: string) => { success: boolean; otpCode?: string; user?: User; error?: string };
   verifyOtpAndResetPassword: (email: string, otpCode: string, newPassword: string) => { success: boolean; error?: string };
@@ -88,6 +91,7 @@ interface CRMContextType {
   crmBranding: CRMBranding;
   updateCRMBranding: (updates: Partial<CRMBranding>) => { success: boolean; error?: string };
   resetCRMBrandingToDefault: () => { success: boolean; error?: string };
+  updateSmtpSettings: (settings: Partial<SmtpSettings>) => { success: boolean; error?: string };
   billingSettings: InvoiceBillingSettings;
   updateBillingSettings: (updates: Partial<InvoiceBillingSettings>) => { success: boolean; error?: string };
   resetBillingSettingsToDefault: () => { success: boolean };
@@ -1379,6 +1383,190 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [users, hydrateStateFromSnapshot]
   );
 
+  // Google Single Sign-On / Authentication
+  const loginWithGoogle = useCallback(async (): Promise<{ success: boolean; user?: User; error?: string }> => {
+    try {
+      const googleRes = await signInWithGoogleAccount();
+      if (!googleRes?.user) {
+        return { success: false, error: 'Google sign-in was cancelled or failed.' };
+      }
+
+      const googleUser = googleRes.user;
+      const googleEmail = (googleUser.email || '').toLowerCase().trim();
+      const displayName = googleUser.displayName || googleEmail.split('@')[0] || 'User';
+      const photoURL = googleUser.photoURL || undefined;
+
+      if (!googleEmail) {
+        return { success: false, error: 'Could not retrieve verified email from Google account.' };
+      }
+
+      // Check existing users in state
+      let currentUsersList = [...users];
+      let matched = currentUsersList.find((u) => u.email.toLowerCase().trim() === googleEmail);
+
+      // If user not in local memory, check latest from Cloud
+      if (!matched) {
+        try {
+          const cloudRes = await loadCRMDataFromCloud();
+          if (cloudRes.success && cloudRes.hasData && cloudRes.data && Array.isArray(cloudRes.data.users)) {
+            hydrateStateFromSnapshot(cloudRes.data);
+            currentUsersList = cloudRes.data.users;
+            matched = currentUsersList.find((u) => u.email.toLowerCase().trim() === googleEmail);
+          }
+        } catch {}
+      }
+
+      if (matched) {
+        if (matched.status === 'suspended' || matched.status === 'inactive') {
+          return {
+            success: false,
+            error: 'Your account is currently suspended or inactive. Please contact your system administrator.',
+          };
+        }
+
+        // Update photo / avatar if missing
+        if (photoURL && !matched.avatar) {
+          const updated = { ...matched, avatar: photoURL };
+          matched = updated;
+          setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+        }
+
+        setCurrentUser(matched);
+        setIsAuthenticated(true);
+        try {
+          localStorage.setItem(AUTH_STORAGE_KEY, 'true');
+        } catch {}
+
+        const newLog: AuditLogEntry = {
+          id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          userId: matched.id,
+          userName: matched.name,
+          userRole: matched.role,
+          userEmail: matched.email,
+          action: 'Google SSO Login',
+          module: 'Security',
+          details: `User ${matched.name} signed in via Google SSO (${googleEmail})`,
+          timestamp: new Date().toISOString(),
+        };
+        setAuditLogs((prev) => [newLog, ...prev]);
+
+        return { success: true, user: matched };
+      } else {
+        // Auto-provision user account: if master admin email, give master, otherwise create Client portal user
+        const isMaster = googleEmail === 'gurpreet.singh369@gmail.com' || currentUsersList.length === 0;
+        const newRole: UserRole = isMaster ? 'master' : 'client';
+
+        const newUser: User = {
+          id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          name: displayName,
+          email: googleEmail,
+          phone: '+971 50 000 0000',
+          role: newRole,
+          companyId: companies[0]?.id || 'comp-1',
+          status: 'active',
+          avatar: photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256',
+          title: isMaster ? 'Master Executive' : 'Client Investor',
+          permissions: isMaster
+            ? {
+                canCreateClients: true,
+                canEditStages: true,
+                canManagePayments: true,
+                canViewAllCompanies: true,
+                canAssignEmployees: true,
+                canDeleteRecords: true,
+                canExportReports: true,
+              }
+            : {
+                canCreateClients: false,
+                canEditStages: false,
+                canManagePayments: false,
+                canViewAllCompanies: false,
+                canAssignEmployees: false,
+                canDeleteRecords: false,
+                canExportReports: false,
+              },
+          createdAt: new Date().toISOString(),
+        };
+
+        const updatedUsers = [...currentUsersList, newUser];
+        setUsers(updatedUsers);
+
+        // If client, ensure client profile exists in clients collection
+        if (newRole === 'client') {
+          const newClient: Client = {
+            id: `client-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            refNo: `CLI-${Math.floor(1000 + Math.random() * 9000)}`,
+            firstName: displayName.split(' ')[0] || displayName,
+            lastName: displayName.split(' ').slice(1).join(' ') || '',
+            fullName: displayName,
+            nationality: 'United Arab Emirates',
+            dob: '1990-01-01',
+            gender: 'Male',
+            passportNo: `N${Math.floor(100000 + Math.random() * 900000)}`,
+            passportExpiry: '2030-01-01',
+            emiratesId: `784-1990-${Math.floor(1000000 + Math.random() * 9000000)}-1`,
+            emiratesIdExpiry: '2028-01-01',
+            mobile: '+971 50 000 0000',
+            whatsapp: '+971 50 000 0000',
+            email: googleEmail,
+            residentialAddress: 'Dubai, UAE',
+            companyId: companies[0]?.id || 'comp-1',
+            companyName: 'Private Investor',
+            status: 'active',
+            assignedAdminId: users.find((u) => u.role === 'admin')?.id || 'user-admin-1',
+            assignedEmployeeIds: [users.find((u) => u.role === 'employee')?.id || 'user-emp-1'],
+            services: [],
+            currentStageId: 'stg-1',
+            currentStageName: 'Inquiry & Onboarding',
+            paymentStatus: 'unpaid',
+            totalAmount: 0,
+            paidAmount: 0,
+            outstandingAmount: 0,
+            avatar: photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            notes: [],
+            calls: [],
+            tags: ['Google SSO', 'New Client'],
+          };
+          setClients((prev) => [newClient, ...prev]);
+        }
+
+        setCurrentUser(newUser);
+        setIsAuthenticated(true);
+        try {
+          localStorage.setItem(AUTH_STORAGE_KEY, 'true');
+        } catch {}
+
+        const newLog: AuditLogEntry = {
+          id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          userId: newUser.id,
+          userName: newUser.name,
+          userRole: newUser.role,
+          userEmail: newUser.email,
+          action: 'Google SSO Account Provisioned & Login',
+          module: 'Security',
+          details: `New account created and signed in via Google SSO (${googleEmail}) with role ${newUser.role}`,
+          timestamp: new Date().toISOString(),
+        };
+        setAuditLogs((prev) => [newLog, ...prev]);
+
+        return { success: true, user: newUser };
+      }
+    } catch (err: any) {
+      console.error('Google Sign-in failed', err);
+      let errorMsg = err?.message || 'Google sign-in encountered an issue.';
+      if (err?.code === 'auth/popup-closed-by-user') {
+        errorMsg = 'Sign-in window was closed before completing authentication.';
+      } else if (err?.code === 'auth/popup-blocked') {
+        errorMsg = 'Sign-in popup was blocked by browser. Please allow popups for this site.';
+      } else if (err?.code === 'auth/unauthorized-domain') {
+        errorMsg = 'This domain is not authorized in Firebase OAuth settings. Please add your domain to Firebase Console > Authentication > Settings > Authorized Domains.';
+      }
+      return { success: false, error: errorMsg };
+    }
+  }, [users, companies, serviceCategories, hydrateStateFromSnapshot, setCurrentUser]);
+
   // User Logout Action
   const logout = useCallback(() => {
     const prevUser = currentUser;
@@ -1496,12 +1684,54 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...updates,
         billingSettings: updates.billingSettings ? { ...(prev.billingSettings || DEFAULT_BILLING_SETTINGS), ...updates.billingSettings } : prev.billingSettings,
         visaEmailTemplate: updates.visaEmailTemplate ? { ...(prev.visaEmailTemplate || DEFAULT_CRM_BRANDING.visaEmailTemplate), ...updates.visaEmailTemplate } : prev.visaEmailTemplate,
+        smtpSettings: updates.smtpSettings ? { ...(prev.smtpSettings || DEFAULT_CRM_BRANDING.smtpSettings), ...updates.smtpSettings } : prev.smtpSettings,
       }));
 
       recordAuditLog(
         'CRM Branding Updated',
         'Settings',
         `Master user updated system branding identity (${updates.name || 'Logo & Identity'})`
+      );
+
+      return { success: true };
+    },
+    [currentUser, recordAuditLog]
+  );
+
+  // SMTP & Outbound Email Settings (Admin & Master)
+  const updateSmtpSettings = useCallback(
+    (settings: Partial<SmtpSettings>): { success: boolean; error?: string } => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        return {
+          success: false,
+          error: 'Restricted Access: SMTP and email server configuration can only be managed by Admin or Master accounts.',
+        };
+      }
+
+      setCrmBranding((prev) => {
+        const nextSmtp: SmtpSettings = {
+          ...(prev.smtpSettings || DEFAULT_CRM_BRANDING.smtpSettings || {
+            enabled: true,
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            user: '',
+            pass: '',
+            fromName: 'ADCS',
+            fromEmail: 'info@theadcs.com',
+          }),
+          ...settings,
+        };
+        return {
+          ...prev,
+          smtpSettings: nextSmtp,
+        };
+      });
+
+      recordAuditLog(
+        'SMTP Settings Updated',
+        'Settings',
+        `Email dispatch configuration updated by ${currentUser.name} (${settings.user || settings.host || 'SMTP updated'})`
       );
 
       return { success: true };
@@ -7120,6 +7350,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setCurrentUser,
         availableUsers: users,
         login,
+        loginWithGoogle,
         logout,
         requestPasswordReset,
         verifyOtpAndResetPassword,
@@ -7127,6 +7358,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         crmBranding,
         updateCRMBranding,
         resetCRMBrandingToDefault,
+        updateSmtpSettings,
         billingSettings,
         updateBillingSettings,
         resetBillingSettingsToDefault,

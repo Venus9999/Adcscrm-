@@ -12,27 +12,16 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 
-// Configure Google Auth Provider with full Gmail Workspace scopes
-export const GMAIL_SCOPES = [
-  'https://mail.google.com/',
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.compose',
-  'https://www.googleapis.com/auth/gmail.labels',
-];
-
-const provider = new GoogleAuthProvider();
-GMAIL_SCOPES.forEach((scope) => {
-  provider.addScope(scope);
-});
-provider.setCustomParameters({
+// Configure Google Auth Provider for standard CRM Authentication (Email, Profile)
+const basicLoginProvider = new GoogleAuthProvider();
+basicLoginProvider.addScope('profile');
+basicLoginProvider.addScope('email');
+basicLoginProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
 // Flag to indicate if we are in the middle of a sign-in flow
 let isSigningIn = false;
-// Cache the access token in memory only (never persist in localStorage)
 let cachedAccessToken: string | null = null;
 let cachedGoogleUser: FirebaseUser | null = null;
 
@@ -44,12 +33,7 @@ export const initAuth = (
   return onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
     cachedGoogleUser = user;
     if (user) {
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        cachedAccessToken = null;
-        if (onAuthFailure) onAuthFailure();
-      }
+      if (onAuthSuccess) onAuthSuccess(user, 'crm-google-session');
     } else {
       cachedAccessToken = null;
       if (onAuthFailure) onAuthFailure();
@@ -57,19 +41,29 @@ export const initAuth = (
   });
 };
 
-// Must be called from a user interaction (button click)
+// Standard Google Sign-In for CRM Login (Email & Profile - No restricted Gmail API required)
+export const signInWithGoogleAccount = async (): Promise<{ user: FirebaseUser } | null> => {
+  try {
+    isSigningIn = true;
+    const result = await signInWithPopup(auth, basicLoginProvider);
+    cachedGoogleUser = result.user;
+    return { user: result.user };
+  } catch (error: any) {
+    console.error('Google CRM Sign-in error:', error);
+    throw error;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+// Backwards-compatible Google sign-in without requiring restricted Gmail scopes
 export const googleSignIn = async (): Promise<{ user: FirebaseUser; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Failed to obtain Google access token with Gmail permissions.');
-    }
-
-    cachedAccessToken = credential.accessToken;
+    const result = await signInWithPopup(auth, basicLoginProvider);
     cachedGoogleUser = result.user;
-    return { user: result.user, accessToken: cachedAccessToken };
+    cachedAccessToken = 'crm-session-token';
+    return { user: result.user, accessToken: 'crm-session-token' };
   } catch (error: any) {
     console.error('Google Sign-in error:', error);
     throw error;

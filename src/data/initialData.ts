@@ -262,33 +262,44 @@ export const DEFAULT_CRM_BRANDING: CRMBranding = {
   logoUrl: '/logo-adcs.svg',
   primaryColor: '#2563EB',
   billingSettings: DEFAULT_BILLING_SETTINGS,
+  smtpSettings: {
+    enabled: true,
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    user: '',
+    pass: '',
+    fromName: 'ADCS',
+    fromEmail: 'info@theadcs.com',
+    status: 'untested',
+  },
   visaEmailTemplate: {
-    subject: 'Official Visa Application Status & Clearance Notice - {REF_NO}',
-    headerText: 'United Arab Emirates Residency & GDRFA / ICP Clearance Notification',
+    subject: 'ADCS Application Status Update - {REF_NO}',
+    headerText: 'ADCS Official Clearance Notification',
     bodyTemplate: `Dear {CLIENT_NAME},
 
-We are pleased to provide an official status update regarding your visa and immigration application file with {CRM_NAME}.
+We are pleased to provide an official status update regarding your application file with ADCS.
 
 • Application Ref: {REF_NO}
 • Service: {SERVICE_NAME}
 • Current Stage Milestone: {CURRENT_STAGE}
 • Passport Number: {PASSPORT_NO}
 • Emirates ID Record: {EMIRATES_ID}
-• Entity / Branch: {COMPANY_NAME}
 
 Progress Summary & Notes:
 {STAGE_REMARKS}
 
-Action Required from Client:
-Please review your documents on the Client Portal. If you have outstanding documents or medical attestations, please upload them via your secure portal or contact your dedicated PRO consultant directly.
+Action Required:
+Please review your documents on the Client Portal. If you have outstanding documents or medical attestations, please upload them via your secure portal.
 
-PRO Officer Contact:
-{ASSIGNED_PRO_NAME}
-Government Relations & Clearance Department
-{CRM_NAME}`,
-    footerText: 'This is an automated verified notification from the UAE Corporate Clearance & Residency Management System. For urgent assistance, contact your dedicated PRO.',
-    senderName: 'ADCS Visa Clearance Desk',
-    senderEmail: 'visa-clearance@adcs.ae',
+Best regards,
+ADCS
+
+----------------------------------------
+Please do not reply directly to this email. This is an automated email from ADCS.`,
+    footerText: 'Please do not reply directly to this email. This is an automated email from ADCS.',
+    senderName: 'ADCS',
+    senderEmail: 'info@theadcs.com',
     lastUpdated: '2026-08-27T00:00:00Z',
     updatedBy: 'Gurpreet Singh Kataria (Master)',
   },

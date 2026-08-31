@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Send,
   X,
@@ -7,13 +7,17 @@ import {
   Receipt,
   FileText,
   Sparkles,
-  User,
-  AlertCircle,
+  Paperclip,
+  Trash2,
+  File,
   HelpCircle,
+  AlertCircle,
+  FileSpreadsheet,
+  FileImage,
 } from 'lucide-react';
 import { useGmail } from '../../context/GmailContext';
 import { useCRM } from '../../context/CRMContext';
-import { SendEmailPayload } from '../../services/gmailService';
+import { SendEmailPayload, EmailAttachment } from '../../services/gmailService';
 
 interface GmailComposerModalProps {
   isOpen: boolean;
@@ -24,6 +28,9 @@ interface GmailComposerModalProps {
   clientId?: string;
 }
 
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB limit per file
+const MAX_TOTAL_SIZE_BYTES = 6 * 1024 * 1024; // 6 MB total limit
+
 export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
   isOpen,
   onClose,
@@ -32,8 +39,8 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
   initialBody = '',
   clientId,
 }) => {
-  const { isConnected, requestSendEmail, googleUser } = useGmail();
-  const { clients, leads, crmBranding } = useCRM();
+  const { requestSendEmail, googleUser } = useGmail();
+  const { clients, crmBranding } = useCRM();
 
   const [to, setTo] = useState(initialRecipient);
   const [cc, setCc] = useState('');
@@ -41,6 +48,11 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
   const [body, setBody] = useState(initialBody);
   const [showCc, setShowCc] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('custom');
+  
+  // Attachments state
+  const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Update fields if props change
   React.useEffect(() => {
@@ -50,6 +62,81 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
   }, [initialRecipient, initialSubject, initialBody, isOpen]);
 
   if (!isOpen) return null;
+
+  // Format bytes helper
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  // Handle file selection (with 2MB check)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAttachmentError(null);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const currentTotal = attachments.reduce((acc, a) => acc + a.size, 0);
+    let addedTotal = 0;
+    const newAttachments: EmailAttachment[] = [];
+
+    Array.from(files).forEach((file) => {
+      // Check 2MB per file
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setAttachmentError(`"${file.name}" exceeds the 2 MB attachment limit (${formatBytes(file.size)}).`);
+        return;
+      }
+
+      if (currentTotal + addedTotal + file.size > MAX_TOTAL_SIZE_BYTES) {
+        setAttachmentError(`Total attachments exceed the 6 MB limit.`);
+        return;
+      }
+
+      addedTotal += file.size;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: `att-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            name: file.name,
+            size: file.size,
+            type: file.type || 'application/octet-stream',
+            dataUrl,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+    setAttachmentError(null);
+  };
+
+  // Helper icon for file types
+  const renderFileIcon = (type: string, name: string) => {
+    if (type.includes('image') || name.match(/\.(jpg|jpeg|png|webp|svg)$/i)) {
+      return <FileImage className="w-4 h-4 text-emerald-500 shrink-0" />;
+    }
+    if (type.includes('pdf') || name.endsWith('.pdf')) {
+      return <FileText className="w-4 h-4 text-rose-500 shrink-0" />;
+    }
+    if (type.includes('sheet') || type.includes('excel') || name.match(/\.(xlsx|xls|csv)$/i)) {
+      return <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />;
+    }
+    return <File className="w-4 h-4 text-blue-500 shrink-0" />;
+  };
 
   // Quick Template Selection
   const applyTemplate = (templateKey: string) => {
@@ -67,21 +154,21 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
           .replace(/{REF_NO}/g, targetClient?.refNo || 'ADCS-REF')
           .replace(/{SERVICE_NAME}/g, serviceName)
           .replace(/{CURRENT_STAGE}/g, stageName)
-          .replace(/{CRM_NAME}/g, crmBranding.name)
+          .replace(/{CRM_NAME}/g, 'ADCS')
       );
 
       setBody(
-        `${template.headerText}\n\nDear ${targetClient?.fullName || 'Valued Client'},\n\nWe are pleased to inform you that your ${serviceName} application (Ref: ${targetClient?.refNo || 'ADCS-REF'}) is now at the following stage:\n\n• Current Status: ${stageName}\n• Passport Number: ${targetClient?.passportNumber || 'On Record'}\n• Emirates ID: ${targetClient?.emiratesId || 'In Process'}\n\nRemarks: ${targetClient?.services?.[0]?.notes || 'Documents verified and under final processing.'}\n\nPlease reach out to your assigned PRO (${targetClient?.assignedEmployeeName || 'Customer Service'}) if you have any questions.\n\nBest Regards,\n${crmBranding.name}\n${crmBranding.supportPhone} | ${crmBranding.website}`
+        `Dear ${targetClient?.fullName || 'Valued Client'},\n\nWe are pleased to inform you that your ${serviceName} application (Ref: ${targetClient?.refNo || 'ADCS-REF'}) is now at the following stage:\n\n• Current Status: ${stageName}\n• Passport Number: ${targetClient?.passportNumber || 'On Record'}\n• Emirates ID: ${targetClient?.emiratesId || 'In Process'}\n\nRemarks: ${targetClient?.services?.[0]?.notes || 'Documents verified and under active government clearance.'}\n\nPlease review your status on the secure portal.\n\nBest regards,\nADCS\n\n----------------------------------------\nPlease do not reply directly to this email. This is an automated email from ADCS.`
       );
     } else if (templateKey === 'invoice_reminder') {
-      setSubject(`Official Invoice & Payment Advisory — ${targetClient?.fullName || 'Client'} | ${crmBranding.name}`);
+      setSubject(`Official Invoice & Payment Advisory — ${targetClient?.fullName || 'Client'} | ADCS`);
       setBody(
-        `Dear ${targetClient?.fullName || 'Client'},\n\nThis is a courtesy notice regarding your pending invoice for corporate clearance services with ${crmBranding.name}.\n\nPlease find your payment breakdown and bank transfer details in your client portal. Kindly process the settlement at your earliest convenience to avoid delays in government processing.\n\nThank you for choosing ${crmBranding.name}.\n\nAccounts & Finance Department\n${crmBranding.supportEmail}`
+        `Dear ${targetClient?.fullName || 'Client'},\n\nThis is a notification regarding your pending invoice for corporate clearance services with ADCS.\n\nPlease find your payment breakdown and settlement instructions in your client portal.\n\nBest regards,\nADCS\n\n----------------------------------------\nPlease do not reply directly to this email. This is an automated email from ADCS.`
       );
     } else if (templateKey === 'document_request') {
-      setSubject(`Urgent Action Required: Document Submission for UAE Visa Clearance — ${targetClient?.fullName || 'Applicant'}`);
+      setSubject(`Document Submission Notice — ${targetClient?.fullName || 'Applicant'} | ADCS`);
       setBody(
-        `Dear ${targetClient?.fullName || 'Applicant'},\n\nIn order to proceed with your UAE government clearance milestone, we kindly require the following supplementary documents:\n\n1. Valid High-Resolution Passport Copy (Bio page & signature)\n2. Attested Educational Certificate / Trade License (if applicable)\n3. Recent UAE Visa-compliant Passport Photo (White background)\n\nYou can upload these directly via your Client Portal or reply to this email with attachments.\n\nWarm regards,\n${crmBranding.name} Operations Team`
+        `Dear ${targetClient?.fullName || 'Applicant'},\n\nIn order to proceed with your government clearance milestone, we kindly require the following supplementary documents:\n\n1. Valid High-Resolution Passport Copy\n2. Attested Educational Certificate / Trade License (if applicable)\n3. Recent Visa-compliant Passport Photo (White background)\n\nPlease upload these directly via your Client Portal.\n\nBest regards,\nADCS\n\n----------------------------------------\nPlease do not reply directly to this email. This is an automated email from ADCS.`
       );
     }
   };
@@ -106,6 +193,7 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
       subject,
       body,
       cc: showCc && cc ? cc : undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
 
     const client = clients.find((c) => c.email === to);
@@ -115,7 +203,7 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
           <div className="flex items-center gap-2.5">
@@ -123,9 +211,15 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
               <Mail className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-sm font-bold">New Gmail Message</h3>
-              <p className="text-[11px] text-blue-100">
-                Sending from: {googleUser?.email || 'Connected Google Account'}
+              <h3 className="text-sm font-bold">Compose Client Email</h3>
+              <p className="text-[11px] text-blue-100 flex items-center gap-1.5">
+                <span>Sender:</span>
+                <span className="font-semibold">
+                  ADCS &lt;info@theadcs.com&gt;
+                </span>
+                <span className="text-[9px] px-1.5 py-0.2 bg-white/20 rounded-md font-bold uppercase tracking-wider">
+                  Verified Dispatch
+                </span>
               </p>
             </div>
           </div>
@@ -268,7 +362,7 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
               Email Message Body:
             </label>
             <textarea
-              rows={8}
+              rows={6}
               required
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -277,15 +371,90 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
             />
           </div>
 
+          {/* Attachments Section (up to 2 MB) */}
+          <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                <Paperclip className="w-3.5 h-3.5 text-blue-500" />
+                <span>Attachments (Max 2 MB per file):</span>
+              </div>
+
+              <label className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800/60 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors">
+                <Paperclip className="w-3.5 h-3.5" />
+                <span>Attach Files</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                />
+              </label>
+            </div>
+
+            {attachmentError && (
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-[11px] flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{attachmentError}</span>
+              </div>
+            )}
+
+            {/* List of Attached Files */}
+            {attachments.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {attachments.map((att) => (
+                  <div
+                    key={att.id}
+                    className="p-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {renderFileIcon(att.type, att.name)}
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[160px] sm:max-w-[180px]">
+                          {att.name}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          {formatBytes(att.size)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(att.id)}
+                      className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+                      title="Remove attachment"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-slate-400 text-[11px]">
+                No files attached. Attach Golden Visa approval PDFs, invoices, trade licenses, or passports (up to 2 MB each).
+              </div>
+            )}
+          </div>
+
           <div className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300 flex items-center gap-2">
             <HelpCircle className="w-4 h-4 shrink-0" />
             <span>
-              Clicking <strong>Review & Send</strong> will open an approval dialog confirming the final payload before dispatching via Gmail.
+              Emails and attached files are logged in the client's CRM communication history and can also be opened directly in your email app.
             </span>
           </div>
 
           {/* Footer actions */}
           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+            <a
+              href={`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+            >
+              Open in Mail App
+            </a>
             <button
               type="button"
               onClick={onClose}
@@ -298,7 +467,7 @@ export const GmailComposerModal: React.FC<GmailComposerModalProps> = ({
               className="px-5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Review & Send via Gmail</span>
+              <span>Send & Log Communication</span>
             </button>
           </div>
         </form>

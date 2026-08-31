@@ -28,6 +28,7 @@ import {
   X,
   Wand2,
   PenTool,
+  Server,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { PWAInstallModal } from '../common/PWAInstallModal';
@@ -165,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
     },
     {
       id: 'gmail',
-      label: 'Gmail Communications',
+      label: 'Client Communications',
       icon: Mail,
       allowedRoles: ['master', 'admin', 'employee', 'client'],
     },
@@ -233,6 +234,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       label: 'Profile Settings',
       icon: UserCheck,
       allowedRoles: ['master', 'admin', 'employee', 'client'],
+    },
+    {
+      id: 'smtp',
+      label: 'Email & SMTP Server',
+      icon: Server,
+      allowedRoles: ['master', 'admin'],
     },
     {
       id: 'settings',

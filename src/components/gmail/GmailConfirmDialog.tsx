@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, AlertTriangle, Trash2, Send, CheckCircle2, ShieldAlert, X } from 'lucide-react';
+import { Mail, AlertTriangle, Trash2, Send, CheckCircle2, ShieldAlert, X, Paperclip, File, FileText, FileImage, FileSpreadsheet } from 'lucide-react';
 import { useGmail } from '../../context/GmailContext';
 
 export const GmailConfirmDialog: React.FC = () => {
@@ -16,6 +16,27 @@ export const GmailConfirmDialog: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!sendConfirmData && !deleteConfirmData) return null;
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const renderFileIcon = (type: string, name: string) => {
+    if (type.includes('image') || name.match(/\.(jpg|jpeg|png|webp|svg)$/i)) {
+      return <FileImage className="w-3.5 h-3.5 text-emerald-500 shrink-0" />;
+    }
+    if (type.includes('pdf') || name.endsWith('.pdf')) {
+      return <FileText className="w-3.5 h-3.5 text-rose-500 shrink-0" />;
+    }
+    if (type.includes('sheet') || type.includes('excel') || name.match(/\.(xlsx|xls|csv)$/i)) {
+      return <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />;
+    }
+    return <File className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
+  };
 
   const handleSendConfirm = async () => {
     setIsProcessing(true);
@@ -37,6 +58,8 @@ export const GmailConfirmDialog: React.FC = () => {
     }
   };
 
+  const attachments = sendConfirmData?.payload?.attachments || [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in">
       {/* Send Confirmation Dialog */}
@@ -49,10 +72,10 @@ export const GmailConfirmDialog: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Confirm Gmail Dispatch
+                  Confirm Communication Dispatch
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Explicit approval required to send email on behalf of your connected account
+                  Review recipient and attachments before logging and sending
                 </p>
               </div>
             </div>
@@ -85,22 +108,43 @@ export const GmailConfirmDialog: React.FC = () => {
                   {sendConfirmData.payload.subject}
                 </span>
               </div>
+              {attachments.length > 0 && (
+                <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700/50 pt-2">
+                  <span className="text-slate-400 font-medium">Attachments:</span>
+                  <span className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    {attachments.length} file(s) ({formatBytes(attachments.reduce((a, b) => a + b.size, 0))})
+                  </span>
+                </div>
+              )}
             </div>
+
+            {attachments.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Enclosed Files
+                </label>
+                <div className="space-y-1 max-h-24 overflow-y-auto">
+                  {attachments.map((att) => (
+                    <div key={att.id} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-2 truncate">
+                        {renderFileIcon(att.type, att.name)}
+                        <span className="truncate text-slate-700 dark:text-slate-300 font-medium">{att.name}</span>
+                      </div>
+                      <span className="text-slate-400 font-mono shrink-0">{formatBytes(att.size)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Message Body Preview
               </label>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto text-slate-700 dark:text-slate-300 font-sans text-xs whitespace-pre-wrap leading-relaxed">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 max-h-36 overflow-y-auto text-slate-700 dark:text-slate-300 font-sans text-xs whitespace-pre-wrap leading-relaxed">
                 {sendConfirmData.payload.body}
               </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-start gap-2 text-[11px]">
-              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                This will send an authentic email through your connected Google account. Click <strong>Confirm & Send</strong> to dispatch.
-              </span>
             </div>
           </div>
 
@@ -124,7 +168,7 @@ export const GmailConfirmDialog: React.FC = () => {
               ) : (
                 <>
                   <Send className="w-3.5 h-3.5" />
-                  <span>Confirm & Send Email</span>
+                  <span>Confirm & Send Communication</span>
                 </>
               )}
             </button>
@@ -142,10 +186,10 @@ export const GmailConfirmDialog: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Move Email to Trash?
+                  Delete Communication Record?
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Explicit confirmation required before deleting Gmail message
+                  Confirmation required before removing message
                 </p>
               </div>
             </div>
@@ -166,16 +210,12 @@ export const GmailConfirmDialog: React.FC = () => {
             )}
 
             <p className="text-slate-600 dark:text-slate-300">
-              Are you sure you want to move the following email to your Gmail Trash folder?
+              Are you sure you want to delete the following communication record?
             </p>
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-slate-900 dark:text-white truncate">
               "{deleteConfirmData.subject}"
             </div>
-
-            <p className="text-[11px] text-slate-400">
-              The message will be moved to your Gmail Trash and will be permanently removed by Google after 30 days.
-            </p>
           </div>
 
           <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
@@ -194,11 +234,11 @@ export const GmailConfirmDialog: React.FC = () => {
               className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               {isProcessing ? (
-                <span>Trashing...</span>
+                <span>Deleting...</span>
               ) : (
                 <>
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Confirm Move to Trash</span>
+                  <span>Confirm Delete</span>
                 </>
               )}
             </button>

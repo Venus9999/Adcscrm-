@@ -142,6 +142,19 @@ export interface InvoiceBillingSettings {
   updatedBy?: string;
 }
 
+export interface SmtpSettings {
+  enabled?: boolean;
+  host: string;
+  port: number;
+  secure?: boolean;
+  user: string;
+  pass: string;
+  fromName?: string;
+  fromEmail?: string;
+  lastTested?: string;
+  status?: 'verified' | 'untested' | 'failed';
+}
+
 export interface CRMBranding {
   name: string;
   companyName?: string;
@@ -155,6 +168,7 @@ export interface CRMBranding {
   footerText?: string;
   visaEmailTemplate: VisaEmailTemplate;
   billingSettings?: InvoiceBillingSettings;
+  smtpSettings?: SmtpSettings;
 }
 
 export interface User {
