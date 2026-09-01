@@ -293,6 +293,15 @@ export interface Department {
   createdAt: string;
 }
 
+export interface ServiceClassification {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  isSystem?: boolean;
+}
+
 export interface ServiceCategory {
   id: string;
   name: string;

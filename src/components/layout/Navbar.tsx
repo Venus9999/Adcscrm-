@@ -516,20 +516,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
-          {/* AI Photo & Doc Studio Shortcut */}
-          <button
-            onClick={() => setActiveTab('photo_studio')}
-            className="p-2 rounded-md transition-all border flex items-center gap-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shadow-2xs cursor-pointer"
-            title="Gemini AI Biometric Passport Photo Creator & Document Editor"
-          >
-            <Wand2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="hidden lg:inline font-bold">
-              AI Photo Studio
-            </span>
-            <span className="px-1.5 py-0.2 text-[9px] rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 font-bold hidden sm:inline">
-              Gemini
-            </span>
-          </button>
+          {/* AI Photo & Doc Studio Shortcut (Staff / Admin Only) */}
+          {currentUser.role !== 'client' && (
+            <button
+              onClick={() => setActiveTab('photo_studio')}
+              className="p-2 rounded-md transition-all border flex items-center gap-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shadow-2xs cursor-pointer"
+              title="Gemini AI Biometric Passport Photo Creator & Document Editor"
+            >
+              <Wand2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden lg:inline font-bold">
+                AI Photo Studio
+              </span>
+              <span className="px-1.5 py-0.2 text-[9px] rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 font-bold hidden sm:inline">
+                Gemini
+              </span>
+            </button>
+          )}
 
           {/* Worldwide Visas Shortcut */}
           <button
@@ -548,17 +550,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* Communications Shortcut */}
-          <button
-            onClick={() => setActiveTab('gmail')}
-            className="p-2 rounded-md transition-colors border flex items-center gap-1.5 text-xs font-semibold bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200/80 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer"
-            title="Client Communications & Email Hub"
-          >
-            <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span className="hidden md:inline">
-              Communications
-            </span>
-          </button>
+          {/* Communications Shortcut (Staff / Admin Only) */}
+          {currentUser.role !== 'client' && (
+            <button
+              onClick={() => setActiveTab('gmail')}
+              className="p-2 rounded-md transition-colors border flex items-center gap-1.5 text-xs font-semibold bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200/80 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer"
+              title="Client Communications & Email Hub"
+            >
+              <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="hidden md:inline">
+                Communications
+              </span>
+            </button>
+          )}
 
           {/* Notifications Bell */}
           <div className="relative" ref={notifRef}>

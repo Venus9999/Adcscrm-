@@ -403,20 +403,22 @@ export const VisaServicesManager: React.FC = () => {
                 Search Grounded
               </span>
             </button>
-            <button
-              onClick={() => setActiveTab('photo_studio')}
-              className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'photo_studio'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Wand2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>AI Photo & Document Studio</span>
-              <span className="px-1.5 py-0.2 text-[9px] rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                Gemini 3.1
-              </span>
-            </button>
+            {!isClientRole && (
+              <button
+                onClick={() => setActiveTab('photo_studio')}
+                className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeTab === 'photo_studio'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Wand2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>AI Photo & Document Studio</span>
+                <span className="px-1.5 py-0.2 text-[9px] rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Staff Tool
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Search input */}
@@ -853,8 +855,8 @@ export const VisaServicesManager: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 4: AI Visa Photo & Document Studio */}
-        {activeTab === 'photo_studio' && (
+        {/* TAB 4: AI Visa Photo & Document Studio (Staff / Admin Only) */}
+        {activeTab === 'photo_studio' && !isClientRole && (
           <div className="p-6">
             <AIImageStudio />
           </div>

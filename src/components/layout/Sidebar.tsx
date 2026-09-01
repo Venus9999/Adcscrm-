@@ -81,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
   const masterControlItems: SidebarNavItem[] = [
     {
       id: isClient ? 'client_portal' : 'dashboard',
-      label: isClient ? 'Client Portal' : 'Dashboard',
+      label: isClient ? 'My Dashboard' : 'Dashboard',
       icon: isClient ? Compass : LayoutDashboard,
       allowedRoles: ['master', 'admin', 'employee', 'client'],
     },
@@ -156,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       id: 'photo_studio',
       label: 'AI Photo & Doc Studio',
       icon: Wand2,
-      allowedRoles: ['master', 'admin', 'employee', 'client'],
+      allowedRoles: ['master', 'admin', 'employee'],
     },
     {
       id: 'pipeline',
@@ -168,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       id: 'gmail',
       label: 'Client Communications',
       icon: Mail,
-      allowedRoles: ['master', 'admin', 'employee', 'client'],
+      allowedRoles: ['master', 'admin', 'employee'],
     },
     {
       id: 'services',
@@ -188,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       id: 'pdf_editor',
       label: 'PDF Editor & e-Sign',
       icon: PenTool,
-      allowedRoles: ['master', 'admin', 'employee', 'client'],
+      allowedRoles: ['master', 'admin', 'employee'],
     },
     {
       id: 'tasks',

@@ -112,6 +112,7 @@ const AppContent: React.FC = () => {
       case 'photo_studio':
       case 'image_studio':
       case 'ai_image':
+        if (currentUser.role === 'client') return <ClientPortal />;
         return <AIImageStudio />;
 
       case 'services':
@@ -122,6 +123,7 @@ const AppContent: React.FC = () => {
 
       case 'pdf_editor':
       case 'pdf':
+        if (currentUser.role === 'client') return <ClientPortal />;
         return (
           <div className="relative">
             <DocumentVault />
@@ -133,6 +135,7 @@ const AppContent: React.FC = () => {
         );
 
       case 'tasks':
+        if (currentUser.role === 'client') return <ClientPortal />;
         return <TasksManager />;
 
       case 'payments':
@@ -142,12 +145,15 @@ const AppContent: React.FC = () => {
         return <MessagesHub />;
 
       case 'reports':
+        if (currentUser.role === 'client') return <ClientPortal />;
         return <ReportsAnalytics />;
 
       case 'audit':
+        if (currentUser.role === 'client') return <ClientPortal />;
         return <AuditTrail />;
 
       case 'gmail':
+        if (currentUser.role === 'client') return <ClientPortal />;
         return <GmailHub />;
 
       case 'smtp':

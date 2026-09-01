@@ -172,15 +172,15 @@ const SERVICE_CATALOG: ServiceOffering[] = [
 ];
 
 export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, onServiceApplied }) => {
-  const { applyForService, departments, serviceCategories, companies } = useCRM();
+  const { applyForService, departments, serviceCategories, companies, currentUser } = useCRM();
 
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [activeServiceModal, setActiveServiceModal] = useState<ServiceOffering | null>(null);
 
-  // Determine B2B vs B2C pricing & Corporate Discounts
+  // Determine B2B vs B2C pricing & Corporate Discounts (Strictly B2C for client role)
   const clientCompany = companies.find((c) => c.id === client.companyId);
   const isDirectClient = !!client.isDirectRegistration || client.pricingTier === 'b2c' || (!client.companyId);
-  const isB2B = !isDirectClient;
+  const isB2B = currentUser.role !== 'client' && !isDirectClient;
   const clientDiscountType = client.discountType || clientCompany?.corporateDiscountType || 'percentage';
   const clientDiscountVal = client.discountValue ?? (clientDiscountType === 'fixed' ? (clientCompany?.corporateDiscountValue ?? 500) : (client.corporateDiscountPercent ?? clientCompany?.corporateDiscountPercent ?? 15));
 

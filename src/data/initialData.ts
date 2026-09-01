@@ -22,6 +22,7 @@ import {
   LeadStage,
   VisaApplication,
   Department,
+  ServiceClassification,
 } from '../types/crm';
 
 export const INITIAL_DEPARTMENTS: Department[] = [
@@ -707,6 +708,57 @@ export const INITIAL_USERS: User[] = [
     },
     createdAt: '2024-01-01T00:00:00Z',
     lastLogin: '2026-08-27T00:00:00Z',
+  },
+];
+
+export const INITIAL_SERVICE_CLASSIFICATIONS: ServiceClassification[] = [
+  {
+    id: 'class-visa',
+    name: 'Visa Processing',
+    description: 'Golden visas, employment visas, green visas, partner visas, and residency permits.',
+    icon: 'Briefcase',
+    color: '#2563EB',
+    isSystem: true,
+  },
+  {
+    id: 'class-biz',
+    name: 'Business Setup',
+    description: 'Mainland, freezone, and offshore company formation, licensing, and trade registries.',
+    icon: 'Building2',
+    color: '#059669',
+    isSystem: true,
+  },
+  {
+    id: 'class-doc',
+    name: 'Document Clearing',
+    description: 'Government ministry approvals, economic department authorizations, and trade clearances.',
+    icon: 'FileCheck2',
+    color: '#D97706',
+    isSystem: true,
+  },
+  {
+    id: 'class-pro',
+    name: 'PRO Services',
+    description: 'VIP medical typing, Emirates ID biometrics escort, quota changes, and labor contracts.',
+    icon: 'Users',
+    color: '#7C3AED',
+    isSystem: true,
+  },
+  {
+    id: 'class-legal',
+    name: 'Legal Attestation',
+    description: 'MOFA, embassy, apostille, and notary public attestations for foreign and local degrees.',
+    icon: 'ShieldCheck',
+    color: '#DC2626',
+    isSystem: true,
+  },
+  {
+    id: 'class-trans',
+    name: 'Translation',
+    description: 'Certified legal Arabic and multi-language sworn translation for official court submissions.',
+    icon: 'Layers',
+    color: '#0891B2',
+    isSystem: true,
   },
 ];
 

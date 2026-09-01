@@ -19,7 +19,6 @@ import {
   Plus,
   Eye,
   Plane,
-  Wand2,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { ClientService, DocumentItem, VisaApplication } from '../../types/crm';
@@ -27,12 +26,13 @@ import { VisaApplicationModal } from '../visa/VisaApplicationModal';
 import { VisaTimelineModal } from '../visa/VisaTimelineModal';
 import { ApplyServicesView } from './ApplyServicesView';
 import { AIVisaCountryAdvisor } from '../visa/AIVisaCountryAdvisor';
-import { AIImageStudio } from '../ai/AIImageStudio';
 
 export const ClientPortal: React.FC = () => {
   const {
     currentUser,
     clients,
+    users,
+    companies,
     documents,
     invoices,
     stages,
@@ -45,17 +45,18 @@ export const ClientPortal: React.FC = () => {
     selectedClientId,
   } = useCRM();
 
-  // Pick client profile corresponding to current logged-in user or selected client
+  // Pick client profile corresponding strictly to current logged-in user or selected client
   const client =
-    clients.find((c) => c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
+    clients.find((c) => c.email && currentUser.email && c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
     (selectedClientId ? clients.find((c) => c.id === selectedClientId) : null) ||
     clients.find((c) => c.id === currentUser.id) ||
     clients.find((c) => c.id === 'client-1') ||
     clients[0];
 
   const [activeTab, setActiveTab] = useState<
-    'tracker' | 'apply_services' | 'visa_services' | 'ai_advisor' | 'photo_studio' | 'documents' | 'payments' | 'messages'
+    'tracker' | 'apply_services' | 'visa_services' | 'ai_advisor' | 'documents' | 'payments' | 'messages'
   >('tracker');
+  const [activeChatChannel, setActiveChatChannel] = useState<'officer' | 'branch'>('officer');
   const [selectedServiceIndex, setSelectedServiceIndex] = useState(0);
   const [chatMessage, setChatMessage] = useState('');
   const [uploadCategory, setUploadCategory] = useState<DocumentItem['category']>('Passport');
@@ -71,9 +72,14 @@ export const ClientPortal: React.FC = () => {
   }
 
   const activeService: ClientService | undefined = (client.services || [])[selectedServiceIndex] || (client.services || [])[0];
+  const assignedEmp = users.find((u) => u.id === client.assignedEmployeeId || u.name === client.assignedEmployeeName) ||
+    users.find((u) => u.role === 'employee' || u.role === 'admin') || users[0];
+  const assignedComp = companies.find((c) => c.id === client.companyId) || companies[0];
+
   const clientDocs = (documents || []).filter((d) => d && d.clientId === client.id);
   const clientInvoices = (invoices || []).filter((i) => i && i.clientId === client.id);
-  const clientMessages = (messages || []).filter((m) => m && m.conversationId === client.id);
+  const currentConvId = activeChatChannel === 'officer' ? client.id : `${client.id}-branch`;
+  const clientMessages = (messages || []).filter((m) => m && m.conversationId === currentConvId);
   const clientVisaApps = (visaApplications || []).filter(
     (v) => v && (v.clientId === client.id || (v.clientEmail && client.email && v.clientEmail.toLowerCase() === client.email.toLowerCase()))
   );
@@ -85,7 +91,7 @@ export const ClientPortal: React.FC = () => {
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatMessage.trim()) return;
-    sendMessage(client.id, chatMessage.trim());
+    sendMessage(currentConvId, chatMessage.trim());
     setChatMessage('');
   };
 
@@ -131,7 +137,7 @@ export const ClientPortal: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-600/30 text-blue-400 border border-blue-500/30">
-                  Client Self-Service Portal
+                  Client Self-Service Dashboard
                 </span>
                 <span className="text-xs text-slate-400 font-mono">Ref: {client.refNo}</span>
               </div>
@@ -176,7 +182,7 @@ export const ClientPortal: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 mt-6 pt-4 border-t border-slate-800 overflow-x-auto text-xs font-bold uppercase tracking-tight">
+        <div className="flex items-center gap-2 mt-6 pt-4 border-t border-slate-800 overflow-x-auto text-xs font-bold uppercase tracking-tight scrollbar-none">
           <button
             onClick={() => setActiveTab('apply_services')}
             className={`px-3.5 py-2 rounded-md transition-all flex items-center gap-2 cursor-pointer ${
@@ -219,18 +225,7 @@ export const ClientPortal: React.FC = () => {
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>AI Visa Intelligence</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('photo_studio')}
-            className={`px-3.5 py-2 rounded-md transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'photo_studio'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-800'
-            }`}
-          >
-            <Wand2 className="w-4 h-4" />
-            <span>AI Photo Studio</span>
+            <span>Country Visa Advisor</span>
           </button>
           <button
             onClick={() => setActiveTab('documents')}
@@ -241,7 +236,7 @@ export const ClientPortal: React.FC = () => {
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Documents ({clientDocs.length})</span>
+            <span>My Documents ({clientDocs.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('payments')}
@@ -252,7 +247,7 @@ export const ClientPortal: React.FC = () => {
             }`}
           >
             <DollarSign className="w-4 h-4" />
-            <span>Invoices ({clientInvoices.length})</span>
+            <span>Invoices & Billing ({clientInvoices.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('messages')}
@@ -263,7 +258,7 @@ export const ClientPortal: React.FC = () => {
             }`}
           >
             <MessageSquare className="w-4 h-4" />
-            <span>Agent Chat ({clientMessages.length})</span>
+            <span>Message Hub ({clientMessages.length})</span>
           </button>
         </div>
       </div>
@@ -423,7 +418,7 @@ export const ClientPortal: React.FC = () => {
                         setUploadFileName(req.docName);
                         setShowUploadModal(true);
                       }}
-                      className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                      className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 cursor-pointer"
                     >
                       Upload
                     </button>
@@ -476,7 +471,7 @@ export const ClientPortal: React.FC = () => {
               </div>
               <button
                 onClick={() => setShowVisaApplyModal(true)}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 cursor-pointer"
               >
                 Start New Visa Application
               </button>
@@ -561,7 +556,7 @@ export const ClientPortal: React.FC = () => {
                       </span>
                       <button
                         onClick={() => setSelectedVisaTimelineApp(app)}
-                        className="px-3.5 py-1.5 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 text-blue-600 dark:text-blue-300 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all"
+                        className="px-3.5 py-1.5 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 text-blue-600 dark:text-blue-300 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>View Live Timeline</span>
@@ -575,17 +570,10 @@ export const ClientPortal: React.FC = () => {
         </div>
       )}
 
-      {/* Tab: AI Visa Country Intelligence & Search Grounding */}
+      {/* Tab: AI Visa Country Advisor & Grounding */}
       {activeTab === 'ai_advisor' && (
         <div className="space-y-6">
           <AIVisaCountryAdvisor initialNationality={client.nationality} />
-        </div>
-      )}
-
-      {/* Tab: AI Photo & Document Studio */}
-      {activeTab === 'photo_studio' && (
-        <div className="space-y-6">
-          <AIImageStudio />
         </div>
       )}
 
@@ -602,7 +590,7 @@ export const ClientPortal: React.FC = () => {
               </div>
               <button
                 onClick={() => setShowUploadModal(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors self-start sm:self-auto"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors self-start sm:self-auto cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
                 <span>Upload Document</span>
@@ -709,7 +697,7 @@ export const ClientPortal: React.FC = () => {
                     {inv.balanceAmount > 0 ? (
                       <button
                         onClick={() => handleSimulatePayment(inv.id, inv.balanceAmount)}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-colors"
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer"
                       >
                         Pay Balance (AED {inv.balanceAmount.toLocaleString()})
                       </button>
@@ -722,27 +710,80 @@ export const ClientPortal: React.FC = () => {
                   </div>
                 </div>
               ))}
+              {clientInvoices.length === 0 && (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  No invoices or billing statements on record.
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Tab 4: Agent Chat */}
+      {/* Tab 4: Assigned Team Message Hub */}
       {activeTab === 'messages' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm flex flex-col h-[520px]">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm flex flex-col h-[560px]">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
-                PRO
-              </div>
+              <img
+                src={
+                  activeChatChannel === 'officer'
+                    ? assignedEmp?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+                    : assignedComp?.logo || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=200&q=80'
+                }
+                alt=""
+                className="w-10 h-10 rounded-2xl object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+              />
               <div>
-                <h3 className="text-xs font-bold text-slate-900 dark:text-white">
-                  {activeService?.assignedEmployeeName || 'Assigned PRO Consultant'}
-                </h3>
-                <p className="text-[10px] text-emerald-500 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Online for your service inquiry
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+                    {activeChatChannel === 'officer'
+                      ? assignedEmp?.name || client.assignedEmployeeName || 'Assigned PRO Consultant'
+                      : `${assignedComp?.name || 'ADCS Group'} - Branch Desk`}
+                  </h3>
+                  <span
+                    className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border ${
+                      activeChatChannel === 'officer'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200'
+                        : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200'
+                    }`}
+                  >
+                    {activeChatChannel === 'officer' ? 'Designated Officer' : 'Branch Office'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {activeChatChannel === 'officer'
+                    ? 'Direct line for your dossier status & PRO questions'
+                    : 'Branch operations & customer escalations desk'}
                 </p>
               </div>
+            </div>
+
+            {/* Channel Selector Toggle */}
+            <div className="flex items-center bg-slate-200/80 dark:bg-slate-800 p-1 rounded-xl gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setActiveChatChannel('officer')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                  activeChatChannel === 'officer'
+                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                PRO Consultant
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveChatChannel('branch')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                  activeChatChannel === 'branch'
+                    ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                Branch Desk
+              </button>
             </div>
           </div>
 
@@ -754,19 +795,24 @@ export const ClientPortal: React.FC = () => {
                   <div
                     className={`max-w-md p-3.5 rounded-2xl text-xs ${
                       isMe
-                        ? 'bg-blue-600 text-white rounded-br-none'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-none'
+                        ? 'bg-blue-600 text-white rounded-br-none shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-none border border-slate-200 dark:border-slate-700'
                     }`}
                   >
                     <p className="font-semibold text-[10px] opacity-80 mb-1">{msg.senderName}</p>
-                    <p>{msg.text}</p>
-                    <span className="block text-[9px] opacity-70 text-right mt-1">
+                    <p className="leading-relaxed">{msg.text}</p>
+                    <span className="block text-[9px] opacity-70 text-right mt-1 font-mono">
                       {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
               );
             })}
+            {clientMessages.length === 0 && (
+              <div className="p-12 text-center text-slate-400 text-xs">
+                No messages yet. Send a direct inquiry to {activeChatChannel === 'officer' ? 'your assigned PRO consultant' : 'the branch operations desk'} below.
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-200 dark:border-slate-800 flex gap-2">
@@ -774,12 +820,17 @@ export const ClientPortal: React.FC = () => {
               type="text"
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
-              placeholder="Ask a question about your visa stage, medical, or documents..."
+              placeholder={
+                activeChatChannel === 'officer'
+                  ? 'Ask a question about your visa stage, medical, or documents...'
+                  : 'Send inquiry to branch operations desk...'
+              }
               className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs focus:outline-hidden"
             />
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5"
+              disabled={!chatMessage.trim()}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Send</span>
@@ -842,13 +893,13 @@ export const ClientPortal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-semibold text-white"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-semibold text-white cursor-pointer"
                 >
                   Submit Document
                 </button>

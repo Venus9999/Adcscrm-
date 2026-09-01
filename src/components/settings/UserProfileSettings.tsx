@@ -353,47 +353,49 @@ export const UserProfileSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* Security PIN & Digital Signature */}
-        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-purple-500" />
-            <span>Digital Authorization & Security PIN</span>
-          </h2>
+        {/* Security PIN & Digital Signature (Staff only) */}
+        {currentUser.role !== 'client' && (
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-purple-500" />
+              <span>Digital Authorization & Security PIN</span>
+            </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Security Authorization PIN (4-Digits)
-              </label>
-              <input
-                type="password"
-                maxLength={6}
-                value={profileForm.securityPin}
-                onChange={(e) => setProfileForm({ ...profileForm, securityPin: e.target.value })}
-                placeholder="****"
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono text-center tracking-widest text-base"
-              />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Required when approving government fee vouchers and issuing clearance certificates.
-              </span>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Security Authorization PIN (4-Digits)
+                </label>
+                <input
+                  type="password"
+                  maxLength={6}
+                  value={profileForm.securityPin}
+                  onChange={(e) => setProfileForm({ ...profileForm, securityPin: e.target.value })}
+                  placeholder="****"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono text-center tracking-widest text-base"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Required when approving government fee vouchers and issuing clearance certificates.
+                </span>
+              </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Official Digital Sign-off Representation
-              </label>
-              <input
-                type="text"
-                value={profileForm.signature}
-                onChange={(e) => setProfileForm({ ...profileForm, signature: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-serif italic"
-              />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Printed on generated PDF invoices and work progress reports.
-              </span>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Official Digital Sign-off Representation
+                </label>
+                <input
+                  type="text"
+                  value={profileForm.signature}
+                  onChange={(e) => setProfileForm({ ...profileForm, signature: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-serif italic"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Printed on generated PDF invoices and work progress reports.
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Change Account Password & Security Credentials */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">

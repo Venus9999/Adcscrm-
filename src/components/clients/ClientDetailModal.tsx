@@ -580,50 +580,54 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
           >
             Invoices ({clientInvoices.length})
           </button>
-          <button
-            onClick={() => {
-              setActiveTab('gmail');
-              fetchMessages(undefined, client.email);
-            }}
-            className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'gmail'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Mail className="w-3.5 h-3.5 text-blue-500" />
-            <span>Communications ({allGmailMessages.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('notes')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-              activeTab === 'notes'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
-            }`}
-          >
-            Internal Notes ({(client.notes || []).length})
-          </button>
-          <button
-            onClick={() => setActiveTab('calls')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-              activeTab === 'calls'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
-            }`}
-          >
-            Call Logs ({(client.calls || []).length})
-          </button>
-          <button
-            onClick={() => setActiveTab('tasks')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-              activeTab === 'tasks'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
-            }`}
-          >
-            Tasks ({clientTasks.length})
-          </button>
+          {currentUser.role !== 'client' && (
+            <>
+              <button
+                onClick={() => {
+                  setActiveTab('gmail');
+                  fetchMessages(undefined, client.email);
+                }}
+                className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'gmail'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5 text-blue-500" />
+                <span>Communications ({allGmailMessages.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('notes')}
+                className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                  activeTab === 'notes'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                }`}
+              >
+                Internal Notes ({(client.notes || []).length})
+              </button>
+              <button
+                onClick={() => setActiveTab('calls')}
+                className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                  activeTab === 'calls'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                }`}
+              >
+                Call Logs ({(client.calls || []).length})
+              </button>
+              <button
+                onClick={() => setActiveTab('tasks')}
+                className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                  activeTab === 'tasks'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                }`}
+              >
+                Tasks ({clientTasks.length})
+              </button>
+            </>
+          )}
         </div>
 
         {/* Tab Content Body */}

@@ -42,11 +42,13 @@ import {
   Department,
   SmtpSettings,
   DiscountType,
+  ServiceClassification,
 } from '../types/crm';
 import {
   INITIAL_COMPANIES,
   INITIAL_USERS,
   INITIAL_STAGES,
+  INITIAL_SERVICE_CLASSIFICATIONS,
   INITIAL_SERVICE_CATEGORIES,
   INITIAL_CLIENTS,
   INITIAL_DOCUMENTS,
@@ -118,6 +120,7 @@ interface CRMContextType {
   roles: RoleDefinition[];
   stages: WorkStage[];
   workflows: PipelineWorkflow[];
+  serviceClassifications: ServiceClassification[];
   serviceCategories: ServiceCategory[];
   clients: Client[];
   documents: DocumentItem[];
@@ -199,6 +202,9 @@ interface CRMContextType {
     }
   ) => { service?: ClientService; invoice?: Invoice; success: boolean; error?: string };
   updateServiceStage: (clientId: string, serviceInstanceId: string, targetStageId: string, remarks: string, nextFollowUpDate?: string) => void;
+  addServiceClassification: (classification: Omit<ServiceClassification, 'id'>) => ServiceClassification;
+  updateServiceClassification: (id: string, updates: Partial<ServiceClassification>) => void;
+  deleteServiceClassification: (id: string, migrateToCategory?: string) => void;
   addServiceCategory: (service: Omit<ServiceCategory, 'id'>) => ServiceCategory;
   updateServiceCategory: (id: string, updates: Partial<ServiceCategory>) => void;
   deleteServiceCategory: (id: string) => void;
@@ -398,6 +404,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [roles, setRoles] = useState<RoleDefinition[]>(INITIAL_ROLES);
   const [stages, setStages] = useState<WorkStage[]>(INITIAL_STAGES);
   const [workflows, setWorkflows] = useState<PipelineWorkflow[]>(INITIAL_WORKFLOWS);
+  const [serviceClassifications, setServiceClassifications] = useState<ServiceClassification[]>(INITIAL_SERVICE_CLASSIFICATIONS);
   const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>(INITIAL_SERVICE_CATEGORIES);
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCUMENTS);
@@ -755,6 +762,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
     }
     if (parsed.stages && Array.isArray(parsed.stages)) setStages(parsed.stages);
+    if (parsed.serviceClassifications && Array.isArray(parsed.serviceClassifications)) setServiceClassifications(parsed.serviceClassifications);
     if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) setServiceCategories(parsed.serviceCategories);
     if (parsed.clients && Array.isArray(parsed.clients)) {
       setClients(
@@ -1093,6 +1101,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       roles,
       stages,
       workflows,
+      serviceClassifications,
       serviceCategories,
       clients,
       documents,
@@ -4078,7 +4087,80 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [invoices, recordAuditLog]
   );
 
-  // Services Catalog Management
+  // Services Catalog & Classification Management
+  const addServiceClassification = useCallback(
+    (classData: Omit<ServiceClassification, 'id'>): ServiceClassification => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        console.warn('Permission denied: Only Admin and Master can create service classifications');
+        return {} as ServiceClassification;
+      }
+      const newClassification: ServiceClassification = {
+        ...classData,
+        id: `class-${Date.now()}`,
+      };
+      setServiceClassifications((prev) => [...prev, newClassification]);
+      recordAuditLog('Service Classification Added', 'Services', `Created service classification "${newClassification.name}"`);
+      return newClassification;
+    },
+    [currentUser.role, recordAuditLog]
+  );
+
+  const updateServiceClassification = useCallback(
+    (id: string, updates: Partial<ServiceClassification>) => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        console.warn('Permission denied: Only Admin and Master can edit service classifications');
+        return;
+      }
+      let oldName = '';
+      setServiceClassifications((prev) =>
+        prev.map((c) => {
+          if (c.id === id) {
+            oldName = c.name;
+            return { ...c, ...updates };
+          }
+          return c;
+        })
+      );
+
+      // If category name changed, cascade update to all service categories
+      if (updates.name && oldName && updates.name.trim() !== oldName.trim()) {
+        const newName = updates.name.trim();
+        setServiceCategories((prev) =>
+          prev.map((s) => (s.category === oldName ? { ...s, category: newName } : s))
+        );
+      }
+
+      recordAuditLog('Service Classification Updated', 'Services', `Updated service classification ID ${id}`);
+    },
+    [currentUser.role, recordAuditLog]
+  );
+
+  const deleteServiceClassification = useCallback(
+    (id: string, migrateToCategory?: string) => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        console.warn('Permission denied: Only Admin and Master can delete service classifications');
+        return;
+      }
+      let deletedName = '';
+      setServiceClassifications((prev) => {
+        const target = prev.find((c) => c.id === id);
+        if (target) deletedName = target.name;
+        return prev.filter((c) => c.id !== id);
+      });
+
+      // Migrate services under this classification
+      if (deletedName) {
+        const fallback = migrateToCategory || 'General';
+        setServiceCategories((prev) =>
+          prev.map((s) => (s.category === deletedName ? { ...s, category: fallback } : s))
+        );
+      }
+
+      recordAuditLog('Service Classification Deleted', 'Services', `Deleted service classification ID ${id}`);
+    },
+    [currentUser.role, recordAuditLog]
+  );
+
   const addServiceCategory = useCallback(
     (srvData: Omit<ServiceCategory, 'id'>): ServiceCategory => {
       if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
@@ -5196,11 +5278,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Messages
   const sendMessage = useCallback(
     (conversationId: string, text: string, recipientId?: string, attachments?: { name: string; url: string; size: string; type: string }[]) => {
-      const client = clients.find((c) => c.id === conversationId);
+      const realClientId = conversationId.endsWith('-branch') ? conversationId.replace('-branch', '') : conversationId;
+      const client = clients.find((c) => c.id === realClientId || c.id === conversationId);
       const newMsg: MessageItem = {
         id: `msg-${Date.now()}`,
         conversationId,
-        clientId: client?.id || conversationId,
+        clientId: client?.id || realClientId,
         clientName: client?.fullName,
         senderId: currentUser.id,
         senderName: currentUser.name,
@@ -5223,7 +5306,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         message: text.length > 60 ? `${text.substring(0, 60)}...` : text,
         type: 'system',
         linkTab: 'messages',
-        relatedClientId: conversationId,
+        relatedClientId: client?.id || realClientId,
         read: false,
         timestamp: new Date().toISOString(),
       };
@@ -5732,9 +5815,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // System State Reset / Factory Reset
   const resetToDefaultData = useCallback(async () => {
     setCompanies(INITIAL_COMPANIES);
+    setDepartments(INITIAL_DEPARTMENTS);
     setVendors(INITIAL_VENDORS);
     setUsers(INITIAL_USERS);
+    setRoles(INITIAL_ROLES);
     setStages(INITIAL_STAGES);
+    setWorkflows(INITIAL_WORKFLOWS);
+    setServiceClassifications(INITIAL_SERVICE_CLASSIFICATIONS);
     setServiceCategories(INITIAL_SERVICE_CATEGORIES);
     setClients(INITIAL_CLIENTS);
     setDocuments(INITIAL_DOCUMENTS);
@@ -5748,21 +5835,36 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setLeadSources(INITIAL_LEAD_SOURCES);
     setLeadStages(INITIAL_LEAD_STAGES);
     setTransactions(INITIAL_TRANSACTIONS);
+    setVisaApplications(INITIAL_VISA_APPLICATIONS);
+    setVisaCountryCatalog(WORLD_VISA_COUNTRIES);
     setCrmBranding(DEFAULT_CRM_BRANDING);
     setBillingSettings(DEFAULT_BILLING_SETTINGS);
     setCurrentUser(INITIAL_USERS[0]);
     setSelectedCompanyId('all');
+    setSelectedEmployeeId('all');
     setSelectedClientId(null);
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
+
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      localStorage.removeItem('adcs_crm_db_v2');
+      localStorage.removeItem('adcs_crm_db');
+      localStorage.removeItem(DELETED_VISA_COUNTRIES_STORAGE_KEY);
+      localStorage.removeItem(DELETED_VISA_SERVICES_STORAGE_KEY);
+      localStorage.removeItem(DELETED_VISA_APPS_STORAGE_KEY);
+      localStorage.removeItem(DELETED_VENDORS_STORAGE_KEY);
+      localStorage.removeItem(DELETED_USERS_STORAGE_KEY);
+    } catch {}
 
     const defaultSnapshot = {
       currentUserId: INITIAL_USERS[0].id,
       companies: INITIAL_COMPANIES,
+      departments: INITIAL_DEPARTMENTS,
       vendors: INITIAL_VENDORS,
       users: INITIAL_USERS,
       roles: INITIAL_ROLES,
       stages: INITIAL_STAGES,
       workflows: INITIAL_WORKFLOWS,
+      serviceClassifications: INITIAL_SERVICE_CLASSIFICATIONS,
       serviceCategories: INITIAL_SERVICE_CATEGORIES,
       clients: INITIAL_CLIENTS,
       documents: INITIAL_DOCUMENTS,
@@ -5776,13 +5878,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       leadSources: INITIAL_LEAD_SOURCES,
       leadStages: INITIAL_LEAD_STAGES,
       transactions: INITIAL_TRANSACTIONS,
+      visaApplications: INITIAL_VISA_APPLICATIONS,
+      visaCountryCatalog: WORLD_VISA_COUNTRIES,
+      deletedVendorIds: [],
+      deletedVisaCountryCodes: [],
+      deletedVisaServiceIds: [],
+      deletedVisaAppIds: [],
       crmBranding: DEFAULT_CRM_BRANDING,
       billingSettings: DEFAULT_BILLING_SETTINGS,
       lastUpdated: new Date().toISOString(),
       forceReset: true,
+      hasCustomModifications: false,
     };
 
     try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(defaultSnapshot));
+      if (broadcastChannelRef.current) {
+        broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: defaultSnapshot });
+      }
       await saveCRMDataToCloud(defaultSnapshot);
       await fetch('/api/crm/data', {
         method: 'POST',
@@ -7515,6 +7628,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         roles,
         stages,
         workflows,
+        serviceClassifications,
         serviceCategories,
         clients,
         documents,
@@ -7557,6 +7671,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         addServiceToClient,
         updateServiceStage,
+        addServiceClassification,
+        updateServiceClassification,
+        deleteServiceClassification,
         addServiceCategory,
         updateServiceCategory,
         deleteServiceCategory,
