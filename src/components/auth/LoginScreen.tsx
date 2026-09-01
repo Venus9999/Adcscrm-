@@ -53,7 +53,6 @@ export const LoginScreen: React.FC = () => {
   const [regNationality, setRegNationality] = useState('United Arab Emirates');
   const [regCompanyName, setRegCompanyName] = useState('');
   const [regPassport, setRegPassport] = useState('');
-  const [regCompanyId, setRegCompanyId] = useState(companies[0]?.id || '');
   const [regError, setRegError] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
 
@@ -114,7 +113,7 @@ export const LoginScreen: React.FC = () => {
         nationality: regNationality,
         companyName: regCompanyName.trim() || undefined,
         passportNo: regPassport.trim() || undefined,
-        companyId: regCompanyId || undefined,
+        companyId: companies[0]?.id || undefined,
       });
 
       setIsRegistering(false);
@@ -433,36 +432,16 @@ export const LoginScreen: React.FC = () => {
             ) : (
               /* Client Self-Registration Form */
               <div>
-                <div className="mb-5 flex items-center justify-between gap-2 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-2xl font-bold text-white tracking-tight">Client Account Setup</h2>
-                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">
-                        SELF-SERVICE
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Register to apply for UAE visas, company setup, tax clearance, and track services.
-                    </p>
+                <div className="mb-5">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-white tracking-tight">Client Account Setup</h2>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">
+                      SELF-SERVICE
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const suffix = Math.floor(100 + Math.random() * 900);
-                      setRegFullName(`Investor Tariq Al-Mansoor`);
-                      setRegEmail(`investor${suffix}@dubai-ventures.ae`);
-                      setRegPassword('Client@2026!');
-                      setRegPhone('+971 50 888 7766');
-                      setRegNationality('United Arab Emirates');
-                      setRegCompanyName('Al-Mansoor Global Holdings');
-                      setRegPassport(`N8899${suffix}`);
-                      setRegError(null);
-                    }}
-                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-700/50 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    <span>Autofill Sample</span>
-                  </button>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Register to apply for UAE visas, company setup, tax clearance, and track services.
+                  </p>
                 </div>
 
                 {/* Error Banner */}
@@ -607,37 +586,18 @@ export const LoginScreen: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Passport / Trade License Number */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                        Passport / Emirates ID (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={regPassport}
-                        onChange={(e) => setRegPassport(e.target.value)}
-                        placeholder="e.g. N12345678"
-                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium uppercase"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                        Preferred Branch / Entity
-                      </label>
-                      <select
-                        value={regCompanyId || companies[0]?.id || ''}
-                        onChange={(e) => setRegCompanyId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-hidden focus:border-emerald-500 transition-all font-medium"
-                      >
-                        {companies.map((comp) => (
-                          <option key={comp.id} value={comp.id}>
-                            {comp.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  {/* Passport / Emirates ID */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                      Passport / Emirates ID (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={regPassport}
+                      onChange={(e) => setRegPassport(e.target.value)}
+                      placeholder="e.g. N12345678"
+                      className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 transition-all font-medium uppercase"
+                    />
                   </div>
 
                   {/* Register CTA */}
