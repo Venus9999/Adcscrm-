@@ -293,7 +293,6 @@ interface CRMContextType {
 
   // Global Visa Services (Worldwide)
   visaApplications: VisaApplication[];
-  filteredVisaApplications: VisaApplication[];
   visaCountryCatalog: VisaCountryOption[];
   addVisaCountry: (country: VisaCountryOption) => void;
   updateVisaCountry: (countryCode: string, updates: Partial<VisaCountryOption>) => void;
@@ -352,6 +351,7 @@ interface CRMContextType {
   filteredDocuments: DocumentItem[];
   filteredLeads: Lead[];
   filteredTransactions: Transaction[];
+  filteredVisaApplications: VisaApplication[];
   expiringDocuments: { type: string; title: string; client: Client; expiryDate: string; daysLeft: number; isUrgent: boolean }[];
   taskDueReminders: TaskDueReminder[];
 }
@@ -7236,9 +7236,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const filteredClients = (clients || []).filter((c) => {
     if (!c) return false;
     if (isClientRole) {
+      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
       const isSelf =
-        (c.email && currentUser?.email && c.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-        (selectedClientId && c.id === selectedClientId);
+        (c.email && c.email.toLowerCase().trim() === userCleanEmail) ||
+        (currentUser?.id && c.id === currentUser.id);
       return Boolean(isSelf);
     }
 
@@ -7268,6 +7269,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return true;
   });
 
+  const selfClientProfile = React.useMemo(() => {
+    if (!isClientRole) return null;
+    const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+    return (
+      (clients || []).find(
+        (c) =>
+          c &&
+          ((c.email && c.email.toLowerCase().trim() === userCleanEmail) ||
+            (currentUser?.id && c.id === currentUser.id))
+      ) || null
+    );
+  }, [isClientRole, clients, currentUser]);
+
   const filteredVendors = (vendors || []).filter((v) => {
     if (!v) return false;
     if (isClientRole) return false;
@@ -7289,13 +7303,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const filteredInvoices = (invoices || []).filter((i) => {
     if (!i) return false;
+    const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
     const linkedClient = (clients || []).find((c) => c && c.id === i.clientId);
 
     if (isClientRole) {
       const isMatch =
-        (i.clientEmail && currentUser?.email && i.clientEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
-        (linkedClient && linkedClient.email && currentUser?.email && linkedClient.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-        (selectedClientId && i.clientId === selectedClientId);
+        (i.clientEmail && i.clientEmail.toLowerCase().trim() === userCleanEmail) ||
+        (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
+        (i.clientId && currentUser?.id && i.clientId === currentUser.id) ||
+        (selfClientProfile && i.clientId === selfClientProfile.id) ||
+        (linkedClient && currentUser?.id && linkedClient.id === currentUser.id) ||
+        (selfClientProfile && linkedClient && linkedClient.id === selfClientProfile.id);
       return Boolean(isMatch);
     }
 
@@ -7330,7 +7348,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const filteredTasks = (tasks || []).filter((t) => {
     if (!t) return false;
     if (isClientRole) {
-      return selectedClientId ? t.clientId === selectedClientId : false;
+      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+      const linkedClient = (clients || []).find((c) => c && c.id === t.clientId);
+      return Boolean(
+        (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
+        (t.clientId && currentUser?.id && t.clientId === currentUser.id) ||
+        (selfClientProfile && t.clientId === selfClientProfile.id)
+      );
     }
 
     if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
@@ -7359,9 +7383,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const client = (clients || []).find((c) => c && c.id === d.clientId);
 
     if (isClientRole) {
-      return (
-        (client && client.email && currentUser?.email && client.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-        (selectedClientId && d.clientId === selectedClientId)
+      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+      return Boolean(
+        (client && client.email && client.email.toLowerCase().trim() === userCleanEmail) ||
+        (d.clientId && currentUser?.id && d.clientId === currentUser.id) ||
+        (selfClientProfile && d.clientId === selfClientProfile.id)
       );
     }
 
@@ -7423,9 +7449,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const linkedClient = (clients || []).find((c) => c && c.id === tx.clientId);
 
     if (isClientRole) {
-      return (
-        (linkedClient && linkedClient.email && currentUser?.email && linkedClient.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-        (selectedClientId && tx.clientId === selectedClientId)
+      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+      return Boolean(
+        (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
+        (tx.clientId && currentUser?.id && tx.clientId === currentUser.id) ||
+        (selfClientProfile && tx.clientId === selfClientProfile.id)
       );
     }
 
@@ -7566,9 +7594,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return (visaApplications || []).filter((vsa) => {
       if (!vsa) return false;
       if (isClientRole) {
+        const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
         const isClientApp =
-          (vsa.clientEmail && currentUser?.email && vsa.clientEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
-          (selectedClientId && vsa.clientId === selectedClientId);
+          (vsa.clientEmail && vsa.clientEmail.toLowerCase().trim() === userCleanEmail) ||
+          (vsa.clientId && currentUser?.id && vsa.clientId === currentUser.id) ||
+          (selfClientProfile && vsa.clientId === selfClientProfile.id);
         return Boolean(isClientApp);
       }
 
@@ -7585,7 +7615,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [visaApplications, selectedCompanyId, selectedEmployeeId, isEmployeeRole, isClientRole, currentUser, selectedClientId]);
+  }, [visaApplications, selectedCompanyId, selectedEmployeeId, isEmployeeRole, isClientRole, currentUser, selectedClientId, selfClientProfile]);
 
   return (
     <CRMContext.Provider

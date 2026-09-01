@@ -106,13 +106,28 @@ export const InvoicesPayments: React.FC = () => {
   });
 
   // New Invoice Form
+  const [invClientMode, setInvClientMode] = useState<'existing' | 'custom'>('existing');
   const [invClientId, setInvClientId] = useState(clients[0]?.id || '');
+  const [invCustomName, setInvCustomName] = useState('');
+  const [invCustomEmail, setInvCustomEmail] = useState('');
+  const [invCustomPhone, setInvCustomPhone] = useState('');
+  const [invCustomPassport, setInvCustomPassport] = useState('');
+  const [invCustomAddress, setInvCustomAddress] = useState('');
+  const [invCustomCompanyName, setInvCustomCompanyName] = useState('');
+
+  const [invServiceMode, setInvServiceMode] = useState<'catalog' | 'custom'>('catalog');
   const [invServiceCatId, setInvServiceCatId] = useState(serviceCategories[0]?.id || '');
+  const [invCustomServiceName, setInvCustomServiceName] = useState('');
   const [serviceFee, setServiceFee] = useState<number>(serviceCategories[0]?.defaultPrice || 3500);
   const [govFee, setGovFee] = useState<number>(serviceCategories[0]?.governmentFees || 2200);
   const [vatRate, setVatRate] = useState<number>(billingSettings?.vatRate ?? 5);
-  const [invDueDate, setInvDueDate] = useState('2026-03-15');
+  const [invDueDate, setInvDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split('T')[0];
+  });
   const [invNotes, setInvNotes] = useState('');
+  const [invSuccessBanner, setInvSuccessBanner] = useState<string | null>(null);
 
   // Comprehensive Edit Invoice Form State
   const [editInvId, setEditInvId] = useState('');
@@ -249,11 +264,82 @@ export const InvoicesPayments: React.FC = () => {
   const totalPaid = filteredInvoices.reduce((acc, i) => acc + i.amountPaid, 0);
   const totalBalance = filteredInvoices.reduce((acc, i) => acc + i.balanceAmount, 0);
 
+  const handleOpenCreateModal = (preselectedClientId?: string) => {
+    const targetClientId = preselectedClientId || invClientId || clients[0]?.id || '';
+    const cl = clients.find((c) => c.id === targetClientId) || clients[0];
+    if (cl) {
+      setInvClientId(cl.id);
+      setInvClientMode('existing');
+    } else {
+      setInvClientMode('custom');
+    }
+
+    const targetCatId = invServiceCatId || serviceCategories[0]?.id || '';
+    const cat = serviceCategories.find((s) => s.id === targetCatId) || serviceCategories[0];
+    if (cat) {
+      setInvServiceCatId(cat.id);
+      setServiceFee(cat.defaultPrice || 3500);
+      setGovFee(cat.governmentFees || 2200);
+    }
+
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    setInvDueDate(d.toISOString().split('T')[0]);
+    setVatRate(billingSettings?.vatRate ?? 5);
+    setInvNotes('');
+    setShowCreateModal(true);
+  };
+
   const handleCreateInvoiceSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cl = clients.find((c) => c.id === invClientId);
-    const cat = serviceCategories.find((c) => c.id === invServiceCatId);
-    if (!cl || !cat) return;
+
+    let billedClientId = '';
+    let billedClientName = '';
+    let billedClientEmail = '';
+    let billedClientPhone = '';
+    let billedClientAddress = 'Dubai, UAE';
+    let billedClientPassport = '';
+    let billedCompanyId = companies[0]?.id || 'comp-1';
+    let billedCompanyName = billingSettings?.companyName || 'ADCS Clearing LLC';
+
+    if (invClientMode === 'existing') {
+      const cl = clients.find((c) => c.id === invClientId) || clients[0];
+      if (cl) {
+        billedClientId = cl.id;
+        billedClientName = cl.fullName;
+        billedClientEmail = cl.email || '';
+        billedClientPhone = cl.mobile || cl.phone || '';
+        billedClientAddress = cl.residentialAddress || (cl as any).address || 'Dubai, UAE';
+        billedClientPassport = cl.passportNo || '';
+        billedCompanyId = cl.companyId || companies[0]?.id || 'comp-1';
+        billedCompanyName =
+          companies.find((c) => c.id === cl.companyId)?.name || billingSettings?.companyName || 'ADCS Clearing LLC';
+      } else {
+        billedClientId = `client-${Date.now()}`;
+        billedClientName = invCustomName || 'Client Dossier';
+        billedClientEmail = invCustomEmail || 'client@example.com';
+        billedClientPhone = invCustomPhone || '+971 50 000 0000';
+      }
+    } else {
+      billedClientId = `client-walkin-${Date.now()}`;
+      billedClientName = invCustomName.trim() || 'Walk-in Client';
+      billedClientEmail = invCustomEmail.trim() || 'walkin@example.com';
+      billedClientPhone = invCustomPhone.trim() || '+971 50 000 0000';
+      billedClientPassport = invCustomPassport.trim() || '';
+      billedClientAddress = invCustomAddress.trim() || 'Dubai, UAE';
+      billedCompanyName = invCustomCompanyName.trim() || billingSettings?.companyName || 'ADCS Clearing LLC';
+    }
+
+    let finalServiceName = '';
+    let finalServiceId: string | undefined = undefined;
+
+    if (invServiceMode === 'catalog') {
+      const cat = serviceCategories.find((s) => s.id === invServiceCatId) || serviceCategories[0];
+      finalServiceName = cat?.name || 'Corporate PRO & Visa Clearance Service';
+      finalServiceId = cat?.id;
+    } else {
+      finalServiceName = invCustomServiceName.trim() || 'Corporate PRO & Legal Document Clearance';
+    }
 
     const actualVatRate = vatRate ?? billingSettings?.vatRate ?? 5;
     const vatAmount = (serviceFee * actualVatRate) / 100;
@@ -263,33 +349,37 @@ export const InvoicesPayments: React.FC = () => {
     const items: InvoiceLineItem[] = [
       {
         id: `item-${Date.now()}-1`,
-        description: `${cat.name} - Professional Agency & PRO Processing Fee`,
+        description: `${finalServiceName} - Professional Agency & PRO Processing Fee`,
         quantity: 1,
         unitPrice: serviceFee,
         isGovernmentFee: false,
         total: serviceFee,
       },
-      {
-        id: `item-${Date.now()}-2`,
-        description: 'Government Official Pass-through Authority Fee (ICP / GDRFA / MoHRE / DET)',
-        quantity: 1,
-        unitPrice: govFee,
-        isGovernmentFee: true,
-        total: govFee,
-      },
+      ...(govFee > 0
+        ? [
+            {
+              id: `item-${Date.now()}-2`,
+              description: 'Government Official Pass-through Authority Fee (ICP / GDRFA / MoHRE / DET)',
+              quantity: 1,
+              unitPrice: govFee,
+              isGovernmentFee: true,
+              total: govFee,
+            },
+          ]
+        : []),
     ];
 
-    createInvoice({
-      clientId: cl.id,
-      clientName: cl.fullName,
-      clientEmail: cl.email,
-      clientPhone: cl.mobile,
-      clientAddress: cl.residentialAddress || 'Dubai, UAE',
-      clientPassport: cl.passportNo,
-      companyId: cl.companyId,
-      companyName: companies.find((c) => c.id === cl.companyId)?.name || billingSettings?.companyName || 'ADCS Clearing LLC',
-      serviceId: cat.id,
-      serviceName: cat.name,
+    const generated = createInvoice({
+      clientId: billedClientId,
+      clientName: billedClientName,
+      clientEmail: billedClientEmail,
+      clientPhone: billedClientPhone,
+      clientAddress: billedClientAddress,
+      clientPassport: billedClientPassport,
+      companyId: billedCompanyId,
+      companyName: billedCompanyName,
+      serviceId: finalServiceId,
+      serviceName: finalServiceName,
       subtotal,
       vatRate: actualVatRate,
       vatAmount,
@@ -299,7 +389,7 @@ export const InvoicesPayments: React.FC = () => {
       balanceAmount: grandTotal,
       paymentMethod: 'Bank Transfer',
       issueDate: new Date().toISOString().split('T')[0],
-      dueDate: invDueDate,
+      dueDate: invDueDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
       status: 'unpaid',
       notes: invNotes,
       items,
@@ -307,6 +397,16 @@ export const InvoicesPayments: React.FC = () => {
 
     setShowCreateModal(false);
     setInvNotes('');
+    setInvCustomName('');
+    setInvCustomEmail('');
+    setInvCustomPhone('');
+    setInvCustomPassport('');
+    setInvCustomAddress('');
+    setInvCustomCompanyName('');
+    setInvCustomServiceName('');
+
+    setInvSuccessBanner(`Invoice ${generated.invoiceNumber} for AED ${grandTotal.toLocaleString()} generated successfully!`);
+    setTimeout(() => setInvSuccessBanner(null), 6000);
   };
 
   const handleOpenEditModal = (inv: Invoice) => {
@@ -461,7 +561,7 @@ export const InvoicesPayments: React.FC = () => {
               <span>Connect Payment to User</span>
             </button>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => handleOpenCreateModal()}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -470,6 +570,19 @@ export const InvoicesPayments: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Success Notification Banner */}
+      {invSuccessBanner && (
+        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{invSuccessBanner}</span>
+          </div>
+          <button onClick={() => setInvSuccessBanner(null)} className="text-emerald-600 hover:text-emerald-800">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Financial KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -835,7 +948,7 @@ export const InvoicesPayments: React.FC = () => {
       {/* Create Tax Invoice Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl animate-in fade-in max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-xl w-full shadow-2xl animate-in fade-in max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-blue-600" />
@@ -847,47 +960,193 @@ export const InvoicesPayments: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateInvoiceSubmit} className="space-y-4 pt-4">
+              {/* Client Selection Mode */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Select Client Dossier *
-                </label>
-                <select
-                  value={invClientId}
-                  onChange={(e) => setInvClientId(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                >
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.fullName} - {c.companyName || c.email} ({c.passportNo || 'No Passport'})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Billed Client / Organization *
+                  </label>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setInvClientMode('existing')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                        invClientMode === 'existing'
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      CRM Dossier ({clients.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInvClientMode('custom')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                        invClientMode === 'custom'
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Direct / Walk-in
+                    </button>
+                  </div>
+                </div>
+
+                {invClientMode === 'existing' ? (
+                  clients.length > 0 ? (
+                    <select
+                      value={invClientId || clients[0]?.id}
+                      onChange={(e) => setInvClientId(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
+                    >
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.fullName} — {c.companyName || c.email || 'Individual'} ({c.passportNo || 'No Passport'})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+                      No CRM clients registered yet. Switching to Direct / Walk-in mode below.
+                    </div>
+                  )
+                ) : (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">Full Name / Contact Person *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. John Doe"
+                          value={invCustomName}
+                          onChange={(e) => setInvCustomName(e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">Company / Entity Name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Acme Gulf FZE"
+                          value={invCustomCompanyName}
+                          onChange={(e) => setInvCustomCompanyName(e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">Email Address</label>
+                        <input
+                          type="email"
+                          placeholder="client@example.com"
+                          value={invCustomEmail}
+                          onChange={(e) => setInvCustomEmail(e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">Phone / WhatsApp</label>
+                        <input
+                          type="text"
+                          placeholder="+971 50 123 4567"
+                          value={invCustomPhone}
+                          onChange={(e) => setInvCustomPhone(e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">Passport / Trade License No.</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. P12345678"
+                          value={invCustomPassport}
+                          onChange={(e) => setInvCustomPassport(e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">Billing Address</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Downtown Dubai, UAE"
+                          value={invCustomAddress}
+                          onChange={(e) => setInvCustomAddress(e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
+              {/* Service Selection Mode */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Service Dossier Package *
-                </label>
-                <select
-                  value={invServiceCatId}
-                  onChange={(e) => {
-                    const cat = serviceCategories.find((s) => s.id === e.target.value);
-                    setInvServiceCatId(e.target.value);
-                    if (cat) {
-                      setServiceFee(cat.defaultPrice);
-                      setGovFee(cat.governmentFees);
-                    }
-                  }}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                >
-                  {serviceCategories.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} (Agency: AED {s.defaultPrice.toLocaleString()} + Gov: AED {s.governmentFees.toLocaleString()})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Service Dossier / Package *
+                  </label>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setInvServiceMode('catalog')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                        invServiceMode === 'catalog'
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Service Catalog
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInvServiceMode('custom')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                        invServiceMode === 'custom'
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Custom Description
+                    </button>
+                  </div>
+                </div>
+
+                {invServiceMode === 'catalog' ? (
+                  <select
+                    value={invServiceCatId || serviceCategories[0]?.id}
+                    onChange={(e) => {
+                      const cat = serviceCategories.find((s) => s.id === e.target.value);
+                      setInvServiceCatId(e.target.value);
+                      if (cat) {
+                        setServiceFee(cat.defaultPrice);
+                        setGovFee(cat.governmentFees);
+                      }
+                    }}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
+                  >
+                    {serviceCategories.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} (Agency: AED {s.defaultPrice.toLocaleString()} + Gov: AED {s.governmentFees.toLocaleString()})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Express Golden Visa PRO Processing & Embassy Attestation"
+                    value={invCustomServiceName}
+                    onChange={(e) => setInvCustomServiceName(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                  />
+                )}
               </div>
 
+              {/* Price breakdown */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -895,9 +1154,10 @@ export const InvoicesPayments: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    min="0"
                     required
                     value={serviceFee}
-                    onChange={(e) => setServiceFee(Number(e.target.value))}
+                    onChange={(e) => setServiceFee(Math.max(0, Number(e.target.value)))}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
                   />
                 </div>
@@ -907,11 +1167,12 @@ export const InvoicesPayments: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    min="0"
                     value={govFee}
-                    onChange={(e) => setGovFee(Number(e.target.value))}
+                    onChange={(e) => setGovFee(Math.max(0, Number(e.target.value)))}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
-                  <span className="text-[10px] text-slate-400">0% VAT Exempt Pass-through</span>
+                  <span className="text-[10px] text-slate-400">0% VAT Exempt Authority Fee</span>
                 </div>
               </div>
 
@@ -922,8 +1183,10 @@ export const InvoicesPayments: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    min="0"
+                    max="100"
                     value={vatRate}
-                    onChange={(e) => setVatRate(Number(e.target.value))}
+                    onChange={(e) => setVatRate(Math.max(0, Number(e.target.value)))}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
                 </div>
@@ -977,15 +1240,16 @@ export const InvoicesPayments: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold hover:bg-slate-200 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  Generate Tax Invoice
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>Generate Tax Invoice</span>
                 </button>
               </div>
             </form>

@@ -81,6 +81,23 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   // Matched Clients
   const matchedClients = useMemo(() => {
+    if (currentUser?.role === 'client') {
+      const userCleanEmail = (currentUser.email || '').toLowerCase().trim();
+      return (clients || []).filter((c) => {
+        if (!c) return false;
+        const isSelf =
+          (c.email && c.email.toLowerCase().trim() === userCleanEmail) ||
+          (currentUser.id && c.id === currentUser.id);
+        if (!isSelf) return false;
+        if (!cleanQuery) return true;
+        return (
+          (c.fullName && c.fullName.toLowerCase().includes(cleanQuery)) ||
+          (c.refNo && c.refNo.toLowerCase().includes(cleanQuery)) ||
+          (c.passportNo && c.passportNo.toLowerCase().includes(cleanQuery))
+        );
+      });
+    }
+
     return (clients || []).filter((c) => {
       if (!c) return false;
       // Company filter
@@ -122,10 +139,12 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         tags.includes(cleanQuery)
       );
     });
-  }, [clients, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, companyMap, userMap]);
+  }, [clients, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, companyMap, userMap, currentUser]);
 
   // Matched Leads
   const matchedLeads = useMemo(() => {
+    if (currentUser?.role === 'client') return [];
+
     return (leads || []).filter((l) => {
       if (!l) return false;
       // Company / Branch filter
@@ -161,7 +180,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         tags.includes(cleanQuery)
       );
     });
-  }, [leads, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, companyMap, userMap]);
+  }, [leads, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, companyMap, userMap, currentUser?.role]);
 
   // Matched Employees / Users (Master and Admin only)
   const matchedEmployees = useMemo(() => {
@@ -199,6 +218,23 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   // Matched Documents
   const matchedDocs = useMemo(() => {
+    if (currentUser?.role === 'client') {
+      const userCleanEmail = (currentUser.email || '').toLowerCase().trim();
+      return (documents || []).filter((d) => {
+        if (!d) return false;
+        const linkedClient = (clients || []).find((c) => c && c.id === d.clientId);
+        const isSelf =
+          (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
+          (d.clientId && currentUser.id && d.clientId === currentUser.id);
+        if (!isSelf) return false;
+        if (!cleanQuery) return true;
+        return (
+          (d.name && d.name.toLowerCase().includes(cleanQuery)) ||
+          (d.category && d.category.toLowerCase().includes(cleanQuery))
+        );
+      });
+    }
+
     return (documents || []).filter((d) => {
       if (!d) return false;
       // Check linked client's company or employee if client exists
@@ -229,10 +265,30 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         (d.remarks && d.remarks.toLowerCase().includes(cleanQuery))
       );
     });
-  }, [documents, clients, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery]);
+  }, [documents, clients, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, currentUser]);
 
   // Matched Invoices
   const matchedInvoices = useMemo(() => {
+    if (currentUser?.role === 'client') {
+      const userCleanEmail = (currentUser.email || '').toLowerCase().trim();
+      return (invoices || []).filter((i) => {
+        if (!i) return false;
+        const linkedClient = (clients || []).find((c) => c && c.id === i.clientId);
+        const isMatch =
+          (i.clientEmail && i.clientEmail.toLowerCase().trim() === userCleanEmail) ||
+          (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
+          (i.clientId && currentUser.id && i.clientId === currentUser.id) ||
+          (linkedClient && currentUser.id && linkedClient.id === currentUser.id);
+        if (!isMatch) return false;
+        if (!cleanQuery) return true;
+        return (
+          (i.invoiceNumber && i.invoiceNumber.toLowerCase().includes(cleanQuery)) ||
+          (i.receiptNumber && i.receiptNumber.toLowerCase().includes(cleanQuery)) ||
+          (i.serviceName && i.serviceName.toLowerCase().includes(cleanQuery))
+        );
+      });
+    }
+
     return (invoices || []).filter((i) => {
       if (!i) return false;
       // Check linked client's company
@@ -262,7 +318,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         (i.status && i.status.toLowerCase().includes(cleanQuery))
       );
     });
-  }, [invoices, clients, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery]);
+  }, [invoices, clients, selectedCompanyFilter, selectedEmployeeFilter, cleanQuery, currentUser]);
 
   // Matched Tasks
   const matchedTasks = useMemo(() => {

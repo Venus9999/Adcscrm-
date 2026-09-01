@@ -31,6 +31,7 @@ import { PDFEditorModal } from './PDFEditorModal';
 export const DocumentVault: React.FC = () => {
   const {
     documents,
+    filteredDocuments,
     expiringDocuments,
     updateDocumentStatus,
     uploadDocument,
@@ -38,7 +39,17 @@ export const DocumentVault: React.FC = () => {
     clients,
     setSelectedClientId,
     setActiveTab,
+    currentUser,
   } = useCRM();
+
+  const isClient = currentUser?.role === 'client';
+  const selfClient = isClient
+    ? clients.find(
+        (c) =>
+          (c.email && c.email.toLowerCase().trim() === (currentUser.email || '').toLowerCase().trim()) ||
+          c.id === currentUser.id
+      )
+    : null;
 
   const [activeTabSub, setActiveTabSub] = useState<'all' | 'radar' | 'pending' | 'Passport' | 'Emirates ID' | 'Visa' | 'Trade License'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,7 +57,7 @@ export const DocumentVault: React.FC = () => {
 
   // Upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedClientId, setFormClientId] = useState(clients?.[0]?.id || '');
+  const [selectedClientId, setFormClientId] = useState(selfClient?.id || clients?.[0]?.id || '');
   const [docName, setDocName] = useState('');
   const [docCategory, setDocCategory] = useState<DocumentItem['category']>('Passport');
   const [docExpiry, setDocExpiry] = useState('');
@@ -64,7 +75,8 @@ export const DocumentVault: React.FC = () => {
   const [pdfEditorDoc, setPdfEditorDoc] = useState<DocumentItem | null>(null);
 
   // Filtered documents
-  const filteredDocs = (documents || []).filter((doc) => {
+  const baseDocs = filteredDocuments || documents || [];
+  const filteredDocs = baseDocs.filter((doc) => {
     if (!doc) return false;
     const matchSearch =
       !searchQuery ||
@@ -531,17 +543,23 @@ export const DocumentVault: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Select Client Dossier *
                 </label>
-                <select
-                  value={selectedClientId}
-                  onChange={(e) => setFormClientId(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                >
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.fullName} ({c.refNo})
-                    </option>
-                  ))}
-                </select>
+                {isClient ? (
+                  <div className="w-full p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                    {selfClient?.fullName || currentUser?.name || 'My Portfolio'} ({selfClient?.refNo || 'Client'})
+                  </div>
+                ) : (
+                  <select
+                    value={selectedClientId}
+                    onChange={(e) => setFormClientId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                  >
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName} ({c.refNo})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

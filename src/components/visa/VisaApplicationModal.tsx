@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Globe,
@@ -63,17 +63,31 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
   const [selectedCountry, setSelectedCountry] = useState<VisaCountryOption | null>(() => {
     const list = visaCountryCatalog || [];
     if (preSelectedCountryCode) {
-      return list.find((c) => c.countryCode.toLowerCase() === preSelectedCountryCode.toLowerCase()) || list[0] || null;
+      return (
+        list.find(
+          (c) =>
+            c &&
+            c.countryCode &&
+            c.countryCode.toLowerCase().trim() === preSelectedCountryCode.toLowerCase().trim()
+        ) ||
+        list[0] ||
+        null
+      );
     }
     return list[0] || null;
   });
 
-  const [selectedVisaType, setSelectedVisaType] = useState<CountryVisaType>(() => {
+  const [selectedVisaType, setSelectedVisaType] = useState<CountryVisaType | null>(() => {
     const list = visaCountryCatalog || [];
     const initialCountry = preSelectedCountryCode
-      ? list.find((c) => c.countryCode.toLowerCase() === preSelectedCountryCode.toLowerCase()) || list[0]
+      ? list.find(
+          (c) =>
+            c &&
+            c.countryCode &&
+            c.countryCode.toLowerCase().trim() === preSelectedCountryCode.toLowerCase().trim()
+        ) || list[0]
       : list[0];
-    return initialCountry?.visaTypes?.[0];
+    return initialCountry?.visaTypes?.[0] || null;
   });
 
   const [processingSpeed, setProcessingSpeed] = useState<'Standard' | 'Express / VIP' | 'Super Express (24h)'>('Standard');
@@ -81,15 +95,27 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
   // Applicant Details State
   const isClientUser = currentUser.role === 'client';
   const defaultClient = useMemo(() => {
-    if (preSelectedClientId) return clients.find((c) => c.id === preSelectedClientId);
-    if (isClientUser) return clients.find((c) => c.email.toLowerCase() === currentUser.email.toLowerCase()) || clients[0];
+    if (preSelectedClientId) return clients.find((c) => c && c.id === preSelectedClientId);
+    if (isClientUser) {
+      return (
+        clients.find(
+          (c) =>
+            c &&
+            c.email &&
+            currentUser.email &&
+            c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+        ) ||
+        clients.find((c) => c && c.id === currentUser.id) ||
+        clients[0]
+      );
+    }
     return clients[0];
   }, [preSelectedClientId, isClientUser, currentUser, clients]);
 
-  const [selectedClientIdState, setSelectedClientIdState] = useState<string>(defaultClient?.id || 'client-1');
+  const [selectedClientIdState, setSelectedClientIdState] = useState<string>(defaultClient?.id || currentUser.id || 'client-1');
   const [applicantName, setApplicantName] = useState(defaultClient?.fullName || currentUser.name || '');
   const [applicantEmail, setApplicantEmail] = useState(defaultClient?.email || currentUser.email || '');
-  const [applicantPhone, setApplicantPhone] = useState(defaultClient?.phone || '+971 50 123 4567');
+  const [applicantPhone, setApplicantPhone] = useState(defaultClient?.phone || defaultClient?.mobile || '+971 50 123 4567');
   const [applicantPassportNo, setApplicantPassportNo] = useState(defaultClient?.passportNo || 'P89201948');
   const [applicantNationality, setApplicantNationality] = useState(defaultClient?.nationality || 'United Arab Emirates');
   const [originCountry, setOriginCountry] = useState(defaultClient?.nationality || 'United Arab Emirates');
@@ -102,6 +128,25 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
   const [specialNotes, setSpecialNotes] = useState('');
   const [showAIAdvisor, setShowAIAdvisor] = useState(true);
   const [showPhotoStudioModal, setShowPhotoStudioModal] = useState(false);
+
+  // Sync country and visa type if catalog loads or changes
+  useEffect(() => {
+    const list = visaCountryCatalog || [];
+    if (list.length === 0) return;
+
+    if (!selectedCountry) {
+      const match = preSelectedCountryCode
+        ? list.find((c) => c && c.countryCode && c.countryCode.toLowerCase().trim() === preSelectedCountryCode.toLowerCase().trim())
+        : list[0];
+      const initialC = match || list[0];
+      setSelectedCountry(initialC);
+      if (initialC?.visaTypes?.length) {
+        setSelectedVisaType(initialC.visaTypes[0]);
+      }
+    } else if (!selectedVisaType && selectedCountry.visaTypes?.length) {
+      setSelectedVisaType(selectedCountry.visaTypes[0]);
+    }
+  }, [visaCountryCatalog, preSelectedCountryCode, selectedCountry, selectedVisaType]);
 
   // Uploaded Documents state
   const [uploadedDocsList, setUploadedDocsList] = useState<Omit<VisaUploadedDoc, 'id' | 'uploadedAt' | 'status'>[]>([
@@ -127,23 +172,25 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
   const [nomodPaymentConfirmed, setNomodPaymentConfirmed] = useState(false);
   const [nomodPaymentRef, setNomodPaymentRef] = useState('');
 
-  // Filter countries
+  // Filter countries safely
   const filteredCountries = useMemo(() => {
+    const q = (searchQuery || '').toLowerCase().trim();
     return (visaCountryCatalog || []).filter((c) => {
+      if (!c) return false;
       const matchRegion = selectedRegion === 'all' || c.region === selectedRegion;
       const matchQuery =
-        !searchQuery ||
-        c.countryName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.countryCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.region.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.visaTypes.some((vt) => vt.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        !q ||
+        (c.countryName && c.countryName.toLowerCase().includes(q)) ||
+        (c.countryCode && c.countryCode.toLowerCase().includes(q)) ||
+        (c.region && c.region.toLowerCase().includes(q)) ||
+        (c.visaTypes && c.visaTypes.some((vt) => vt && vt.name && vt.name.toLowerCase().includes(q)));
       return matchRegion && matchQuery;
     });
   }, [visaCountryCatalog, searchQuery, selectedRegion]);
 
   // Unique regions list
   const regions = useMemo(() => {
-    const set = new Set((visaCountryCatalog || []).map((c) => c.region));
+    const set = new Set((visaCountryCatalog || []).map((c) => c && c.region).filter(Boolean));
     return ['all', ...Array.from(set)];
   }, [visaCountryCatalog]);
 
@@ -154,7 +201,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
     if (cl) {
       setApplicantName(cl.fullName || '');
       setApplicantEmail(cl.email || '');
-      setApplicantPhone(cl.phone || '');
+      setApplicantPhone(cl.phone || cl.mobile || '');
       setApplicantPassportNo(cl.passportNo || '');
       if (cl.nationality) {
         setApplicantNationality(cl.nationality || '');
@@ -165,28 +212,33 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
 
   // Switch country helper
   const handleCountrySelect = (country: VisaCountryOption) => {
+    if (!country) return;
     setSelectedCountry(country);
-    setSelectedVisaType(country.visaTypes[0]);
+    setSelectedVisaType(country.visaTypes?.[0] || null);
   };
 
-  // Pricing calculations
+  // Safe pricing calculations
   const speedSurcharge = useMemo(() => {
+    if (!selectedVisaType) return 0;
     if (processingSpeed === 'Express / VIP') return selectedVisaType.expressSurcharge || 250;
     if (processingSpeed === 'Super Express (24h)') return (selectedVisaType.expressSurcharge || 250) * 2;
     return 0;
   }, [processingSpeed, selectedVisaType]);
 
-  const governmentFee = selectedVisaType.standardGovFee;
-  const serviceFee = selectedVisaType.standardServiceFee + speedSurcharge;
+  const governmentFee = selectedVisaType?.standardGovFee ?? 0;
+  const serviceFee = (selectedVisaType?.standardServiceFee ?? 0) + speedSurcharge;
   const subtotal = governmentFee + serviceFee;
   const vatAmount = Math.round(serviceFee * 0.05 * 100) / 100;
   const totalAmount = Math.round((subtotal + vatAmount) * 100) / 100;
 
   // Processing days
   const estimatedDays = useMemo(() => {
+    if (!selectedVisaType) return 7;
     if (processingSpeed === 'Super Express (24h)') return 1;
-    if (processingSpeed === 'Express / VIP') return selectedVisaType.expressDays || Math.max(2, Math.floor(selectedVisaType.standardDays / 2));
-    return selectedVisaType.standardDays;
+    if (processingSpeed === 'Express / VIP') {
+      return selectedVisaType.expressDays || Math.max(2, Math.floor((selectedVisaType.standardDays || 6) / 2));
+    }
+    return selectedVisaType.standardDays || 7;
   }, [processingSpeed, selectedVisaType]);
 
   const estimatedCompletionDate = useMemo(() => {
@@ -228,27 +280,47 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
     if (!selectedCountry || !selectedVisaType) return;
     setIsSubmitting(true);
 
-    const clientObj = (clients || []).find((c) => c && c.id === selectedClientIdState) || clients?.[0] || {
-      id: selectedClientIdState || 'client-walkin',
-      fullName: applicantName || 'Walk-in Client',
-      email: applicantEmail || 'client@example.com',
-      phone: applicantPhone || '+971 50 000 0000',
-      passportNo: applicantPassportNo || 'P89201948',
-      nationality: applicantNationality || 'UAE Resident',
-      companyId: selectedCompanyId !== 'all' ? selectedCompanyId : companies?.[0]?.id || 'comp-1',
-    };
+    const clientObj =
+      (clients || []).find((c) => c && c.id === selectedClientIdState) ||
+      defaultClient ||
+      (currentUser.role === 'client'
+        ? (clients || []).find(
+            (c) =>
+              c &&
+              c.email &&
+              currentUser.email &&
+              c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+          )
+        : null) ||
+      clients?.[0] || {
+        id: selectedClientIdState || currentUser.id || 'client-walkin',
+        fullName: applicantName || currentUser.name || 'Applicant',
+        email: applicantEmail || currentUser.email || 'client@example.com',
+        phone: applicantPhone || '+971 50 000 0000',
+        passportNo: applicantPassportNo || 'P89201948',
+        nationality: applicantNationality || 'UAE Resident',
+        companyId: selectedCompanyId !== 'all' ? selectedCompanyId : companies?.[0]?.id || 'comp-1',
+      };
+
+    const targetCompId =
+      clientObj?.companyId ||
+      (selectedCompanyId !== 'all' ? selectedCompanyId : companies?.[0]?.id || 'comp-1');
+
+    // For online applications, set unassigned so Admin can review and assign appropriately
+    const assignedStaffId = (clientObj as any)?.assignedEmployeeIds?.[0] || '';
+    const assignedStaffName = (clientObj as any)?.assignedEmployeeNames?.[0] || (assignedStaffId ? 'Assigned PRO' : 'Unassigned (Action Required)');
 
     const result = applyForVisaService(
       {
         clientId: clientObj.id,
         clientName: applicantName || clientObj.fullName || 'Applicant',
         clientEmail: applicantEmail || clientObj.email || 'client@example.com',
-        clientPhone: applicantPhone || clientObj.phone || '+971 50 000 0000',
+        clientPhone: applicantPhone || clientObj.phone || (clientObj as any).mobile || '+971 50 000 0000',
         clientPassportNo: applicantPassportNo || clientObj.passportNo || 'P89201948',
         clientNationality: applicantNationality || clientObj.nationality || 'UAE Resident',
         originCountry: originCountry || applicantNationality || 'United Arab Emirates',
         countryOfApplying: countryOfApplying || 'United Arab Emirates',
-        companyId: clientObj.companyId || (selectedCompanyId !== 'all' ? selectedCompanyId : companies?.[0]?.id || 'comp-1'),
+        companyId: targetCompId,
         targetCountry: selectedCountry.countryName,
         targetCountryCode: selectedCountry.countryCode,
         targetCountryFlag: selectedCountry.flag,
@@ -266,8 +338,8 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
         serviceFee,
         vatAmount,
         totalAmount,
-        assignedOfficerName: 'Farhan Akhtar (Senior PRO)',
-        assignedOfficerId: 'user-emp-2',
+        assignedOfficerName: assignedStaffName,
+        assignedOfficerId: assignedStaffId,
         uploadedDocuments: uploadedDocsList.map((doc, idx) => ({
           ...doc,
           id: `vdoc-${Date.now()}-${idx}`,
@@ -392,7 +464,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                   Application <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{createdAppNumber}</span> for{' '}
-                  <span className="font-semibold">{selectedCountry?.countryName}</span> ({selectedVisaType.name}) is now actively assigned to our consular team.
+                  <span className="font-semibold">{selectedCountry?.countryName}</span> ({selectedVisaType?.name || 'Visa'}) is now actively assigned to our consular team.
                 </p>
               </div>
 
@@ -407,7 +479,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Visa Category:</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedVisaType.name}</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedVisaType?.name || 'Visa'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Processing Speed:</span>
@@ -516,7 +588,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {selectedCountry.visaTypes.map((vt) => {
-                          const isSelected = selectedVisaType.id === vt.id;
+                          const isSelected = selectedVisaType?.id === vt.id;
                           return (
                             <div
                               key={vt.id}
@@ -583,23 +655,23 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                             {
                               id: 'Standard',
                               name: 'Standard Processing',
-                              time: `${selectedVisaType.standardDays} Business Days`,
+                              time: `${selectedVisaType?.standardDays || 7} Business Days`,
                               badge: 'Standard Queue',
                               fee: 'AED 0',
                             },
                             {
                               id: 'Express / VIP',
                               name: 'Express / VIP Embassy Appointment',
-                              time: `${selectedVisaType.expressDays || Math.max(2, Math.floor(selectedVisaType.standardDays / 2))} Days`,
+                              time: `${selectedVisaType?.expressDays || Math.max(2, Math.floor((selectedVisaType?.standardDays || 6) / 2))} Days`,
                               badge: 'Priority Slot',
-                              fee: `+AED ${selectedVisaType.expressSurcharge || 250}`,
+                              fee: `+AED ${selectedVisaType?.expressSurcharge || 250}`,
                             },
                             {
                               id: 'Super Express (24h)',
                               name: 'Super Express 24-Hour Expedited',
                               time: '24-48 Hours',
                               badge: 'Same-Day Submission',
-                              fee: `+AED ${(selectedVisaType.expressSurcharge || 250) * 2}`,
+                              fee: `+AED ${(selectedVisaType?.expressSurcharge || 250) * 2}`,
                             },
                           ].map((speed) => (
                             <button
@@ -669,7 +741,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                             <AIVisaCountryAdvisor
                               initialDestination={selectedCountry.countryName}
                               initialNationality={applicantNationality || originCountry || 'United Arab Emirates'}
-                              initialVisaType={selectedVisaType.name}
+                              initialVisaType={selectedVisaType?.name || 'Tourist / Visit Visa'}
                               compact={true}
                             />
                           </div>
@@ -827,7 +899,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                     <div className="flex items-center space-x-2">
                       <Shield className="w-4 h-4 text-amber-600 flex-shrink-0" />
                       <span>
-                        Official Consular Checklist for <strong>{selectedCountry?.countryName} ({selectedVisaType.name})</strong>
+                        Official Consular Checklist for <strong>{selectedCountry?.countryName} ({selectedVisaType?.name || 'Visa'})</strong>
                       </span>
                     </div>
                     <span className="font-semibold">{uploadedDocsList.length} Uploaded</span>
@@ -857,7 +929,13 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                   </div>
 
                   <div className="space-y-3">
-                    {selectedVisaType.requiredDocuments.map((req, idx) => {
+                    {(selectedVisaType?.requiredDocuments || [
+                      'Passport Copy (Bio Page & Signature)',
+                      'Recent Biometric Photograph (White Background)',
+                      'Proof of Accommodation or Hotel Booking',
+                      'Flight Itinerary / Return Reservation',
+                      'Bank Statement (Last 3 to 6 Months)',
+                    ]).map((req, idx) => {
                       const isUploaded = uploadedDocsList.some(
                         (d) => d.docName.toLowerCase().includes(req.toLowerCase().slice(0, 8)) || d.docName === req
                       );
@@ -914,7 +992,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                         <span className="text-3xl">{selectedCountry?.flag}</span>
                         <div>
                           <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                            {selectedCountry?.countryName} - {selectedVisaType.name}
+                            {selectedCountry?.countryName} - {selectedVisaType?.name || 'Visa'}
                           </h4>
                           <p className="text-xs text-slate-500">
                             Speed: <strong className="text-blue-600 dark:text-blue-400">{processingSpeed}</strong> | Est. {estimatedDays} Days
@@ -966,7 +1044,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                       </div>
                       <div className="flex justify-between text-slate-600 dark:text-slate-300">
                         <span>PRO Dossier Prep & Attestation Service Fee:</span>
-                        <span className="font-semibold font-mono">AED {selectedVisaType.standardServiceFee.toLocaleString()}</span>
+                        <span className="font-semibold font-mono">AED {(selectedVisaType?.standardServiceFee ?? 0).toLocaleString()}</span>
                       </div>
                       {speedSurcharge > 0 && (
                         <div className="flex justify-between text-blue-600 dark:text-blue-400">
@@ -1116,7 +1194,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
           }}
           amount={totalAmount}
           currency="AED"
-          description={`${selectedCountry?.countryName} ${selectedVisaType.name} (${processingSpeed}) - App #${createdAppNumber}`}
+          description={`${selectedCountry?.countryName} ${selectedVisaType?.name || 'Visa'} (${processingSpeed}) - App #${createdAppNumber}`}
           customerName={applicantName}
           customerEmail={applicantEmail}
           customerPhone={applicantPhone}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ShieldCheck,
   Clock,
@@ -19,13 +19,15 @@ import {
   Plus,
   Eye,
   Plane,
+  CreditCard,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
-import { ClientService, DocumentItem, VisaApplication } from '../../types/crm';
+import { Client, ClientService, DocumentItem, VisaApplication, Invoice } from '../../types/crm';
 import { VisaApplicationModal } from '../visa/VisaApplicationModal';
 import { VisaTimelineModal } from '../visa/VisaTimelineModal';
 import { ApplyServicesView } from './ApplyServicesView';
 import { AIVisaCountryAdvisor } from '../visa/AIVisaCountryAdvisor';
+import { NomodCheckoutModal } from '../payment/NomodCheckoutModal';
 
 export const ClientPortal: React.FC = () => {
   const {
@@ -43,15 +45,54 @@ export const ClientPortal: React.FC = () => {
     recordPayment,
     visaApplications,
     selectedClientId,
+    billingSettings,
   } = useCRM();
 
   // Pick client profile corresponding strictly to current logged-in user or selected client
-  const client =
-    clients.find((c) => c.email && currentUser.email && c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
-    (selectedClientId ? clients.find((c) => c.id === selectedClientId) : null) ||
-    clients.find((c) => c.id === currentUser.id) ||
-    clients.find((c) => c.id === 'client-1') ||
-    clients[0];
+  const client: Client = useMemo(() => {
+    // 1. If current user is a client, strictly find their own client profile
+    if (currentUser.role === 'client') {
+      const userEmailClean = (currentUser.email || '').toLowerCase().trim();
+      const matched =
+        clients.find((c) => c && c.email && c.email.toLowerCase().trim() === userEmailClean) ||
+        clients.find((c) => c && c.id === currentUser.id);
+
+      if (matched) return matched;
+
+      // Safe clean profile for logged-in client user with no previous record
+      return {
+        id: currentUser.id || `client-${Date.now()}`,
+        fullName: currentUser.name || 'Client User',
+        email: currentUser.email || '',
+        phone: currentUser.phone || '+971 50 000 0000',
+        companyId: currentUser.companyId || companies[0]?.id || 'comp-1',
+        avatar:
+          currentUser.avatar ||
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+        currentStageId: stages[0]?.id || 'stage-1',
+        currentStageName: stages[0]?.name || 'Initial Inquiry',
+        totalBilled: 0,
+        amountPaid: 0,
+        outstandingAmount: 0,
+        services: [],
+        passportNo: 'N/A',
+        nationality: 'UAE Resident',
+        refNo: `REF-${(currentUser.id || 'CLI').slice(-4).toUpperCase()}`,
+        address: 'Dubai, UAE',
+        assignedEmployeeId: users.find((u) => u.role === 'employee')?.id || 'user-2',
+        assignedEmployeeName: users.find((u) => u.role === 'employee')?.name || 'Senior PRO Consultant',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as unknown as Client;
+    }
+
+    // 2. If staff/admin is viewing or previewing the portal
+    return (
+      (selectedClientId ? clients.find((c) => c && c.id === selectedClientId) : null) ||
+      clients.find((c) => c && c.email && currentUser.email && c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
+      clients[0]
+    );
+  }, [clients, currentUser, selectedClientId, companies, stages, users]);
 
   const [activeTab, setActiveTab] = useState<
     'tracker' | 'apply_services' | 'visa_services' | 'ai_advisor' | 'documents' | 'payments' | 'messages'
@@ -67,6 +108,10 @@ export const ClientPortal: React.FC = () => {
   const [showVisaApplyModal, setShowVisaApplyModal] = useState(false);
   const [selectedVisaTimelineApp, setSelectedVisaTimelineApp] = useState<VisaApplication | null>(null);
 
+  // Nomod Checkout Modal State
+  const [showNomodModal, setShowNomodModal] = useState(false);
+  const [nomodCheckoutInvoice, setNomodCheckoutInvoice] = useState<Invoice | null>(null);
+
   if (!client) {
     return <div className="p-8 text-center text-slate-500">No client profile found.</div>;
   }
@@ -76,13 +121,61 @@ export const ClientPortal: React.FC = () => {
     users.find((u) => u.role === 'employee' || u.role === 'admin') || users[0];
   const assignedComp = companies.find((c) => c.id === client.companyId) || companies[0];
 
-  const clientDocs = (documents || []).filter((d) => d && d.clientId === client.id);
-  const clientInvoices = (invoices || []).filter((i) => i && i.clientId === client.id);
+  const clientDocs = useMemo(() => {
+    if (!client) return [];
+    const clientCleanEmail = (client.email || '').toLowerCase().trim();
+    const userCleanEmail = (currentUser.email || '').toLowerCase().trim();
+
+    return (documents || []).filter((d) => {
+      if (!d) return false;
+      const matchClientId = d.clientId === client.id;
+      const matchUserId = currentUser.role === 'client' && d.clientId === currentUser.id;
+      return Boolean(matchClientId || matchUserId);
+    });
+  }, [documents, client, currentUser]);
+
+  const clientInvoices = useMemo(() => {
+    if (!client) return [];
+    const clientCleanEmail = (client.email || '').toLowerCase().trim();
+    const userCleanEmail = (currentUser.email || '').toLowerCase().trim();
+
+    return (invoices || []).filter((i) => {
+      if (!i) return false;
+      const matchClientId = i.clientId === client.id;
+      const matchUserId = currentUser.role === 'client' && i.clientId === currentUser.id;
+      const matchEmail =
+        i.clientEmail &&
+        (i.clientEmail.toLowerCase().trim() === clientCleanEmail ||
+          (currentUser.role === 'client' && i.clientEmail.toLowerCase().trim() === userCleanEmail));
+
+      return Boolean(matchClientId || matchUserId || matchEmail);
+    });
+  }, [invoices, client, currentUser]);
+
   const currentConvId = activeChatChannel === 'officer' ? client.id : `${client.id}-branch`;
   const clientMessages = (messages || []).filter((m) => m && m.conversationId === currentConvId);
-  const clientVisaApps = (visaApplications || []).filter(
-    (v) => v && (v.clientId === client.id || (v.clientEmail && client.email && v.clientEmail.toLowerCase() === client.email.toLowerCase()))
-  );
+
+  const clientVisaApps = useMemo(() => {
+    if (!client) return [];
+    const clientCleanEmail = (client.email || '').toLowerCase().trim();
+    const userCleanEmail = (currentUser.email || '').toLowerCase().trim();
+
+    return (visaApplications || []).filter((v) => {
+      if (!v) return false;
+      const matchClientId = v.clientId === client.id;
+      const matchUserId = currentUser.role === 'client' && v.clientId === currentUser.id;
+      const matchEmail =
+        v.clientEmail &&
+        (v.clientEmail.toLowerCase().trim() === clientCleanEmail ||
+          (currentUser.role === 'client' && v.clientEmail.toLowerCase().trim() === userCleanEmail));
+
+      return Boolean(matchClientId || matchUserId || matchEmail);
+    });
+  }, [visaApplications, client, currentUser]);
+
+  // Calculate live outstanding balance from user's invoices
+  const computedOutstanding = clientInvoices.reduce((acc, inv) => acc + (inv.balanceAmount || 0), 0);
+  const displayOutstanding = clientInvoices.length > 0 ? computedOutstanding : (client.outstandingAmount || 0);
 
   // Calculate workflow stage index
   const currentStageIndex = stages.findIndex((s) => s.id === client.currentStageId);
@@ -115,11 +208,6 @@ export const ClientPortal: React.FC = () => {
 
     setUploadFileName('');
     setShowUploadModal(false);
-  };
-
-  const handleSimulatePayment = (invId: string, amount: number) => {
-    recordPayment(invId, amount, 'Credit Card', `STRIPE-${Date.now()}`, 'Paid via Client Portal Online Gateway');
-    alert(`Payment of AED ${amount.toLocaleString()} processed successfully!`);
   };
 
   return (
@@ -167,15 +255,24 @@ export const ClientPortal: React.FC = () => {
             <div className="text-right pl-2 border-l border-slate-700">
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Outstanding Balance</div>
               <div className="text-xl font-bold text-emerald-400">
-                AED {client.outstandingAmount.toLocaleString()}
+                AED {displayOutstanding.toLocaleString()}
               </div>
             </div>
-            {client.outstandingAmount > 0 && (
+            {displayOutstanding > 0 && (
               <button
-                onClick={() => setActiveTab('payments')}
-                className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-md text-xs transition-colors cursor-pointer"
+                onClick={() => {
+                  const unpaidInv = clientInvoices.find((i) => (i.balanceAmount || 0) > 0);
+                  if (unpaidInv) {
+                    setNomodCheckoutInvoice(unpaidInv);
+                    setShowNomodModal(true);
+                  } else {
+                    setActiveTab('payments');
+                  }
+                }}
+                className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-md text-xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                Pay Now
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Pay Now</span>
               </button>
             )}
           </div>
@@ -696,10 +793,15 @@ export const ClientPortal: React.FC = () => {
                   <div className="flex items-center gap-2.5">
                     {inv.balanceAmount > 0 ? (
                       <button
-                        onClick={() => handleSimulatePayment(inv.id, inv.balanceAmount)}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer"
+                        onClick={() => {
+                          setNomodCheckoutInvoice(inv);
+                          setShowNomodModal(true);
+                        }}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                        title="Checkout with Nomod Gateway (Credit/Debit Card, Apple Pay, Google Pay)"
                       >
-                        Pay Balance (AED {inv.balanceAmount.toLocaleString()})
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Pay via Nomod (AED {inv.balanceAmount.toLocaleString()})</span>
                       </button>
                     ) : (
                       <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-xl">
@@ -926,6 +1028,35 @@ export const ClientPortal: React.FC = () => {
           application={
             visaApplications.find((a) => a.id === selectedVisaTimelineApp.id) || selectedVisaTimelineApp
           }
+        />
+      )}
+
+      {/* Nomod Instant Checkout Modal */}
+      {showNomodModal && nomodCheckoutInvoice && (
+        <NomodCheckoutModal
+          isOpen={showNomodModal}
+          onClose={() => {
+            setShowNomodModal(false);
+            setNomodCheckoutInvoice(null);
+          }}
+          amount={nomodCheckoutInvoice.balanceAmount}
+          currency={billingSettings?.currency || 'AED'}
+          serviceTitle={nomodCheckoutInvoice.serviceName}
+          applicationNumber={nomodCheckoutInvoice.invoiceNumber}
+          customerName={nomodCheckoutInvoice.clientName || client.fullName}
+          customerEmail={nomodCheckoutInvoice.clientEmail || client.email}
+          customerPhone={nomodCheckoutInvoice.clientPhone || client.phone}
+          onPaymentSuccess={(result) => {
+            recordPayment(
+              nomodCheckoutInvoice.id,
+              result.amount,
+              'Credit Card',
+              result.reference,
+              `Nomod Live Gateway Settlement: Auth ${result.authCode || 'N/A'}, Card: ${result.cardBrand || 'Card'} ending ${result.last4 || '****'}`
+            );
+            setShowNomodModal(false);
+            setNomodCheckoutInvoice(null);
+          }}
         />
       )}
     </div>

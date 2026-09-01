@@ -54,9 +54,34 @@ const AppContent: React.FC = () => {
 
   // Render main screen based on active tab and current user role
   const renderContent = () => {
-    // If client role is active, always prioritize Client Portal if dashboard or client_portal is active
-    if (currentUser.role === 'client' && (activeTab === 'dashboard' || activeTab === 'client_portal')) {
-      return <ClientPortal />;
+    // If client role is active, route client to permitted screens or ClientPortal
+    if (currentUser.role === 'client') {
+      switch (activeTab) {
+        case 'profile':
+          return <UserProfileSettings />;
+        case 'visa':
+        case 'visas':
+          return <VisaServicesManager />;
+        case 'ai_advisor':
+        case 'visa_advisor':
+          return <AIVisaCountryAdvisor />;
+        case 'photo_studio':
+        case 'image_studio':
+        case 'ai_image':
+          return <AIImageStudio />;
+        case 'services':
+          return <ServicesCatalog />;
+        case 'documents':
+          return <DocumentVault />;
+        case 'payments':
+          return <InvoicesPayments />;
+        case 'messages':
+          return <MessagesHub />;
+        case 'client_portal':
+        case 'dashboard':
+        default:
+          return <ClientPortal />;
+      }
     }
 
     switch (activeTab) {
@@ -112,7 +137,6 @@ const AppContent: React.FC = () => {
       case 'photo_studio':
       case 'image_studio':
       case 'ai_image':
-        if (currentUser.role === 'client') return <ClientPortal />;
         return <AIImageStudio />;
 
       case 'services':
@@ -123,7 +147,6 @@ const AppContent: React.FC = () => {
 
       case 'pdf_editor':
       case 'pdf':
-        if (currentUser.role === 'client') return <ClientPortal />;
         return (
           <div className="relative">
             <DocumentVault />
@@ -135,7 +158,6 @@ const AppContent: React.FC = () => {
         );
 
       case 'tasks':
-        if (currentUser.role === 'client') return <ClientPortal />;
         return <TasksManager />;
 
       case 'payments':
@@ -145,15 +167,12 @@ const AppContent: React.FC = () => {
         return <MessagesHub />;
 
       case 'reports':
-        if (currentUser.role === 'client') return <ClientPortal />;
         return <ReportsAnalytics />;
 
       case 'audit':
-        if (currentUser.role === 'client') return <ClientPortal />;
         return <AuditTrail />;
 
       case 'gmail':
-        if (currentUser.role === 'client') return <ClientPortal />;
         return <GmailHub />;
 
       case 'smtp':

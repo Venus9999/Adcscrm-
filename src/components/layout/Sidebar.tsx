@@ -54,11 +54,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
     activeTab,
     setActiveTab,
     tasks,
+    filteredTasks,
     expiringDocuments,
     messages,
     invoices,
+    filteredInvoices,
     leads,
+    filteredLeads,
     visaApplications,
+    filteredVisaApplications,
     setSelectedClientId,
     crmBranding,
     logout,
@@ -69,12 +73,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
 
   const isClient = currentUser?.role === 'client';
 
-  const pendingTasksCount = (tasks || []).filter((t) => t && t.status !== 'completed' && t.status !== 'cancelled').length;
-  const unreadMessagesCount = (messages || []).filter((m) => m && !m.read && m.senderRole !== currentUser?.role).length;
-  const unpaidInvoicesCount = (invoices || []).filter((i) => i && (i.status === 'unpaid' || i.status === 'partially_paid')).length;
+  const pendingTasksCount = (filteredTasks || []).filter((t) => t && t.status !== 'completed' && t.status !== 'cancelled').length;
+  const unreadMessagesCount = (messages || []).filter((m) => {
+    if (!m || m.read) return false;
+    if (isClient) {
+      if (m.isInternalNote) return false;
+      return (
+        m.clientId === currentUser?.id ||
+        m.recipientId === currentUser?.id ||
+        (m.senderRole !== 'client' && (m.conversationId === currentUser?.id || !m.recipientId))
+      );
+    }
+    return m.senderRole !== currentUser?.role;
+  }).length;
+  const unpaidInvoicesCount = (filteredInvoices || []).filter((i) => i && (i.status === 'unpaid' || i.status === 'partially_paid')).length;
   const urgentExpiriesCount = (expiringDocuments || []).filter((e) => e && e.isUrgent).length;
-  const newLeadsCount = (leads || []).filter((l) => l && l.status === 'new').length;
-  const activeVisaCount = (visaApplications || []).filter(
+  const newLeadsCount = (filteredLeads || []).filter((l) => l && l.status === 'new').length;
+  const activeVisaCount = (filteredVisaApplications || []).filter(
     (v) => v && v.status !== 'issued' && v.status !== 'rejected'
   ).length;
 

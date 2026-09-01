@@ -129,23 +129,41 @@ export const MessagesHub: React.FC = () => {
           c &&
           (c.assignedEmployeeId === currentUser.id ||
             c.assignedEmployeeName === currentUser.name ||
-            (currentUser.companyId && c.companyId === currentUser.companyId))
+            (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser.id)))
       );
 
-      const clientList = assignedClients.length > 0 ? assignedClients : (clients || []).slice(0, 3);
-      return clientList.map((client) => ({
+      const branchComp = companies.find((c) => c.id === currentUser.companyId) || companies[0];
+      const branchThread: ChatThreadItem = {
+        id: `branch-desk-${branchComp?.id || 'comp-1'}`,
+        name: `${branchComp?.name || 'ADCS Group'} - Branch Desk`,
+        roleLabel: `${branchComp?.city || 'Dubai'} Branch HQ`,
+        avatar:
+          branchComp?.logo ||
+          'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=200&q=80',
+        badge: 'Branch Desk',
+        badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+        phone: branchComp?.phone || '+971 4 228 7000',
+        email: branchComp?.email || 'operations@adcs.ae',
+        info: `${branchComp?.address || 'Corporate Tower'} • Internal Staff & Branch Communications`,
+        isBranch: true,
+        status: 'Branch Active',
+      };
+
+      const clientThreads: ChatThreadItem[] = assignedClients.map((client) => ({
         id: client.id,
         name: client.fullName,
-        roleLabel: client.currentStageName || 'Processing Client',
+        roleLabel: client.currentStageName || 'Assigned Client Dossier',
         avatar: client.avatar,
         badge: client.refNo,
         badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-        phone: client.mobile,
+        phone: client.mobile || client.phone,
         email: client.email,
         info: `Ref: ${client.refNo} • Nationality: ${client.nationality} • Stage: ${client.currentStageName}`,
         refNo: client.refNo,
         status: client.status,
       }));
+
+      return [branchThread, ...clientThreads];
     }
 
     // 3. MASTER / ADMIN ROLE: All client threads across the firm

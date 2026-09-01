@@ -38,7 +38,7 @@ import {
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
 import { GmailComposerModal } from '../gmail/GmailComposerModal';
-import { Client, DocumentItem, Invoice, WorkStage, Transaction } from '../../types/crm';
+import { Client, DocumentItem, Invoice, InvoiceLineItem, WorkStage, Transaction } from '../../types/crm';
 
 interface ClientDetailModalProps {
   clientId: string | null;
@@ -59,6 +59,8 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     transactions,
     tasks,
     currentUser,
+    billingSettings,
+    createInvoice,
     updateClient,
     updateServiceStage,
     addServiceToClient,
@@ -199,6 +201,21 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState<Invoice['paymentMethod']>('Bank Transfer');
   const [payRef, setPayRef] = useState('');
+
+  // Invoice state
+  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+  const [invServiceMode, setInvServiceMode] = useState<'catalog' | 'custom'>('catalog');
+  const [invServiceCatId, setInvServiceCatId] = useState(serviceCategories[0]?.id || '');
+  const [invCustomServiceName, setInvCustomServiceName] = useState('');
+  const [invServiceFee, setInvServiceFee] = useState<number>(serviceCategories[0]?.defaultPrice || 3500);
+  const [invGovFee, setInvGovFee] = useState<number>(serviceCategories[0]?.governmentFees || 2200);
+  const [invVatRate, setInvVatRate] = useState<number>(billingSettings?.vatRate ?? 5);
+  const [invDueDate, setInvDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split('T')[0];
+  });
+  const [invNotes, setInvNotes] = useState('');
 
   // Transaction state
   const [showAddTxModal, setShowAddTxModal] = useState(false);
@@ -379,6 +396,91 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     if (!selectedInvoiceId || payAmount <= 0) return;
     recordPayment(selectedInvoiceId, payAmount, payMethod, payRef, 'Payment recorded via dossier');
     setShowPayModal(false);
+  };
+
+  const handleOpenCreateInvoiceModal = () => {
+    const firstCat = serviceCategories[0];
+    if (firstCat) {
+      setInvServiceCatId(firstCat.id);
+      setInvServiceFee(firstCat.defaultPrice || 3500);
+      setInvGovFee(firstCat.governmentFees || 2200);
+    }
+    setInvVatRate(billingSettings?.vatRate ?? 5);
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    setInvDueDate(d.toISOString().split('T')[0]);
+    setInvNotes('');
+    setShowCreateInvoiceModal(true);
+  };
+
+  const handleCreateClientInvoiceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    let finalServiceName = '';
+    let finalServiceId: string | undefined = undefined;
+
+    if (invServiceMode === 'catalog') {
+      const cat = serviceCategories.find((s) => s.id === invServiceCatId) || serviceCategories[0];
+      finalServiceName = cat?.name || 'Corporate PRO & Legal Clearance Service';
+      finalServiceId = cat?.id;
+    } else {
+      finalServiceName = invCustomServiceName.trim() || 'Corporate PRO & Visa Service Dossier';
+    }
+
+    const actualVatRate = invVatRate ?? billingSettings?.vatRate ?? 5;
+    const vatAmount = (invServiceFee * actualVatRate) / 100;
+    const subtotal = invServiceFee;
+    const grandTotal = subtotal + invGovFee + vatAmount;
+
+    const items: InvoiceLineItem[] = [
+      {
+        id: `item-${Date.now()}-1`,
+        description: `${finalServiceName} - Professional Agency & PRO Processing Fee`,
+        quantity: 1,
+        unitPrice: invServiceFee,
+        isGovernmentFee: false,
+        total: invServiceFee,
+      },
+      ...(invGovFee > 0
+        ? [
+            {
+              id: `item-${Date.now()}-2`,
+              description: 'Government Official Pass-through Authority Fee (ICP / GDRFA / MoHRE / DET)',
+              quantity: 1,
+              unitPrice: invGovFee,
+              isGovernmentFee: true,
+              total: invGovFee,
+            },
+          ]
+        : []),
+    ];
+
+    createInvoice({
+      clientId: client.id,
+      clientName: client.fullName,
+      clientEmail: client.email || '',
+      clientPhone: client.mobile || (client as any).phone || '',
+      clientAddress: client.residentialAddress || (client as any).address || 'Dubai, UAE',
+      clientPassport: client.passportNo || '',
+      companyId: client.companyId || companies[0]?.id || 'comp-1',
+      companyName: company?.name || billingSettings?.companyName || 'ADCS Clearing LLC',
+      serviceId: finalServiceId,
+      serviceName: finalServiceName,
+      subtotal,
+      vatRate: actualVatRate,
+      vatAmount,
+      governmentFees: invGovFee,
+      grandTotal,
+      amountPaid: 0,
+      balanceAmount: grandTotal,
+      paymentMethod: 'Bank Transfer',
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: invDueDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      status: 'unpaid',
+      notes: invNotes,
+      items,
+    });
+
+    setShowCreateInvoiceModal(false);
   };
 
   // Transaction Handlers
@@ -1183,15 +1285,13 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     Total: AED {(client.totalAmount ?? 0).toLocaleString()} &bull; Paid: AED {(client.paidAmount ?? 0).toLocaleString()} &bull; Outstanding: AED {(client.outstandingAmount ?? 0).toLocaleString()}
                   </p>
                 </div>
-                {onOpenInvoiceModal && (
-                  <button
-                    onClick={() => onOpenInvoiceModal(client.id)}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Create Invoice</span>
-                  </button>
-                )}
+                <button
+                  onClick={handleOpenCreateInvoiceModal}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create Invoice</span>
+                </button>
               </div>
 
               <div className="space-y-3">
@@ -2568,6 +2668,195 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold"
                   >
                     Save Log
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Create Tax Invoice Modal for Client */}
+        {showCreateInvoiceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl animate-in fade-in max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-blue-600" />
+                  <span>Generate Invoice for {client.fullName}</span>
+                </h3>
+                <button onClick={() => setShowCreateInvoiceModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateClientInvoiceSubmit} className="space-y-4 pt-4">
+                {/* Service Selection Mode */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Service Dossier / Package *
+                    </label>
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setInvServiceMode('catalog')}
+                        className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                          invServiceMode === 'catalog'
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        Catalog
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInvServiceMode('custom')}
+                        className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                          invServiceMode === 'custom'
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        Custom Service
+                      </button>
+                    </div>
+                  </div>
+
+                  {invServiceMode === 'catalog' ? (
+                    <select
+                      value={invServiceCatId || serviceCategories[0]?.id}
+                      onChange={(e) => {
+                        const cat = serviceCategories.find((s) => s.id === e.target.value);
+                        setInvServiceCatId(e.target.value);
+                        if (cat) {
+                          setInvServiceFee(cat.defaultPrice);
+                          setInvGovFee(cat.governmentFees);
+                        }
+                      }}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
+                    >
+                      {serviceCategories.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} (Agency: AED {s.defaultPrice.toLocaleString()} + Gov: AED {s.governmentFees.toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Expedited PRO Submission & Legal Visa Stamping"
+                      value={invCustomServiceName}
+                      onChange={(e) => setInvCustomServiceName(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    />
+                  )}
+                </div>
+
+                {/* Price breakdown */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Agency Service Fee (AED) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={invServiceFee}
+                      onChange={(e) => setInvServiceFee(Math.max(0, Number(e.target.value)))}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Pass-through Gov Fees (AED)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={invGovFee}
+                      onChange={(e) => setInvGovFee(Math.max(0, Number(e.target.value)))}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                    />
+                    <span className="text-[10px] text-slate-400">0% VAT Exempt Pass-through</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      UAE VAT Rate (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={invVatRate}
+                      onChange={(e) => setInvVatRate(Math.max(0, Number(e.target.value)))}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Payment Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={invDueDate}
+                      onChange={(e) => setInvDueDate(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Invoice Notes / Reference
+                  </label>
+                  <input
+                    type="text"
+                    value={invNotes}
+                    onChange={(e) => setInvNotes(e.target.value)}
+                    placeholder="e.g. Contract Retainer Payment"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+
+                {/* Calculation Summary */}
+                <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 space-y-1 text-xs">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Taxable Agency Subtotal:</span>
+                    <span className="font-mono font-semibold">AED {invServiceFee.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Pass-Through Gov Fees:</span>
+                    <span className="font-mono font-semibold">AED {invGovFee.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>VAT ({invVatRate}% on Agency):</span>
+                    <span className="font-mono font-semibold">AED {((invServiceFee * invVatRate) / 100).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-sm text-blue-900 dark:text-blue-200 pt-1 border-t border-blue-200 dark:border-blue-800">
+                    <span>Grand Total Payable:</span>
+                    <span className="font-mono">AED {(invServiceFee + invGovFee + (invServiceFee * invVatRate) / 100).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateInvoiceModal(false)}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold hover:bg-slate-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Issue Tax Invoice</span>
                   </button>
                 </div>
               </form>
