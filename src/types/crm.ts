@@ -26,6 +26,11 @@ export interface UserPermissions {
   canManageRoles?: boolean;
   canManageSystemSettings?: boolean;
   canManageDepartments?: boolean;
+  canManageVendors?: boolean;
+  canManageDocuments?: boolean;
+  canSendBroadcasts?: boolean;
+  canManageCommissions?: boolean;
+  canApproveDiscounts?: boolean;
 }
 
 export interface RoleDefinition {
@@ -281,13 +286,30 @@ export interface Department {
   code: string;
   description: string;
   companyId?: string;
+  parentDivision?: string;
   headOfDepartment?: string;
   headOfDepartmentId?: string;
+  deputyHead?: string;
+  deputyHeadId?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  workingHours?: string;
+  serviceCategories?: string[];
+  targetSlaDays?: number;
+  maxDossierCapacity?: number;
+  costCenterCode?: string;
+  budget?: number;
+  spendingApprovalLimit?: number;
+  autoAssignMode?: 'manual' | 'round_robin' | 'least_busy';
+  dataAccessScope?: 'global' | 'department_only' | 'branch_only';
+  escalationEmail?: string;
+  requiredDocumentsList?: string[];
+  assignedStaffIds?: string[];
   color?: string;
   badgeBg?: string;
   badgeText?: string;
   employeeCount?: number;
-  budget?: number;
   tags?: string[];
   isActive: boolean;
   createdAt: string;

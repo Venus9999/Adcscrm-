@@ -36,6 +36,12 @@ import {
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { User, UserRole, UserPermissions, RoleDefinition } from '../../types/crm';
+import { RolesAndCapabilitiesView } from './RolesAndCapabilitiesView';
+import {
+  SYSTEM_CAPABILITIES,
+  ROLE_PRESET_TEMPLATES,
+  CapabilityDefinition,
+} from '../../data/capabilitiesData';
 
 export const EmployeesManagement: React.FC = () => {
   const {
@@ -761,104 +767,50 @@ export const EmployeesManagement: React.FC = () => {
         </>
       ) : (
         /* Roles & Access Control Matrix Tab */
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {(roles || []).map((r) => {
-              const assignedCount = (users || []).filter((u) => u && u.role === r.roleType).length;
-              return (
-                <div
-                  key={r.id}
-                  className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: r.color || '#3b82f6' }} />
-                        <div>
-                          <h3 className="font-bold text-sm text-slate-900 dark:text-white">{r.name}</h3>
-                          <span className="text-[10px] font-mono text-slate-400">ROLE_TYPE: {r.roleType}</span>
-                        </div>
-                      </div>
-                      {r.isSystem ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
-                          System Default
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
-                          Custom Role
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-slate-500 mt-2.5">{r.description}</p>
-
-                    {/* Permissions list */}
-                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                        Active Privileges:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {r.permissions.canCreateClients && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                            Create Clients
-                          </span>
-                        )}
-                        {r.permissions.canEditStages && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                            Advance Stages
-                          </span>
-                        )}
-                        {r.permissions.canManagePayments && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
-                            Financials & Invoicing
-                          </span>
-                        )}
-                        {r.permissions.canDeleteRecords && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
-                            Delete Records
-                          </span>
-                        )}
-                        {r.permissions.canManageUsers && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                            Manage Staff
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                      {assignedCount} Assigned Staff
-                    </span>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleOpenEditRole(r)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        title="Edit Role Permissions"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      {!r.isSystem && currentUser.role === 'master' && (
-                        <button
-                          onClick={() => {
-                            setSelectedRole(r);
-                            setShowDeleteRoleModal(true);
-                          }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          title="Delete Custom Role"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <RolesAndCapabilitiesView
+          roles={roles}
+          users={users}
+          currentUser={currentUser}
+          onOpenAddRole={() => {
+            setRoleFormData({
+              name: '',
+              code: '',
+              description: '',
+              roleType: 'employee',
+              color: '#3b82f6',
+              permissions: {
+                canCreateClients: true,
+                canCreateClient: true,
+                canManageLeads: true,
+                canEditStages: true,
+                canManageWorkflows: false,
+                canAssignTasks: true,
+                canManagePayments: false,
+                canEditInvoices: false,
+                canDeleteInvoices: false,
+                canViewFinancials: false,
+                canApproveDiscounts: false,
+                canViewAllCompanies: false,
+                canManageCompanies: false,
+                canManageDepartments: false,
+                canManageVendors: false,
+                canAssignEmployees: false,
+                canDeleteRecords: false,
+                canExportReports: false,
+                canExportData: false,
+                canManageUsers: false,
+                canManageRoles: false,
+                canManageSystemSettings: false,
+              },
+            });
+            setShowAddRoleModal(true);
+          }}
+          onOpenEditRole={handleOpenEditRole}
+          onOpenDeleteRole={(r) => {
+            setSelectedRole(r);
+            setShowDeleteRoleModal(true);
+          }}
+        />
       )}
 
       {/* Add User Modal */}
@@ -1285,19 +1237,84 @@ export const EmployeesManagement: React.FC = () => {
 
       {/* Add Role Modal */}
       {showAddRoleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl animate-in fade-in max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Create Custom System Role</h3>
-              <button onClick={() => setShowAddRoleModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Create Custom System Role</h3>
+                  <p className="text-[11px] text-slate-500">Define role title, access tier, and granular capability matrix</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddRoleModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveAddRole} className="space-y-3 pt-3">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSaveAddRole} className="space-y-4 pt-4 overflow-y-auto pr-1 flex-1">
+              {/* Quick Template Presets */}
+              <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/40 space-y-2">
+                <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Quick-Apply Recommended Role Template:</span>
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {ROLE_PRESET_TEMPLATES.map((tmpl, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        const newPerms: UserPermissions = {
+                          canCreateClients: false,
+                          canCreateClient: false,
+                          canManageLeads: false,
+                          canEditStages: false,
+                          canManageWorkflows: false,
+                          canAssignTasks: false,
+                          canManagePayments: false,
+                          canEditInvoices: false,
+                          canDeleteInvoices: false,
+                          canViewFinancials: false,
+                          canApproveDiscounts: false,
+                          canViewAllCompanies: false,
+                          canManageCompanies: false,
+                          canManageDepartments: false,
+                          canManageVendors: false,
+                          canAssignEmployees: false,
+                          canDeleteRecords: false,
+                          canExportReports: false,
+                          canExportData: false,
+                          canManageUsers: false,
+                          canManageRoles: false,
+                          canManageSystemSettings: false,
+                          ...tmpl.permissions,
+                        };
+                        setRoleFormData({
+                          name: tmpl.name,
+                          code: tmpl.name.toUpperCase().replace(/[^A-Z]/g, '_').slice(0, 15),
+                          description: tmpl.description,
+                          roleType: tmpl.roleType,
+                          color: tmpl.color,
+                          permissions: newPerms,
+                        });
+                      }}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 text-slate-700 dark:text-slate-200 hover:border-blue-500 hover:text-blue-600 transition-all cursor-pointer shadow-xs"
+                    >
+                      {tmpl.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Role Title *
                   </label>
                   <input
@@ -1311,26 +1328,26 @@ export const EmployeesManagement: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Base Access Type
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Base Access Level
                   </label>
                   <select
                     value={roleFormData.roleType ?? 'employee'}
                     onChange={(e) => setRoleFormData({ ...roleFormData, roleType: e.target.value as UserRole })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-medium"
                   >
-                    <option value="employee">Employee Staff Scope</option>
-                    <option value="admin">Branch Manager Scope</option>
-                    <option value="master">Super Admin Scope</option>
-                    <option value="agent">Agent / Partner Scope</option>
-                    <option value="client">Client Portal Scope</option>
+                    <option value="employee">Employee Staff Scope (Standard Case Execution)</option>
+                    <option value="admin">Branch Manager Scope (Branch Operations & Staff)</option>
+                    <option value="master">Super Admin Scope (Master Global Governance)</option>
+                    <option value="agent">Agent / Partner Scope (Lead Referrals)</option>
+                    <option value="client">Client Portal Scope (Self-Service)</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Description
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Operational Description
                 </label>
                 <input
                   type="text"
@@ -1342,7 +1359,7 @@ export const EmployeesManagement: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Role Accent Color
                 </label>
                 <div className="flex items-center gap-2">
@@ -1350,7 +1367,7 @@ export const EmployeesManagement: React.FC = () => {
                     type="color"
                     value={roleFormData.color ?? '#3b82f6'}
                     onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
-                    className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0"
+                    className="w-10 h-10 rounded-xl cursor-pointer border-0 p-0 shadow-inner"
                   />
                   <input
                     type="text"
@@ -1361,110 +1378,144 @@ export const EmployeesManagement: React.FC = () => {
                 </div>
               </div>
 
-              {/* Granular Permissions */}
-              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                  Granular Permission Matrix
-                </span>
+              {/* Granular Permissions Section */}
+              <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                      Granular Capabilities Matrix
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {Object.values(roleFormData.permissions || {}).filter(Boolean).length} flags enabled
+                    </span>
+                  </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canCreateClients}
-                      onChange={(e) =>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const safePerms: Partial<UserPermissions> = {};
+                        SYSTEM_CAPABILITIES.forEach((c) => {
+                          safePerms[c.key] = c.riskLevel === 'Low' || c.riskLevel === 'Moderate';
+                        });
                         setRoleFormData({
                           ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canCreateClients: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Create Client Dossiers</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canEditStages}
-                      onChange={(e) =>
+                          permissions: { ...roleFormData.permissions, ...safePerms },
+                        });
+                      }}
+                      className="text-[10px] font-bold px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-lg border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-all cursor-pointer"
+                    >
+                      Enable Safe Flags
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allPerms: Partial<UserPermissions> = {};
+                        SYSTEM_CAPABILITIES.forEach((c) => {
+                          allPerms[c.key] = true;
+                        });
                         setRoleFormData({
                           ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canEditStages: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Advance Workflow Stages</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canManagePayments}
-                      onChange={(e) =>
+                          permissions: { ...roleFormData.permissions, ...allPerms },
+                        });
+                      }}
+                      className="text-[10px] font-bold px-2 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-all cursor-pointer"
+                    >
+                      Enable All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const clearPerms: Partial<UserPermissions> = {};
+                        SYSTEM_CAPABILITIES.forEach((c) => {
+                          clearPerms[c.key] = false;
+                        });
                         setRoleFormData({
                           ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canManagePayments: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Invoices & Payments</span>
-                  </label>
+                          permissions: { ...roleFormData.permissions, ...clearPerms },
+                        });
+                      }}
+                      className="text-[10px] font-bold px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 transition-all cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
 
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canDeleteRecords}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canDeleteRecords: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Delete Records & Invoices</span>
-                  </label>
+                <div className="space-y-3">
+                  {Array.from(new Set(SYSTEM_CAPABILITIES.map((c) => c.category))).map((cat, i) => {
+                    const capsInCat = SYSTEM_CAPABILITIES.filter((c) => c.category === cat);
+                    return (
+                      <div key={i} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
+                          <span>{cat}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {capsInCat.filter((c) => roleFormData.permissions[c.key]).length} / {capsInCat.length} active
+                          </span>
+                        </div>
 
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canManageUsers}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canManageUsers: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Manage Staff & Users</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canExportReports}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canExportReports: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Export Reports & Backups</span>
-                  </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          {capsInCat.map((cap) => {
+                            const isChecked = Boolean(roleFormData.permissions[cap.key]);
+                            return (
+                              <label
+                                key={cap.key}
+                                className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                                  isChecked
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) =>
+                                    setRoleFormData({
+                                      ...roleFormData,
+                                      permissions: {
+                                        ...roleFormData.permissions,
+                                        [cap.key]: e.target.checked,
+                                      },
+                                    })
+                                  }
+                                  className="mt-0.5 rounded text-blue-600 focus:ring-blue-500"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                                      {cap.label}
+                                    </span>
+                                    <span
+                                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
+                                        cap.riskLevel === 'Critical Admin'
+                                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                          : cap.riskLevel === 'High'
+                                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                      }`}
+                                    >
+                                      {cap.riskLevel}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
+                                    {cap.description}
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 shrink-0 sticky bottom-0 bg-white dark:bg-slate-900 py-2">
                 <button
                   type="button"
                   onClick={() => setShowAddRoleModal(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200"
                 >
                   Cancel
                 </button>
@@ -1472,7 +1523,7 @@ export const EmployeesManagement: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20"
                 >
-                  Save New Role
+                  Create Role
                 </button>
               </div>
             </form>
@@ -1482,31 +1533,69 @@ export const EmployeesManagement: React.FC = () => {
 
       {/* Edit Role Modal */}
       {showEditRoleModal && selectedRole && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl animate-in fade-in max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Edit Role Definition</h3>
-              <button onClick={() => setShowEditRoleModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white shadow-md text-xs shrink-0"
+                  style={{ backgroundColor: roleFormData.color || '#3B82F6' }}
+                >
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Edit Role: {selectedRole.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Configure granted permissions and operational privileges</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEditRoleModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditRole} className="space-y-3 pt-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Role Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={roleFormData.name ?? ''}
-                  onChange={(e) => setRoleFormData({ ...roleFormData, name: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
-                />
+            <form onSubmit={handleSaveEditRole} className="space-y-4 pt-4 overflow-y-auto pr-1 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Role Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={roleFormData.name ?? ''}
+                    onChange={(e) => setRoleFormData({ ...roleFormData, name: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Role Accent Color
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={roleFormData.color ?? '#3b82f6'}
+                      onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
+                      className="w-10 h-10 rounded-xl cursor-pointer border-0 p-0 shadow-inner"
+                    />
+                    <input
+                      type="text"
+                      value={roleFormData.color ?? '#3b82f6'}
+                      onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
+                      className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Description
                 </label>
                 <input
@@ -1517,136 +1606,134 @@ export const EmployeesManagement: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Role Accent Color
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={roleFormData.color ?? '#3b82f6'}
-                    onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
-                    className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0"
-                  />
-                  <input
-                    type="text"
-                    value={roleFormData.color ?? '#3b82f6'}
-                    onChange={(e) => setRoleFormData({ ...roleFormData, color: e.target.value })}
-                    className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
-                  />
+              {/* Categorized Granular Permissions */}
+              <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                      Role Permissions Matrix
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {Object.values(roleFormData.permissions || {}).filter(Boolean).length} / {SYSTEM_CAPABILITIES.length} capabilities enabled
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const safePerms: Partial<UserPermissions> = {};
+                        SYSTEM_CAPABILITIES.forEach((c) => {
+                          safePerms[c.key] = c.riskLevel === 'Low' || c.riskLevel === 'Moderate';
+                        });
+                        setRoleFormData({
+                          ...roleFormData,
+                          permissions: { ...roleFormData.permissions, ...safePerms },
+                        });
+                      }}
+                      className="text-[10px] font-bold px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-lg border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                    >
+                      Safe Defaults
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allPerms: Partial<UserPermissions> = {};
+                        SYSTEM_CAPABILITIES.forEach((c) => {
+                          allPerms[c.key] = true;
+                        });
+                        setRoleFormData({
+                          ...roleFormData,
+                          permissions: { ...roleFormData.permissions, ...allPerms },
+                        });
+                      }}
+                      className="text-[10px] font-bold px-2 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 cursor-pointer"
+                    >
+                      Enable All
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {Array.from(new Set(SYSTEM_CAPABILITIES.map((c) => c.category))).map((cat, i) => {
+                    const capsInCat = SYSTEM_CAPABILITIES.filter((c) => c.category === cat);
+                    return (
+                      <div key={i} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
+                          <span>{cat}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {capsInCat.filter((c) => roleFormData.permissions[c.key]).length} / {capsInCat.length} active
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          {capsInCat.map((cap) => {
+                            const isChecked = Boolean(roleFormData.permissions[cap.key]);
+                            return (
+                              <label
+                                key={cap.key}
+                                className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                                  isChecked
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) =>
+                                    setRoleFormData({
+                                      ...roleFormData,
+                                      permissions: {
+                                        ...roleFormData.permissions,
+                                        [cap.key]: e.target.checked,
+                                      },
+                                    })
+                                  }
+                                  className="mt-0.5 rounded text-blue-600 focus:ring-blue-500"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                                      {cap.label}
+                                    </span>
+                                    <span
+                                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
+                                        cap.riskLevel === 'Critical Admin'
+                                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                          : cap.riskLevel === 'High'
+                                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                      }`}
+                                    >
+                                      {cap.riskLevel}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
+                                    {cap.description}
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Granular Permissions */}
-              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                  Permissions Matrix
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canCreateClients}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canCreateClients: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Create Client Dossiers</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canEditStages}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canEditStages: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Advance Workflow Stages</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canManagePayments}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canManagePayments: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Invoices & Payments</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canDeleteRecords}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canDeleteRecords: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Delete Records & Invoices</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canManageUsers}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canManageUsers: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Manage Staff & Users</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={roleFormData.permissions.canExportReports}
-                      onChange={(e) =>
-                        setRoleFormData({
-                          ...roleFormData,
-                          permissions: { ...roleFormData.permissions, canExportReports: e.target.checked },
-                        })
-                      }
-                      className="rounded text-blue-600"
-                    />
-                    <span>Export Reports & Backups</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 sticky bottom-0 bg-white dark:bg-slate-900 py-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowEditRoleModal(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20"
                 >
                   Save Role Changes
                 </button>
@@ -1688,130 +1775,103 @@ export const EmployeesManagement: React.FC = () => {
 
       {/* Permissions Modal */}
       {showPermissionsModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl animate-in fade-in">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">User Privileges & Access Rights</h3>
-              <button onClick={() => setShowPermissionsModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    User Privileges: {selectedUser.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Role: <strong className="uppercase font-mono">{selectedUser.role}</strong> • Department: {selectedUser.department || 'N/A'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPermissionsModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-500 my-3">
-              Configure system privileges for <strong>{selectedUser.name}</strong> ({selectedUser.role}):
+            <p className="text-xs text-slate-500 my-2 shrink-0">
+              Select or customize granted system capabilities for this individual user account:
             </p>
 
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1 text-xs">
-              <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block">Create & Manage Clients</span>
-                  <span className="text-[11px] text-slate-400">Add new client dossiers and edit passport/visa records</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={formData.permissions?.canCreateClients}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      permissions: { ...formData.permissions, canCreateClients: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-              </label>
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+              {Array.from(new Set(SYSTEM_CAPABILITIES.map((c) => c.category))).map((cat, i) => {
+                const capsInCat = SYSTEM_CAPABILITIES.filter((c) => c.category === cat);
+                return (
+                  <div key={i} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <span>{cat}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        {capsInCat.filter((c) => formData.permissions && formData.permissions[c.key]).length} / {capsInCat.length} active
+                      </span>
+                    </div>
 
-              <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block">Advance Workflow Stages</span>
-                  <span className="text-[11px] text-slate-400">Move clients across pipeline milestones</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={formData.permissions?.canEditStages}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      permissions: { ...formData.permissions, canEditStages: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block">Delete Client Dossiers & Records</span>
-                  <span className="text-[11px] text-slate-400">Permanently delete clients from database</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={formData.permissions?.canDeleteRecords}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      permissions: { ...formData.permissions, canDeleteRecords: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block">View Financials & Invoices</span>
-                  <span className="text-[11px] text-slate-400">Access invoices, payments, revenue metrics</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={formData.permissions?.canManagePayments}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      permissions: { ...formData.permissions, canManagePayments: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block">Export CRM Data & Backups</span>
-                  <span className="text-[11px] text-slate-400">Download CSV reports and database backups</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={formData.permissions?.canExportReports}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      permissions: { ...formData.permissions, canExportReports: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 cursor-pointer">
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block">Manage Users & Staff</span>
-                  <span className="text-[11px] text-slate-400">Add, edit, or suspend employee accounts</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={formData.permissions?.canManageUsers}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      permissions: { ...formData.permissions, canManageUsers: e.target.checked },
-                    })
-                  }
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-              </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      {capsInCat.map((cap) => {
+                        const isChecked = Boolean(formData.permissions && formData.permissions[cap.key]);
+                        return (
+                          <label
+                            key={cap.key}
+                            className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                              isChecked
+                                ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  permissions: {
+                                    ...(formData.permissions as UserPermissions),
+                                    [cap.key]: e.target.checked,
+                                  },
+                                })
+                              }
+                              className="mt-0.5 rounded text-blue-600 focus:ring-blue-500"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                                  {cap.label}
+                                </span>
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
+                                    cap.riskLevel === 'Critical Admin'
+                                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                      : cap.riskLevel === 'High'
+                                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                  }`}
+                                >
+                                  {cap.riskLevel}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
+                                {cap.description}
+                              </p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800 mt-4">
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 mt-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowPermissionsModal(false)}
