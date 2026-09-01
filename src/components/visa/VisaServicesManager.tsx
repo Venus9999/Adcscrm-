@@ -43,6 +43,7 @@ import { EditVisaCountryModal } from './EditVisaCountryModal';
 import { EditVisaApplicationModal } from './EditVisaApplicationModal';
 import { AIVisaCountryAdvisor } from './AIVisaCountryAdvisor';
 import { AIImageStudio } from '../ai/AIImageStudio';
+import { CountryFlag } from './CountryFlag';
 
 type VisaServiceType = VisaCountryOption['visaTypes'][number];
 
@@ -678,7 +679,12 @@ export const VisaServicesManager: React.FC = () => {
                       {/* Country Card Header */}
                       <div className="flex items-start justify-between">
                         <div className="flex items-center space-x-3">
-                          <span className="text-3xl">{country.flag}</span>
+                          <CountryFlag
+                            countryCode={country.countryCode}
+                            flag={country.flag}
+                            countryName={country.countryName}
+                            size="2xl"
+                          />
                           <div>
                             <div className="flex items-center space-x-1.5">
                               <h3 className="text-sm font-bold text-slate-900 dark:text-white">

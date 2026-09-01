@@ -524,6 +524,7 @@ export interface Client {
   notesText?: string;
   calls: CallLog[];
   tags: string[];
+  changelog?: ChangeLogEntry[];
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'waiting_client' | 'waiting_authority' | 'completed' | 'cancelled' | 'overdue';
@@ -579,6 +580,7 @@ export interface TaskItem {
   reminderDate?: string;
   completedAt?: string;
   comments: TaskComment[];
+  changelog?: ChangeLogEntry[];
   createdAt: string;
 }
 
@@ -656,6 +658,7 @@ export interface Invoice {
   status: 'unpaid' | 'partially_paid' | 'paid' | 'overdue' | 'refunded' | 'cancelled';
   notes?: string;
   items: InvoiceItem[];
+  changelog?: ChangeLogEntry[];
   issuedByUserId: string;
   issuedByUserName: string;
   createdAt: string;
@@ -749,6 +752,7 @@ export interface Lead {
   onlineApplicationRef?: string;
   assignedToStaffId?: string;
   assignedStaffName?: string;
+  changelog?: ChangeLogEntry[];
   createdAt: string;
   updatedAt: string;
 }
@@ -796,6 +800,31 @@ export interface Transaction {
   recordedByUserName: string;
   recordedByName?: string;
   createdAt: string;
+}
+
+export interface FieldChange {
+  field: string;
+  label: string;
+  oldValue: any;
+  newValue: any;
+  displayOldValue: string;
+  displayNewValue: string;
+}
+
+export interface ChangeLogEntry {
+  id: string;
+  entityId: string;
+  entityType: 'Client' | 'Lead' | 'Invoice' | 'Task' | 'Document' | 'VisaApplication' | 'Company' | 'Vendor' | 'Service' | 'User' | 'Transaction';
+  entityName?: string;
+  action: 'create' | 'update' | 'stage_change' | 'status_change' | 'document_added' | 'note_added' | 'assignee_changed' | 'financial_edit';
+  userId: string;
+  userName: string;
+  userRole: UserRole;
+  userEmail?: string;
+  userAvatar?: string;
+  timestamp: string;
+  summary: string;
+  changes: FieldChange[];
 }
 
 export interface AuditLogEntry {
@@ -932,6 +961,7 @@ export interface VisaApplication {
   // Documents & Timeline
   uploadedDocuments: VisaUploadedDoc[];
   timeline: VisaTimelineEvent[];
+  changelog?: ChangeLogEntry[];
   notes?: string;
   specialInstructions?: string;
   

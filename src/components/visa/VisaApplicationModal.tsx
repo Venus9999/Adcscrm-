@@ -26,6 +26,7 @@ import { VisaCountryOption } from '../../data/countriesData';
 import { VisaUploadedDoc } from '../../types/crm';
 import { NomodCheckoutModal } from '../payment/NomodCheckoutModal';
 import { AIVisaCountryAdvisor } from './AIVisaCountryAdvisor';
+import { CountryFlag } from './CountryFlag';
 
 type CountryVisaType = VisaCountryOption['visaTypes'][number];
 
@@ -457,8 +458,8 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
               <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/50 border-2 border-emerald-500 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto animate-bounce">
                 <CheckCircle2 className="w-9 h-9" />
               </div>
-              <div>
-                <span className="text-3xl mr-2">{selectedCountry?.flag}</span>
+              <div className="flex flex-col items-center justify-center">
+                <CountryFlag countryCode={selectedCountry?.countryCode} flag={selectedCountry?.flag} countryName={selectedCountry?.countryName} size="3xl" />
                 <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
                   Visa Application Registered!
                 </h3>
@@ -559,7 +560,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                                 : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 hover:border-blue-300 dark:hover:border-slate-600'
                             }`}
                           >
-                            <span className="text-2xl">{c.flag}</span>
+                            <CountryFlag countryCode={c.countryCode} flag={c.flag} countryName={c.countryName} size="lg" />
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-bold truncate">{c.countryName}</p>
                               <p className="text-[10px] text-slate-500 truncate">{c.visaTypes.length} Visa Options</p>
@@ -576,7 +577,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                     <div className="space-y-3 pt-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <span className="text-2xl">{selectedCountry.flag}</span>
+                          <CountryFlag countryCode={selectedCountry.countryCode} flag={selectedCountry.flag} countryName={selectedCountry.countryName} size="lg" />
                           <h4 className="text-sm font-bold text-slate-900 dark:text-white">
                             Available Visa Categories for {selectedCountry.countryName}
                           </h4>
@@ -989,7 +990,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                   <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-800/80 dark:to-slate-900/80 border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
                       <div className="flex items-center space-x-3">
-                        <span className="text-3xl">{selectedCountry?.flag}</span>
+                        <CountryFlag countryCode={selectedCountry?.countryCode} flag={selectedCountry?.flag} countryName={selectedCountry?.countryName} size="2xl" />
                         <div>
                           <h4 className="text-sm font-bold text-slate-900 dark:text-white">
                             {selectedCountry?.countryName} - {selectedVisaType?.name || 'Visa'}

@@ -431,9 +431,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Sign out of ${currentUser.name}'s session?`)) {
-              logout();
-            }
+            logout();
           }}
           className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors shrink-0 cursor-pointer"
           title="Sign Out"

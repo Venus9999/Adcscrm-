@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { VisaCountryOption } from '../../data/countriesData';
+import { CountryFlag } from './CountryFlag';
 
 type VisaServiceType = VisaCountryOption['visaTypes'][number];
 
@@ -157,7 +158,7 @@ export const EditVisaServiceModal: React.FC<EditVisaServiceModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60">
           <div className="flex items-center space-x-3">
-            <span className="text-2xl">{countryFlag}</span>
+            <CountryFlag countryCode={countryCode} flag={countryFlag} countryName={countryName} size="xl" />
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 {isEditing ? 'Edit Visa Service Package' : 'Create New Visa Service'}

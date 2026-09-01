@@ -26,9 +26,11 @@ import {
   FileText,
   MessageCircle,
   ExternalLink,
+  History,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { Lead, TaskItem, InternalNote } from '../../types/crm';
+import { ChangeLogView } from '../common/ChangeLogView';
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -58,7 +60,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     assignLeadToStaff,
   } = useCRM();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'notes' | 'history'>('overview');
   const [assignmentFeedback, setAssignmentFeedback] = useState('');
 
   const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
@@ -409,6 +411,22 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
               {notesList.length}
             </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'history'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>Change Log & Audit</span>
+            {lead.changelog && lead.changelog.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold">
+                {lead.changelog.length}
+              </span>
+            )}
           </button>
         </div>
 
@@ -1058,6 +1076,17 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                   ))
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB 4: CHANGE LOG & AUDIT */}
+          {activeTab === 'history' && (
+            <div className="space-y-4">
+              <ChangeLogView
+                changelog={lead.changelog || []}
+                entityTitle={lead.name}
+                entityType="Lead"
+              />
             </div>
           )}
         </div>

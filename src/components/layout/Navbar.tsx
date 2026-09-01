@@ -885,11 +885,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     onClick={() => {
                       setShowRoleDropdown(false);
-                      if (confirm(`Sign out of ${currentUser.name}'s session?`)) {
-                        logout();
-                      }
+                      logout();
                     }}
-                    className="w-full text-left px-2.5 py-2 text-xs flex items-center gap-2 rounded-md text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-semibold transition-colors"
+                    className="w-full text-left px-2.5 py-2 text-xs flex items-center gap-2 rounded-md text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-semibold transition-colors cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 text-rose-600" />
                     <span>Sign Out of Session</span>

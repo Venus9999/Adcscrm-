@@ -1042,43 +1042,94 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
 
             {/* Section 3: Nomod Online Payment Gateway & Checkout Configuration */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-blue-600" />
-                  <span>Nomod Online Payment Gateway & Instant Checkout</span>
-                </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-blue-600" />
+                    <span>Nomod Live Gateway & Digital Payments</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Accept instant credit/debit card payments, Apple Pay, Google Pay, and UAE debit cards.
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
-                    Direct API Active
-                  </span>
-                  <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                    Live Mode
-                  </span>
+                  {billingForm.nomodEnabled && billingForm.nomodApiKey ? (
+                    <>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
+                        Direct API Active
+                      </span>
+                      <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                        Live Mode
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 font-bold">
+                      Disconnected
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <p className="text-xs text-slate-500">
-                Configure your Nomod Live API credentials to accept instant credit/debit card payments, Apple Pay, Google Pay, and UAE local debit cards with automated receipt creation.
-              </p>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Nomod Secret Live API Key (Bearer Token) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Nomod Secret Live API Key (Bearer Token)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {billingForm.nomodApiKey && (
+                        <button
+                          type="button"
+                          disabled={!isAdminOrMaster}
+                          onClick={() => {
+                            setBillingForm({
+                              ...billingForm,
+                              nomodApiKey: '',
+                              nomodEnabled: false,
+                            });
+                          }}
+                          className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                        >
+                          Disconnect / Logout from Nomod
+                        </button>
+                      )}
+                      {!billingForm.nomodApiKey && (
+                        <button
+                          type="button"
+                          disabled={!isAdminOrMaster}
+                          onClick={() => {
+                            setBillingForm({
+                              ...billingForm,
+                              nomodApiKey: 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY',
+                              nomodEnabled: true,
+                            });
+                          }}
+                          className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                        >
+                          Use Demo Credentials
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <div className="relative">
                     <input
                       type="password"
                       disabled={!isAdminOrMaster}
-                      value={billingForm.nomodApiKey || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY'}
+                      value={billingForm.nomodApiKey ?? ''}
                       onChange={(e) => setBillingForm({ ...billingForm, nomodApiKey: e.target.value })}
                       placeholder="sk_live_..."
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-slate-100 disabled:opacity-60"
                     />
                     <div className="absolute right-2.5 top-2.5 flex items-center gap-1.5">
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
-                        Configured
-                      </span>
+                      {billingForm.nomodApiKey ? (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                          Connected
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                          Not Set
+                        </span>
+                      )}
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1">

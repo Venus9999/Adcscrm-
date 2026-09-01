@@ -39,6 +39,7 @@ import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
 import { GmailComposerModal } from '../gmail/GmailComposerModal';
 import { Client, DocumentItem, Invoice, InvoiceLineItem, WorkStage, Transaction } from '../../types/crm';
+import { ChangeLogView } from '../common/ChangeLogView';
 
 interface ClientDetailModalProps {
   clientId: string | null;
@@ -88,7 +89,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     isLoadingMessages: isGmailLoading,
   } = useGmail();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'documents' | 'payments' | 'transactions' | 'gmail' | 'notes' | 'calls' | 'tasks'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'documents' | 'payments' | 'transactions' | 'gmail' | 'notes' | 'calls' | 'tasks' | 'history'>('overview');
   const [isGmailComposerOpen, setIsGmailComposerOpen] = useState(false);
   const [gmailInitialSubject, setGmailInitialSubject] = useState('');
   const [gmailInitialBody, setGmailInitialBody] = useState('');
@@ -727,6 +728,17 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 }`}
               >
                 Tasks ({clientTasks.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`px-3.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === 'history'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                }`}
+              >
+                <History className="w-3.5 h-3.5 text-blue-500" />
+                <span>Audit & Change Log ({client.changelog?.length || 0})</span>
               </button>
             </>
           )}
@@ -1653,6 +1665,17 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Tab 9: History & Audit Log */}
+          {activeTab === 'history' && (
+            <div className="space-y-4">
+              <ChangeLogView
+                changelog={client.changelog || []}
+                entityTitle={client.fullName || `${client.firstName || ''} ${client.lastName || ''}`}
+                entityType="Client Profile"
+              />
             </div>
           )}
         </div>

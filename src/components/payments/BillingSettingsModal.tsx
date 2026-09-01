@@ -491,25 +491,82 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
           {/* Tab: Nomod Online Payment Gateway */}
           {activeTab === 'nomod' && (
             <div className="space-y-4">
-              <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="block text-blue-950 dark:text-blue-100 font-bold">Nomod Live Gateway Active</strong>
-                  Accept instant direct card payments (Visa, Mastercard, Apple Pay, Google Pay, UAE Jaywan Debit) with automated invoice settlement.
+              <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start justify-between gap-2.5">
+                <div className="flex items-start gap-2.5">
+                  <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-blue-950 dark:text-blue-100 font-bold">
+                      {formData.nomodEnabled && formData.nomodApiKey ? 'Nomod Live Gateway Active' : 'Nomod Gateway Disconnected'}
+                    </strong>
+                    Accept instant direct card payments (Visa, Mastercard, Apple Pay, Google Pay, UAE Jaywan Debit) with automated invoice settlement.
+                  </div>
                 </div>
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md whitespace-nowrap ${
+                  formData.nomodEnabled && formData.nomodApiKey
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                    : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                }`}>
+                  {formData.nomodEnabled && formData.nomodApiKey ? 'Active' : 'Offline'}
+                </span>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Nomod Live Secret API Key (Bearer Token) *
-                </label>
-                <input
-                  type="password"
-                  value={formData.nomodApiKey || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY'}
-                  onChange={(e) => setFormData({ ...formData, nomodApiKey: e.target.value })}
-                  placeholder="sk_live_..."
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-semibold"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Nomod Live Secret API Key (Bearer Token)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {formData.nomodApiKey ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            nomodApiKey: '',
+                            nomodEnabled: false,
+                          });
+                        }}
+                        className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                      >
+                        Disconnect / Logout from Nomod
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            nomodApiKey: 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY',
+                            nomodEnabled: true,
+                          });
+                        }}
+                        className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                      >
+                        Use Demo Credentials
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={formData.nomodApiKey ?? ''}
+                    onChange={(e) => setFormData({ ...formData, nomodApiKey: e.target.value })}
+                    placeholder="sk_live_..."
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-semibold"
+                  />
+                  <div className="absolute right-2.5 top-2.5 flex items-center gap-1.5">
+                    {formData.nomodApiKey ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                        Connected
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                        Not Set
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <p className="text-[10px] text-slate-400 mt-1">
                   Used by server-side endpoints to initiate live checkout links and verify settlements.
                 </p>

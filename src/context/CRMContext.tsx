@@ -43,7 +43,9 @@ import {
   SmtpSettings,
   DiscountType,
   ServiceClassification,
+  ChangeLogEntry,
 } from '../types/crm';
+import { calculateObjectDiff, createChangeLogEntry } from '../utils/diffTracker';
 import {
   INITIAL_COMPANIES,
   INITIAL_USERS,
@@ -765,13 +767,36 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.serviceClassifications && Array.isArray(parsed.serviceClassifications)) setServiceClassifications(parsed.serviceClassifications);
     if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) setServiceCategories(parsed.serviceCategories);
     if (parsed.clients && Array.isArray(parsed.clients)) {
+      const parsedInvoices = Array.isArray(parsed.invoices) ? parsed.invoices : [];
       setClients(
-        parsed.clients.map((c: any) => ({
-          ...c,
-          services: Array.isArray(c.services) ? c.services : [],
-          notes: Array.isArray(c.notes) ? c.notes : [],
-          tags: Array.isArray(c.tags) ? c.tags : [],
-        }))
+        parsed.clients.map((c: any) => {
+          const clientEmail = (c.email || '').toLowerCase().trim();
+          const userInvoices = parsedInvoices.filter(
+            (inv: any) =>
+              inv &&
+              (inv.clientId === c.id ||
+                (inv.clientEmail && inv.clientEmail.toLowerCase().trim() === clientEmail))
+          );
+          let totalAmount = c.totalAmount || 0;
+          let outstandingAmount = c.outstandingAmount || 0;
+          let services = Array.isArray(c.services) ? c.services : [];
+
+          // If client has no real invoices and their balance is the hardcoded 4700 legacy balance, reset to clean slate
+          if (userInvoices.length === 0 && (totalAmount === 4700 || outstandingAmount === 4700)) {
+            totalAmount = 0;
+            outstandingAmount = 0;
+            services = services.filter((s: any) => s && s.serviceId !== 'srv-residency-visa');
+          }
+
+          return {
+            ...c,
+            totalAmount,
+            outstandingAmount,
+            services,
+            notes: Array.isArray(c.notes) ? c.notes : [],
+            tags: Array.isArray(c.tags) ? c.tags : [],
+          };
+        })
       );
     }
     if (parsed.documents && Array.isArray(parsed.documents)) setDocuments(parsed.documents);
@@ -1275,6 +1300,38 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [currentUser]
   );
 
+  // Security Check: Strictly enforce data deletion prohibition for Employees
+  const checkDeletePermission = useCallback(
+    (entityName: string, entityId?: string): boolean => {
+      const isEmployee = currentUser.role === 'employee';
+      const isClient = currentUser.role === 'client';
+      const hasPermission =
+        currentUser.role === 'master' ||
+        currentUser.role === 'admin' ||
+        (currentUser.permissions?.canDeleteRecords && !isEmployee && !isClient);
+
+      if (isEmployee || isClient || !hasPermission) {
+        const errorMsg = `Unauthorized Attempt: ${currentUser.name} (${currentUser.role}) attempted to delete ${entityName}${
+          entityId ? ` [ID: ${entityId}]` : ''
+        }. Action strictly blocked by enterprise security policy.`;
+        recordAuditLog('Security Alert: Unauthorized Deletion Blocked', 'Security', errorMsg);
+
+        const notif: NotificationItem = {
+          id: `notif-sec-${Date.now()}`,
+          title: 'Permission Denied: Deletion Restricted',
+          message: `Employees cannot delete ${entityName}. Data deletion is restricted to Administrators and Master accounts.`,
+          type: 'system',
+          read: false,
+          timestamp: new Date().toISOString(),
+        };
+        setNotifications((prev) => [notif, ...prev]);
+        return false;
+      }
+      return true;
+    },
+    [currentUser, recordAuditLog]
+  );
+
   // User Login Action - resilient across devices and browser sessions
   const login = useCallback(
     async (email: string, passwordOrPin: string): Promise<{ success: boolean; user?: User; error?: string }> => {
@@ -1581,6 +1638,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const logout = useCallback(() => {
     const prevUser = currentUser;
     setIsAuthenticated(false);
+    setSelectedClientId(null);
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);
       localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
@@ -1588,18 +1646,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.error('Session logout error', e);
     }
-    const newLog: AuditLogEntry = {
-      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      userId: prevUser.id,
-      userName: prevUser.name,
-      userRole: prevUser.role,
-      userEmail: prevUser.email,
-      action: 'User Logout',
-      module: 'Security',
-      details: `User ${prevUser.name} signed out of CRM platform`,
-      timestamp: new Date().toISOString(),
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
+    if (prevUser && (prevUser.id || prevUser.name)) {
+      try {
+        const newLog: AuditLogEntry = {
+          id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          userId: prevUser.id || 'user-unknown',
+          userName: prevUser.name || 'User',
+          userRole: prevUser.role || 'client',
+          userEmail: prevUser.email || '',
+          action: 'User Logout',
+          module: 'Security',
+          details: `User ${prevUser.name || 'User'} signed out of CRM platform`,
+          timestamp: new Date().toISOString(),
+        };
+        setAuditLogs((prev) => [newLog, ...(prev || [])]);
+      } catch (logErr) {
+        console.error('Audit log write error on logout', logErr);
+      }
+    }
   }, [currentUser]);
 
   // Request Password Reset OTP
@@ -2091,52 +2155,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const firstName = nameParts[0] || cleanName;
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      const initialServiceId = `srv-${Date.now()}`;
-      const initialService: ClientService = {
-        id: initialServiceId,
-        clientId: clientId,
-        serviceId: 'srv-residency-visa',
-        serviceName: 'Residency Visa & Corporate Client Onboarding',
-        category: 'visa',
-        categoryName: 'Residency & Immigration',
-        notes: 'Client registered online via Self-Service Portal. File opened and awaiting document verification.',
-        pricingTier: 'b2c',
-        price: 3500,
-        governmentFees: 1200,
-        discountAmount: 0,
-        discountPercent: 0,
-        advancePaid: 0,
-        balance: 4700,
-        status: 'active',
-        currentStageId: 'stage-1',
-        currentStageName: 'Inquiry / File Opening',
-        assignedEmployeeId: targetCompany?.employeeIds?.[0] || 'user-emp-1',
-        assignedEmployeeName: 'Farhan Akhtar (Senior PRO)',
-        startDate: nowIso.split('T')[0],
-        targetCompletionDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-        referenceNumber: `ICP-${refNo}`,
-        requiredDocs: [
-          { docName: 'Passport Copy (High Resolution Color)', isUploaded: false, status: 'pending' },
-          { docName: 'Emirates ID / National Identity Card', isUploaded: false, status: 'pending' },
-          { docName: 'Passport Size Photo (White Background)', isUploaded: false, status: 'pending' },
-          { docName: 'Trade License / Visa Entry Stamp (Optional)', isUploaded: false, status: 'pending' },
-        ],
-        stageHistory: [
-          {
-            id: `hist-${Date.now()}`,
-            fromStage: 'Online Registration',
-            toStage: 'Inquiry / File Opening',
-            updatedByUserId: userId,
-            updatedByUserName: cleanName,
-            updatedByUserRole: 'client',
-            timestamp: nowIso,
-            remarks: 'Client profile registered online and assigned to Senior PRO officer for document review and processing.',
-            nextFollowUpDate: new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0],
-          },
-        ],
-      };
-
-      // 2. Create Client profile record
+      // 2. Create Client profile record (Starts completely clean with 0 balance and empty services)
       const newClient: Client = {
         id: clientId,
         refNo,
@@ -2149,13 +2168,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         whatsapp: cleanPhone || '+971 50 123 4567',
         dob: '1990-01-01',
         gender: 'Male',
-        passportNo: data.passportNo || `P${Math.floor(10000000 + Math.random() * 90000000)}`,
-        passportExpiry: '2030-12-31',
-        emiratesId: '784-1990-1234567-1',
-        emiratesIdExpiry: '2028-12-31',
+        passportNo: data.passportNo || 'Not specified',
+        passportExpiry: '',
+        emiratesId: '',
+        emiratesIdExpiry: '',
         residentialAddress: 'Dubai, United Arab Emirates',
-        nationality: data.nationality || 'United Arab Emirates',
-        companyName: data.companyName || `${cleanName}'s Portfolio`,
+        nationality: data.nationality || 'Not specified',
+        companyName: data.companyName || `${cleanName}'s Account`,
         companyId: targetCompanyId,
         pricingTier: 'b2c',
         isDirectRegistration: true,
@@ -2163,14 +2182,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         type: 'individual',
         status: 'active',
         currentStageId: 'stage-1',
-        currentStageName: 'Inquiry / File Opening',
-        services: [initialService],
+        currentStageName: 'New Client / Ready',
+        services: [],
         assignedEmployeeIds: targetCompany?.employeeIds && targetCompany.employeeIds.length > 0 ? targetCompany.employeeIds.slice(0, 2) : ['user-emp-1'],
         assignedAdminId: targetCompany?.adminId || 'user-admin',
-        totalAmount: 4700,
+        totalAmount: 0,
         paidAmount: 0,
-        outstandingAmount: 4700,
-        paymentStatus: 'unpaid',
+        outstandingAmount: 0,
+        paymentStatus: 'paid',
         avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
         notes: [
           {
@@ -2361,12 +2380,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return { success: false, error: 'Service catalog item not found.' };
       }
 
+      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
       let targetClient = clients.find(
-        (c) => c.email.toLowerCase() === currentUser.email.toLowerCase() || (selectedClientId && c.id === selectedClientId)
+        (c) =>
+          (c.email && c.email.toLowerCase().trim() === userCleanEmail) ||
+          (currentUser?.id && c.id === currentUser.id) ||
+          (selfClientProfile && c.id === selfClientProfile.id) ||
+          (selectedClientId && c.id === selectedClientId)
       );
 
-      if (!targetClient && currentUser.role === 'client') {
-        targetClient = clients[0];
+      if (!targetClient && selfClientProfile) {
+        targetClient = selfClientProfile;
       }
 
       if (!targetClient) {
@@ -2963,9 +2987,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [checkDuplicateClient, serviceCategories, currentUser, users, companies, invoices.length, recordAuditLog]
   );
 
-  // Update Client (Defensive Deep Update: Preserves all previous nested arrays & data)
+  // Update Client (Defensive Deep Update: Preserves all previous nested arrays & data and records changelog)
   const updateClient = useCallback(
     (id: string, updates: Partial<Client>) => {
+      hasUserEditedRef.current = true;
+      let generatedChangeLog: ChangeLogEntry | null = null;
+
       setClients((prev) =>
         prev.map((client) => {
           if (client.id === id) {
@@ -2976,6 +3003,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 (cleanUpdates as any)[key] = updates[key];
               }
             });
+
+            // Calculate diff
+            const changes = calculateObjectDiff(client, cleanUpdates);
+            let nextChangelog = client.changelog || [];
+
+            if (changes.length > 0) {
+              const newEntry = createChangeLogEntry(
+                'Client',
+                client.id,
+                cleanUpdates.fullName || client.fullName,
+                changes,
+                currentUser
+              );
+              generatedChangeLog = newEntry;
+              nextChangelog = [newEntry, ...nextChangelog];
+            }
 
             const updated: Client = {
               ...client,
@@ -2993,6 +3036,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   ? cleanUpdates.assignedEmployeeIds
                   : client.assignedEmployeeIds || [],
               companyId: cleanUpdates.companyId !== undefined ? cleanUpdates.companyId : client.companyId,
+              changelog: nextChangelog,
               updatedAt: new Date().toISOString(),
             };
             return updated;
@@ -3000,14 +3044,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return client;
         })
       );
-      recordAuditLog('Client Updated', 'Clients', `Updated details for client ID ${id}`);
+
+      if (generatedChangeLog) {
+        recordAuditLog(
+          'Client Modified (Changelog)',
+          'Clients',
+          `${currentUser.name} (${currentUser.role}) ${generatedChangeLog.summary} on client ID ${id}`
+        );
+      } else {
+        recordAuditLog('Client Updated', 'Clients', `Updated details for client ID ${id}`);
+      }
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
-  // Delete Client
+  // Delete Client - Blocked for Employees
   const deleteClient = useCallback(
     (id: string) => {
+      if (!checkDeletePermission('Client Dossier', id)) return;
+
       const client = clients.find((c) => c.id === id);
       if (!client) return;
 
@@ -3020,7 +3075,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       recordAuditLog('Client Deleted', 'Clients', `Deleted client ${client.fullName} and related records`);
     },
-    [clients, selectedClientId, recordAuditLog]
+    [clients, selectedClientId, recordAuditLog, checkDeletePermission]
   );
 
   // Add Note to Client (Internal / Sent via WhatsApp / Email)
@@ -3066,6 +3121,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteClientNote = useCallback(
     (clientId: string, noteId: string) => {
+      if (!checkDeletePermission('Client Note', noteId)) return;
+
       setClients((prev) =>
         prev.map((c) => {
           if (c.id === clientId) {
@@ -3080,7 +3137,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       recordAuditLog('Client Note Deleted', 'Clients', `Deleted note ${noteId} from client ${clientId}`);
     },
-    [recordAuditLog]
+    [recordAuditLog, checkDeletePermission]
   );
 
   // Add Call/Meeting Log
@@ -3720,10 +3777,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteDocument = useCallback(
     (docId: string) => {
+      if (!checkDeletePermission('Document', docId)) return;
       setDocuments((prev) => (prev || []).filter((d) => d && d.id !== docId));
       recordAuditLog('Document Deleted', 'Documents', `Deleted document ID ${docId}`);
     },
-    [recordAuditLog]
+    [recordAuditLog, checkDeletePermission]
   );
 
   // Tasks
@@ -3776,6 +3834,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateTask = useCallback(
     (taskId: string, updates: Partial<TaskItem>) => {
+      let generatedChangeLog: ChangeLogEntry | null = null;
       setTasks((prev) =>
         prev.map((t) => {
           if (t.id === taskId) {
@@ -3785,28 +3844,50 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 (cleanUpdates as any)[key] = updates[key];
               }
             });
+
+            const changes = calculateObjectDiff(t, cleanUpdates);
+            let nextChangelog = t.changelog || [];
+
+            if (changes.length > 0) {
+              const newEntry = createChangeLogEntry(
+                'Task',
+                t.id,
+                cleanUpdates.title || t.title,
+                changes,
+                currentUser
+              );
+              generatedChangeLog = newEntry;
+              nextChangelog = [newEntry, ...nextChangelog];
+            }
+
             return {
               ...t,
               ...cleanUpdates,
               id: t.id,
               createdAt: t.createdAt,
               comments: cleanUpdates.comments !== undefined ? cleanUpdates.comments : t.comments || [],
+              changelog: nextChangelog,
             };
           }
           return t;
         })
       );
-      recordAuditLog('Task Updated', 'Tasks', `Updated task ID ${taskId}`);
+      if (generatedChangeLog) {
+        recordAuditLog('Task Modified (Changelog)', 'Tasks', `${currentUser.name} (${currentUser.role}) ${generatedChangeLog.summary} on task ID ${taskId}`);
+      } else {
+        recordAuditLog('Task Updated', 'Tasks', `Updated task ID ${taskId}`);
+      }
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
   const deleteTask = useCallback(
     (taskId: string) => {
+      if (!checkDeletePermission('Task', taskId)) return;
       setTasks((prev) => (prev || []).filter((t) => t && t.id !== taskId));
       recordAuditLog('Task Deleted', 'Tasks', `Deleted task ID ${taskId}`);
     },
-    [recordAuditLog]
+    [recordAuditLog, checkDeletePermission]
   );
 
   const addTaskComment = useCallback(
@@ -4015,6 +4096,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateInvoice = useCallback(
     (invoiceId: string, updates: Partial<Invoice>) => {
+      let generatedChangeLog: ChangeLogEntry | null = null;
       setInvoices((prev) =>
         prev.map((i) => {
           if (i.id === invoiceId) {
@@ -4024,6 +4106,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 (cleanUpdates as any)[key] = updates[key];
               }
             });
+
+            const changes = calculateObjectDiff(i, cleanUpdates);
+            let nextChangelog = i.changelog || [];
+
+            if (changes.length > 0) {
+              const newEntry = createChangeLogEntry(
+                'Invoice',
+                i.id,
+                `Invoice #${i.invoiceNumber}`,
+                changes,
+                currentUser
+              );
+              generatedChangeLog = newEntry;
+              nextChangelog = [newEntry, ...nextChangelog];
+            }
+
             const updated: Invoice = {
               ...i,
               ...cleanUpdates,
@@ -4033,6 +4131,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               issuedByUserId: i.issuedByUserId,
               issuedByUserName: i.issuedByUserName,
               items: cleanUpdates.items !== undefined ? cleanUpdates.items : i.items || [],
+              changelog: nextChangelog,
             };
             if (cleanUpdates.grandTotal !== undefined || cleanUpdates.amountPaid !== undefined) {
               const gt = cleanUpdates.grandTotal !== undefined ? cleanUpdates.grandTotal : i.grandTotal;
@@ -4045,9 +4144,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return i;
         })
       );
-      recordAuditLog('Invoice Updated', 'Payments', `Updated details for Invoice ID ${invoiceId}`);
+      if (generatedChangeLog) {
+        recordAuditLog('Invoice Modified (Changelog)', 'Payments', `${currentUser.name} (${currentUser.role}) ${generatedChangeLog.summary} on Invoice ID ${invoiceId}`);
+      } else {
+        recordAuditLog('Invoice Updated', 'Payments', `Updated details for Invoice ID ${invoiceId}`);
+      }
     },
-    [recordAuditLog]
+    [currentUser, recordAuditLog]
   );
 
   const updateInvoiceStatus = useCallback(
@@ -4060,6 +4163,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteInvoice = useCallback(
     (invoiceId: string) => {
+      if (!checkDeletePermission('Invoice', invoiceId)) return;
       const inv = invoices.find((i) => i.id === invoiceId);
       setInvoices((prev) => (prev || []).filter((i) => i && i.id !== invoiceId));
       if (inv) {
@@ -4082,9 +4186,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           })
         );
       }
-      recordAuditLog('Invoice Deleted', 'Payments', `Deleted Invoice ID ${invoiceId}`);
+      recordAuditLog('Invoice Deleted', 'Payments', `Deleted invoice ID ${invoiceId}`);
     },
-    [invoices, recordAuditLog]
+    [invoices, recordAuditLog, checkDeletePermission]
   );
 
   // Services Catalog & Classification Management
@@ -4342,6 +4446,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteVendor = useCallback(
     (id: string) => {
+      if (!checkDeletePermission('Vendor Partner', id)) return;
       hasUserEditedRef.current = true;
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
@@ -4387,7 +4492,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       recordAuditLog('Vendor Profile Deleted', 'Vendors', `Deleted vendor partner ID ${id} (${target?.name || ''})`);
     },
-    [vendors, recordAuditLog]
+    [vendors, recordAuditLog, checkDeletePermission]
   );
 
   // Transactions Management
@@ -4472,6 +4577,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteTransaction = useCallback(
     (id: string) => {
+      if (!checkDeletePermission('Transaction Record', id)) return;
       setTransactions((prev) => {
         const tx = (prev || []).find((t) => t && t.id === id);
         if (tx && tx.clientId) {
@@ -4501,7 +4607,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       recordAuditLog('Transaction Deleted', 'Transactions', `Deleted transaction record ID ${id}`);
     },
-    [recordAuditLog]
+    [recordAuditLog, checkDeletePermission]
   );
 
   // Leads Management
@@ -4559,6 +4665,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Update Lead (Defensive Deep Update: Preserves notesList, tasks, tags, location, and previous state)
   const updateLead = useCallback(
     (id: string, updates: Partial<Lead>) => {
+      let generatedChangeLog: ChangeLogEntry | null = null;
       setLeads((prev) =>
         prev.map((ld) => {
           if (ld.id === id) {
@@ -4579,6 +4686,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
             const assignedUsers = (users || []).filter((u) => u && nextEmpIds.includes(u.id));
             const primaryUser = assignedUsers[0];
+
+            const changes = calculateObjectDiff(ld, cleanUpdates);
+            let nextChangelog = ld.changelog || [];
+
+            if (changes.length > 0) {
+              const newEntry = createChangeLogEntry(
+                'Lead',
+                ld.id,
+                cleanUpdates.name || ld.name,
+                changes,
+                currentUser
+              );
+              generatedChangeLog = newEntry;
+              nextChangelog = [newEntry, ...nextChangelog];
+            }
 
             const updated: Lead = {
               ...ld,
@@ -4606,6 +4728,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               jobTitleInterest: cleanUpdates.jobTitleInterest !== undefined ? cleanUpdates.jobTitleInterest : ld.jobTitleInterest,
               jobExperienceYears: cleanUpdates.jobExperienceYears !== undefined ? cleanUpdates.jobExperienceYears : ld.jobExperienceYears,
               convertedClientId: cleanUpdates.convertedClientId !== undefined ? cleanUpdates.convertedClientId : ld.convertedClientId,
+              changelog: nextChangelog,
               updatedAt: new Date().toISOString(),
             };
             return updated;
@@ -4613,18 +4736,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return ld;
         })
       );
-      recordAuditLog('Lead Updated', 'Leads', `Updated details for lead ID ${id}`);
+      if (generatedChangeLog) {
+        recordAuditLog('Lead Modified (Changelog)', 'Leads', `${currentUser.name} (${currentUser.role}) ${generatedChangeLog.summary} on lead ID ${id}`);
+      } else {
+        recordAuditLog('Lead Updated', 'Leads', `Updated details for lead ID ${id}`);
+      }
     },
-    [users, recordAuditLog]
+    [users, currentUser, recordAuditLog]
   );
 
   const deleteLead = useCallback(
     (id: string) => {
+      if (!checkDeletePermission('Lead Record', id)) return;
       setLeads((prev) => (prev || []).filter((ld) => ld.id !== id));
       setTasks((prev) => (prev || []).filter((t) => t.leadId !== id));
       recordAuditLog('Lead Deleted', 'Leads', `Deleted lead record ID ${id}`);
     },
-    [recordAuditLog]
+    [recordAuditLog, checkDeletePermission]
   );
 
   // Bulk Assign Leads
@@ -4737,6 +4865,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Delete Note from Lead
   const deleteLeadNote = useCallback(
     (leadId: string, noteId: string) => {
+      if (!checkDeletePermission('Lead Note', noteId)) return;
       setLeads((prev) =>
         prev.map((ld) => {
           if (ld.id === leadId) {
@@ -4751,7 +4880,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       recordAuditLog('Lead Note Deleted', 'Leads', `Deleted note ${noteId} from lead ${leadId}`);
     },
-    [recordAuditLog]
+    [recordAuditLog, checkDeletePermission]
   );
 
   // Reassign all work of an employee (Clients, Leads, Tasks)
@@ -6591,6 +6720,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteVisaApplication = useCallback(
     (id: string) => {
+      if (!checkDeletePermission('Visa Application Dossier', id)) return;
       hasUserEditedRef.current = true;
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
@@ -6634,7 +6764,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
     },
-    [visaApplications, recordAuditLog]
+    [visaApplications, recordAuditLog, checkDeletePermission]
   );
 
   const confirmNomodPayment = useCallback(
