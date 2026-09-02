@@ -352,6 +352,11 @@ interface CRMContextType {
   ) => { success: boolean; invoice?: Invoice; error?: string };
   assignLeadToStaff: (leadId: string, employeeId: string, notes?: string) => void;
 
+  // Conflict Resolution
+  conflictInfo: ConflictInfo | null;
+  resolveConflict: (resolution: 'keep_local' | 'pull_remote' | 'merge') => Promise<void>;
+  dismissConflict: () => void;
+
   // Filtered views helpers
   filteredClients: Client[];
   filteredVendors: Vendor[];
@@ -363,6 +368,26 @@ interface CRMContextType {
   filteredVisaApplications: VisaApplication[];
   expiringDocuments: { type: string; title: string; client: Client; expiryDate: string; daysLeft: number; isUrgent: boolean }[];
   taskDueReminders: TaskDueReminder[];
+}
+
+export interface ConflictInfo {
+  source: 'firestore' | 'server';
+  remoteSnapshot: any;
+  localSnapshot: any;
+  detectedAt: string;
+  diffSummary: {
+    localClientsCount: number;
+    remoteClientsCount: number;
+    localLeadsCount: number;
+    remoteLeadsCount: number;
+    localTasksCount: number;
+    remoteTasksCount: number;
+    localInvoicesCount: number;
+    remoteInvoicesCount: number;
+    localLastUpdated?: string;
+    remoteLastUpdated?: string;
+    description: string;
+  };
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -827,15 +852,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isSavingToServer, setIsSavingToServer] = useState(false);
   const [serverSyncStatus, setServerSyncStatus] = useState<'synced' | 'saving' | 'error' | 'offline'>('synced');
   const [lastServerSyncTime, setLastServerSyncTime] = useState<string | null>(null);
+  const [conflictInfo, setConflictInfo] = useState<ConflictInfo | null>(null);
 
   // Helper to check if remote is strictly newer than local timestamp
   const isRemoteStrictlyNewer = (remoteIso?: string, localIso?: string): boolean => {
     if (!remoteIso) return false;
-    if (!localIso) return true;
     const r = new Date(remoteIso).getTime();
-    const l = new Date(localIso).getTime();
     if (isNaN(r)) return false;
-    if (isNaN(l)) return true;
+    if (!localIso) return false;
+    const l = new Date(localIso).getTime();
+    if (isNaN(l)) return false;
     return r > l;
   };
 
@@ -1121,34 +1147,60 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             tags: Array.isArray(c.tags) ? c.tags : [],
           };
         });
-      setClients(cleanClients);
+      setClients((prev) => {
+        if (parsed.forceReset) return cleanClients;
+        if (cleanClients.length === 0 && prev.length > 0) return prev;
+        return cleanClients;
+      });
     }
     if (parsed.documents && Array.isArray(parsed.documents)) {
       const cleanDocs = parsed.documents.filter(
         (d: any) => d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))
       );
-      setDocuments(cleanDocs);
+      setDocuments((prev) => {
+        if (parsed.forceReset) return cleanDocs;
+        if (cleanDocs.length === 0 && prev.length > 0) return prev;
+        return cleanDocs;
+      });
     }
     if (parsed.tasks && Array.isArray(parsed.tasks)) {
       const cleanTasks = parsed.tasks.filter(
         (t: any) => t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
       );
-      setTasks(cleanTasks);
+      setTasks((prev) => {
+        if (parsed.forceReset) return cleanTasks;
+        if (cleanTasks.length === 0 && prev.length > 0) return prev;
+        return cleanTasks;
+      });
     }
     if (parsed.invoices && Array.isArray(parsed.invoices)) {
       const cleanInvoices = parsed.invoices.filter(
         (i: any) => i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
       );
-      setInvoices(cleanInvoices);
+      setInvoices((prev) => {
+        if (parsed.forceReset) return cleanInvoices;
+        if (cleanInvoices.length === 0 && prev.length > 0) return prev;
+        return cleanInvoices;
+      });
     }
-    if (parsed.messages && Array.isArray(parsed.messages)) setMessages(parsed.messages);
+    if (parsed.messages && Array.isArray(parsed.messages)) {
+      setMessages((prev) => {
+        if (parsed.forceReset) return parsed.messages;
+        if (parsed.messages.length === 0 && prev.length > 0) return prev;
+        return parsed.messages;
+      });
+    }
     if (parsed.auditLogs && Array.isArray(parsed.auditLogs)) setAuditLogs(parsed.auditLogs);
     if (parsed.notifications && Array.isArray(parsed.notifications)) setNotifications(parsed.notifications);
     if (parsed.leads && Array.isArray(parsed.leads)) {
       const cleanLeads = parsed.leads.filter(
         (ld: any) => ld && ld.id && !deletedLeadIds.includes(ld.id)
       );
-      setLeads(cleanLeads);
+      setLeads((prev) => {
+        if (parsed.forceReset) return cleanLeads;
+        if (cleanLeads.length === 0 && prev.length > 0) return prev;
+        return cleanLeads;
+      });
     }
     if (parsed.leadCategories && Array.isArray(parsed.leadCategories)) {
       setLeadCategories((prev) => mergeEntitiesById(prev, parsed.leadCategories, INITIAL_LEAD_CATEGORIES));
@@ -1298,6 +1350,332 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [users, currentUser?.id, currentUser?.companyId, currentUser?.companyIds, currentUser?.role, currentUser?.name, currentUser?.department, currentUser?.jobTitle, currentUser?.permissions]);
 
+  // Helper to retrieve current local working snapshot from memory and localStorage
+  const getCurrentLocalSnapshot = useCallback(() => {
+    try {
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...parsed,
+            clients: clients.length > 0 ? clients : (parsed.clients || []),
+            leads: leads.length > 0 ? leads : (parsed.leads || []),
+            tasks: tasks.length > 0 ? tasks : (parsed.tasks || []),
+            invoices: invoices.length > 0 ? invoices : (parsed.invoices || []),
+            documents: documents.length > 0 ? documents : (parsed.documents || []),
+            companies: companies.length > 0 ? companies : (parsed.companies || []),
+            users: users.length > 0 ? users : (parsed.users || []),
+            hasCustomModifications: hasUserEditedRef.current,
+            lastUpdated: lastAppliedRemoteIsoRef.current || parsed.lastUpdated || new Date().toISOString(),
+          };
+        }
+      }
+    } catch {}
+
+    return {
+      currentUserId: currentUser?.id,
+      companies,
+      departments,
+      vendors,
+      users,
+      roles,
+      stages,
+      workflows,
+      serviceClassifications,
+      serviceCategories,
+      clients,
+      documents,
+      tasks,
+      invoices,
+      messages,
+      auditLogs,
+      notifications,
+      leads,
+      leadCategories,
+      leadSources,
+      leadStages,
+      transactions,
+      visaApplications,
+      visaCountryCatalog,
+      lastUpdated: lastAppliedRemoteIsoRef.current || new Date().toISOString(),
+      hasCustomModifications: hasUserEditedRef.current,
+    };
+  }, [
+    currentUser?.id,
+    companies,
+    departments,
+    vendors,
+    users,
+    roles,
+    stages,
+    workflows,
+    serviceClassifications,
+    serviceCategories,
+    clients,
+    documents,
+    tasks,
+    invoices,
+    messages,
+    auditLogs,
+    notifications,
+    leads,
+    leadCategories,
+    leadSources,
+    leadStages,
+    transactions,
+    visaApplications,
+    visaCountryCatalog,
+  ]);
+
+  // Conflict Detection Engine: compares local working state against incoming remote database snapshot
+  const detectSnapshotConflict = useCallback(
+    (localSnap: any, remoteSnap: any, source: 'firestore' | 'server'): ConflictInfo | null => {
+      if (!remoteSnap || typeof remoteSnap !== 'object') return null;
+
+      const localClients = Array.isArray(localSnap?.clients) ? localSnap.clients : [];
+      const remoteClients = Array.isArray(remoteSnap?.clients) ? remoteSnap.clients : [];
+      const localLeads = Array.isArray(localSnap?.leads) ? localSnap.leads : [];
+      const remoteLeads = Array.isArray(remoteSnap?.leads) ? remoteSnap.leads : [];
+      const localTasks = Array.isArray(localSnap?.tasks) ? localSnap.tasks : [];
+      const remoteTasks = Array.isArray(remoteSnap?.tasks) ? remoteSnap.tasks : [];
+      const localInvoices = Array.isArray(localSnap?.invoices) ? localSnap.invoices : [];
+      const remoteInvoices = Array.isArray(remoteSnap?.invoices) ? remoteSnap.invoices : [];
+
+      const localTotal = localClients.length + localLeads.length + localTasks.length + localInvoices.length;
+      const remoteTotal = remoteClients.length + remoteLeads.length + remoteTasks.length + remoteInvoices.length;
+
+      // Fresh cold start (no records locally): accept remote cleanly
+      if (localTotal === 0 && !hasUserEditedRef.current) {
+        return null;
+      }
+
+      // If remote is empty or near-empty while local has real records:
+      // NOT a conflict to prompt user with; protected automatically by seed/preserve flow
+      if (remoteTotal <= 1 && localTotal > 1) {
+        return null;
+      }
+
+      const localIso = localSnap?.lastUpdated || '';
+      const remoteIso = remoteSnap?.lastUpdated || '';
+      if (localIso && remoteIso && localIso === remoteIso) {
+        return null;
+      }
+
+      const clientCountDiff = Math.abs(localClients.length - remoteClients.length);
+      const leadCountDiff = Math.abs(localLeads.length - remoteLeads.length);
+      const invoiceCountDiff = Math.abs(localInvoices.length - remoteInvoices.length);
+      const taskCountDiff = Math.abs(localTasks.length - remoteTasks.length);
+
+      const hasSignificantCountDiff = clientCountDiff > 0 || leadCountDiff > 0 || invoiceCountDiff > 0 || taskCountDiff > 0;
+      const hasUnsavedEdits = hasUserEditedRef.current;
+
+      // Trigger conflict modal if user has un-synced edits and remote updated, or if record counts differ
+      if (
+        (hasUnsavedEdits && isRemoteStrictlyNewer(remoteIso, localIso)) ||
+        (hasSignificantCountDiff && localTotal > 0 && remoteTotal > 0 && localIso !== remoteIso)
+      ) {
+        let description = 'Discrepancy detected between your local working state and the database.';
+        if (hasSignificantCountDiff) {
+          description = `Local browser has ${localClients.length} client(s), ${localLeads.length} lead(s), ${localInvoices.length} invoice(s). Remote ${source === 'firestore' ? 'Firestore' : 'Server'} has ${remoteClients.length} client(s), ${remoteLeads.length} lead(s), ${remoteInvoices.length} invoice(s).`;
+        } else if (hasUnsavedEdits) {
+          description = 'You have unsaved local edits that conflict with an update from the database.';
+        }
+
+        return {
+          source,
+          remoteSnapshot: remoteSnap,
+          localSnapshot: localSnap,
+          detectedAt: new Date().toISOString(),
+          diffSummary: {
+            localClientsCount: localClients.length,
+            remoteClientsCount: remoteClients.length,
+            localLeadsCount: localLeads.length,
+            remoteLeadsCount: remoteLeads.length,
+            localTasksCount: localTasks.length,
+            remoteTasksCount: remoteTasks.length,
+            localInvoicesCount: localInvoices.length,
+            remoteInvoicesCount: remoteInvoices.length,
+            localLastUpdated: localIso,
+            remoteLastUpdated: remoteIso,
+            description,
+          },
+        };
+      }
+
+      return null;
+    },
+    [isRemoteStrictlyNewer]
+  );
+
+  // Conflict Resolution Action Handler
+  const resolveConflict = useCallback(
+    async (resolution: 'keep_local' | 'pull_remote' | 'merge') => {
+      if (!conflictInfo) return;
+
+      try {
+        if (resolution === 'keep_local') {
+          const localSnap = conflictInfo.localSnapshot || getCurrentLocalSnapshot();
+          const updatedIso = new Date().toISOString();
+          const updatedSnap = {
+            ...localSnap,
+            lastUpdated: updatedIso,
+            hasCustomModifications: true,
+          };
+
+          lastAppliedRemoteIsoRef.current = updatedIso;
+          try {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedSnap));
+          } catch {}
+
+          syncSnapshot(updatedSnap);
+          hasUserEditedRef.current = false;
+          setConflictInfo(null);
+          setServerSyncStatus('synced');
+          setLastServerSyncTime(new Date().toLocaleTimeString());
+        } else if (resolution === 'pull_remote') {
+          const remoteSnap = conflictInfo.remoteSnapshot;
+          if (remoteSnap) {
+            hydrateStateFromSnapshot({ ...remoteSnap, forceReset: true });
+            lastAppliedRemoteIsoRef.current = remoteSnap.lastUpdated || new Date().toISOString();
+            try {
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remoteSnap));
+            } catch {}
+            hasUserEditedRef.current = false;
+            setConflictInfo(null);
+            setServerSyncStatus('synced');
+            setLastServerSyncTime(new Date().toLocaleTimeString());
+          }
+        } else if (resolution === 'merge') {
+          const localSnap = conflictInfo.localSnapshot || getCurrentLocalSnapshot();
+          const remoteSnap = conflictInfo.remoteSnapshot;
+
+          const mergeById = (listA: any[] = [], listB: any[] = []) => {
+            const map = new Map<string, any>();
+            (listB || []).forEach((item) => {
+              if (item && item.id) map.set(item.id, item);
+            });
+            (listA || []).forEach((item) => {
+              if (item && item.id) {
+                const existing = map.get(item.id);
+                map.set(item.id, existing ? { ...existing, ...item } : item);
+              }
+            });
+            return Array.from(map.values());
+          };
+
+          const mergedClients = mergeById(localSnap.clients, remoteSnap.clients);
+          const mergedLeads = mergeById(localSnap.leads, remoteSnap.leads);
+          const mergedTasks = mergeById(localSnap.tasks, remoteSnap.tasks);
+          const mergedInvoices = mergeById(localSnap.invoices, remoteSnap.invoices);
+          const mergedDocs = mergeById(localSnap.documents, remoteSnap.documents);
+          const mergedVendors = mergeById(localSnap.vendors, remoteSnap.vendors);
+          const mergedUsers = mergeById(localSnap.users, remoteSnap.users);
+          const mergedCompanies = mergeById(localSnap.companies, remoteSnap.companies);
+          const mergedVisaApps = mergeById(localSnap.visaApplications, remoteSnap.visaApplications);
+
+          const updatedIso = new Date().toISOString();
+          const mergedSnapshot = {
+            ...remoteSnap,
+            ...localSnap,
+            clients: mergedClients,
+            leads: mergedLeads,
+            tasks: mergedTasks,
+            invoices: mergedInvoices,
+            documents: mergedDocs,
+            vendors: mergedVendors,
+            users: mergedUsers,
+            companies: mergedCompanies,
+            visaApplications: mergedVisaApps,
+            lastUpdated: updatedIso,
+            hasCustomModifications: true,
+          };
+
+          hydrateStateFromSnapshot(mergedSnapshot);
+          lastAppliedRemoteIsoRef.current = updatedIso;
+          try {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedSnapshot));
+          } catch {}
+
+          syncSnapshot(mergedSnapshot);
+          hasUserEditedRef.current = false;
+          setConflictInfo(null);
+          setServerSyncStatus('synced');
+          setLastServerSyncTime(new Date().toLocaleTimeString());
+        }
+      } catch (err) {
+        console.error('Failed to resolve database conflict:', err);
+      }
+    },
+    [conflictInfo, getCurrentLocalSnapshot, hydrateStateFromSnapshot, syncSnapshot]
+  );
+
+  const dismissConflict = useCallback(() => {
+    setConflictInfo(null);
+  }, []);
+
+  // Centralized Remote Ingestion Guard:
+  // 1. Prevents empty remote snapshots from destroying populated local data (fixes vanishing after refresh)
+  // 2. Detects conflicts and opens the Conflict Resolution Modal
+  // 3. Hydrates cleanly when safe
+  const processRemoteUpdate = useCallback(
+    (remoteData: any, source: 'firestore' | 'server'): boolean => {
+      if (!remoteData || typeof remoteData !== 'object') return false;
+
+      const localSnap = getCurrentLocalSnapshot();
+      const localTotalRecords =
+        (localSnap.clients?.length || 0) +
+        (localSnap.leads?.length || 0) +
+        (localSnap.tasks?.length || 0) +
+        (localSnap.invoices?.length || 0);
+
+      const remoteTotalRecords =
+        (Array.isArray(remoteData.clients) ? remoteData.clients.length : 0) +
+        (Array.isArray(remoteData.leads) ? remoteData.leads.length : 0) +
+        (Array.isArray(remoteData.tasks) ? remoteData.tasks.length : 0) +
+        (Array.isArray(remoteData.invoices) ? remoteData.invoices.length : 0);
+
+      // CRITICAL FIX FOR VANISHING DATA:
+      // If local state has real records (>1 total, or active clients/leads), but remote snapshot is empty
+      // or nearly empty (e.g. 0 leads, 0 tasks, 0-1 client), NEVER wipe local state!
+      // Instead, preserve local state and seed the remote server database and cloud!
+      if (
+        localTotalRecords > 1 &&
+        (remoteTotalRecords <= 1 || (remoteData.clients?.length <= 1 && (!remoteData.leads || remoteData.leads.length === 0)))
+      ) {
+        console.info('Preserving local CRM data: remote snapshot is empty or incomplete. Seeding server disk & cloud.');
+        syncSnapshot(localSnap);
+        return false;
+      }
+
+      // Check for conflict
+      const conflict = detectSnapshotConflict(localSnap, remoteData, source);
+      if (conflict) {
+        console.warn('Conflict detected between local CRM state and remote source:', source, conflict.diffSummary);
+        setConflictInfo(conflict);
+        return false;
+      }
+
+      // If remote is strictly newer or local has zero records, hydrate
+      if (isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current) || localTotalRecords === 0) {
+        lastAppliedRemoteIsoRef.current = remoteData.lastUpdated || new Date().toISOString();
+        hydrateStateFromSnapshot(remoteData);
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remoteData));
+        } catch {}
+        setLastServerSyncTime(new Date().toLocaleTimeString());
+        setServerSyncStatus('synced');
+        return true;
+      }
+
+      return false;
+    },
+    [getCurrentLocalSnapshot, detectSnapshotConflict, isRemoteStrictlyNewer, hydrateStateFromSnapshot, syncSnapshot]
+  );
+
   // Robust multi-system initialization: Cloud Firestore -> Server Disk -> Local Storage
   useEffect(() => {
     let active = true;
@@ -1337,14 +1715,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (contentType.includes('application/json')) {
               const serverData = await serverRes.json();
               if (active && serverData.success && serverData.hasData && serverData.data) {
-                hydrateStateFromSnapshot(serverData.data);
-                lastAppliedRemoteIsoRef.current = serverData.data.lastUpdated || new Date().toISOString();
-                try {
-                  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(serverData.data));
-                } catch {}
-                setLastServerSyncTime(new Date().toLocaleTimeString());
-                setServerSyncStatus('synced');
-                serverLoaded = true;
+                const applied = processRemoteUpdate(serverData.data, 'server');
+                if (applied) serverLoaded = true;
               }
             }
           }
@@ -1361,25 +1733,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (contentType.includes('application/json') || contentType === '') {
                 const staticData = await staticRes.json();
                 if (active && staticData && (staticData.clients || staticData.users || staticData.companies)) {
-                  const localRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
-                  let localParsed: any = null;
-                  try {
-                    if (localRaw) localParsed = JSON.parse(localRaw);
-                  } catch {}
-
-                  const isStaticNewer = isRemoteStrictlyNewer(staticData.lastUpdated, localParsed?.lastUpdated);
-                  const isLocalEmpty = !localParsed || (!localParsed.clients?.length && !localParsed.leads?.length);
-                  
-                  if (isStaticNewer || isLocalEmpty || !localLoaded) {
-                    hydrateStateFromSnapshot(staticData);
-                    lastAppliedRemoteIsoRef.current = staticData.lastUpdated || new Date().toISOString();
-                    try {
-                      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(staticData));
-                    } catch {}
-                    setLastServerSyncTime(new Date().toLocaleTimeString());
-                    setServerSyncStatus('synced');
-                    serverLoaded = true;
-                  }
+                  const applied = processRemoteUpdate(staticData, 'server');
+                  if (applied) serverLoaded = true;
                 }
               }
             }
@@ -1392,16 +1747,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         try {
           const cloudResult = await loadCRMDataFromCloud();
           if (active && cloudResult.success && cloudResult.hasData && cloudResult.data) {
-            if (!serverLoaded || isRemoteStrictlyNewer(cloudResult.data.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-              hydrateStateFromSnapshot(cloudResult.data);
-              lastAppliedRemoteIsoRef.current = cloudResult.data.lastUpdated || new Date().toISOString();
-              try {
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudResult.data));
-              } catch {}
-              setLastServerSyncTime(new Date().toLocaleTimeString());
-              setServerSyncStatus('synced');
-              cloudLoaded = true;
-            }
+            const applied = processRemoteUpdate(cloudResult.data, 'firestore');
+            if (applied) cloudLoaded = true;
           }
         } catch (cloudErr) {
           console.warn('Cloud sync load fallback notice:', cloudErr);
@@ -1443,15 +1790,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const unsubscribeCloud = subscribeToCloudCRMData((cloudSnapshot) => {
       if (!cloudSnapshot) return;
       if (!isLocalDebounceSavingRef.current && !isHydratingFromRemoteRef.current && cloudSnapshot.lastUpdated) {
-        if (isRemoteStrictlyNewer(cloudSnapshot.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-          lastAppliedRemoteIsoRef.current = cloudSnapshot.lastUpdated;
-          hydrateStateFromSnapshot(cloudSnapshot);
-          try {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudSnapshot));
-          } catch {}
-          setLastServerSyncTime(new Date().toLocaleTimeString());
-          setServerSyncStatus('synced');
-        }
+        processRemoteUpdate(cloudSnapshot, 'firestore');
       }
     });
 
@@ -1466,15 +1805,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (parsedEvent?.type === 'CRM_UPDATE' && parsedEvent.data) {
               const remoteData = parsedEvent.data;
               if (!isLocalDebounceSavingRef.current && !isHydratingFromRemoteRef.current) {
-                if (isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-                  lastAppliedRemoteIsoRef.current = remoteData.lastUpdated;
-                  hydrateStateFromSnapshot(remoteData);
-                  try {
-                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remoteData));
-                  } catch {}
-                  setLastServerSyncTime(new Date().toLocaleTimeString());
-                  setServerSyncStatus('synced');
-                }
+                processRemoteUpdate(remoteData, 'server');
               }
             }
           } catch {}
@@ -1488,7 +1819,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // 5. Active high-frequency synchronization for multi-device, multi-browser real-time consistency
     const checkRemoteSync = async () => {
       if (isLocalDebounceSavingRef.current || isHydratingFromRemoteRef.current) return;
-      
+
       // 5a. Check server status if server API exists
       try {
         const statusRes = await fetch('/api/crm/status', { cache: 'no-store' });
@@ -1500,13 +1831,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (serverRes.ok && serverRes.headers.get('content-type')?.includes('application/json')) {
                 const serverJson = await serverRes.json();
                 if (serverJson.success && serverJson.hasData && serverJson.data) {
-                  lastAppliedRemoteIsoRef.current = serverJson.data.lastUpdated || statusJson.lastUpdated;
-                  hydrateStateFromSnapshot(serverJson.data);
-                  try {
-                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(serverJson.data));
-                  } catch {}
-                  setLastServerSyncTime(new Date().toLocaleTimeString());
-                  setServerSyncStatus('synced');
+                  processRemoteUpdate(serverJson.data, 'server');
                   return;
                 }
               }
@@ -1520,13 +1845,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const cloudRes = await loadCRMDataFromCloud();
         if (cloudRes.success && cloudRes.hasData && cloudRes.data?.lastUpdated) {
           if (isRemoteStrictlyNewer(cloudRes.data.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-            lastAppliedRemoteIsoRef.current = cloudRes.data.lastUpdated;
-            hydrateStateFromSnapshot(cloudRes.data);
-            try {
-              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudRes.data));
-            } catch {}
-            setLastServerSyncTime(new Date().toLocaleTimeString());
-            setServerSyncStatus('synced');
+            processRemoteUpdate(cloudRes.data, 'firestore');
           }
         }
       } catch {}
@@ -9851,6 +10170,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         saveDataToServer,
         loadDataFromServer,
         createDatabaseBackup,
+
+        // Conflict Resolution
+        conflictInfo,
+        resolveConflict,
+        dismissConflict,
 
         resetToDefaultData,
         clearAllDataToZero,

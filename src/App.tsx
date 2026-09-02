@@ -37,6 +37,7 @@ import { LoginScreen } from './components/auth/LoginScreen';
 import { HostedPaymentPage } from './components/payment/HostedPaymentPage';
 import { PWAInstallBanner } from './components/common/PWAInstallBanner';
 import { PWAInstallModal } from './components/common/PWAInstallModal';
+import { ConflictResolutionModal } from './components/common/ConflictResolutionModal';
 
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -274,6 +275,9 @@ const AppContent: React.FC = () => {
 
       {/* Mandatory Gmail Mutating Action Confirmation Dialog */}
       <GmailConfirmDialog />
+
+      {/* Database Conflict Resolution Modal */}
+      <ConflictResolutionModal />
 
       {/* PWA / Android Mobile App Install Banner */}
       <PWAInstallBanner onOpenModal={() => setShowPWAInstallModal(true)} />
