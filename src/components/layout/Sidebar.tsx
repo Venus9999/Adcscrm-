@@ -114,19 +114,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       label: 'Companies & Branches',
       icon: Building2,
       allowedRoles: ['master', 'admin', 'employee', 'agent'],
-      canAccess: (u) =>
-        u?.role === 'master' ||
-        u?.role === 'admin' ||
-        u?.role?.toLowerCase() === 'sales' ||
-        u?.department?.toLowerCase().includes('sales') ||
-        u?.jobTitle?.toLowerCase().includes('sales') ||
-        u?.customRoleId === 'role-sales' ||
-        Boolean(u?.permissions?.canCreateCompanies) ||
-        Boolean(u?.permissions?.canCreateCompany) ||
-        Boolean(u?.permissions?.canManageCompanies) ||
-        Boolean(u?.permissions?.canCreateBranches) ||
-        Boolean(u?.permissions?.canManageBranches) ||
-        Boolean(u?.permissions?.canViewAllCompanies),
     },
     {
       id: 'departments',

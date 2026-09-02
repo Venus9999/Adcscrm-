@@ -93,7 +93,21 @@ export const UserProfileSettings: React.FC = () => {
     });
   }, [currentUser]);
 
-  const assignedComp = companies.find((c) => c.id === currentUser.companyId);
+  const userCompIds = currentUser.companyIds && currentUser.companyIds.length > 0
+    ? currentUser.companyIds
+    : currentUser.companyId
+    ? [currentUser.companyId]
+    : [];
+
+  const assignedCompanies = companies.filter(
+    (c) =>
+      userCompIds.includes(c.id) ||
+      c.id === currentUser.companyId ||
+      (c.employeeIds && c.employeeIds.includes(currentUser.id)) ||
+      c.adminId === currentUser.id ||
+      (c as any).assignedAdminIds?.includes(currentUser.id)
+  );
+  const assignedComp = assignedCompanies[0] || companies[0];
 
   // Handle local file upload from device
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -271,9 +285,20 @@ export const UserProfileSettings: React.FC = () => {
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-1">
-                <Building2 className="w-3.5 h-3.5 text-blue-500" />
-                <span>{assignedComp ? assignedComp.name : 'Master Enterprise Group (Global)'}</span>
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                {assignedCompanies.length > 0 ? (
+                  assignedCompanies.map((c) => (
+                    <span
+                      key={c.id}
+                      className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60"
+                    >
+                      {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[11px] text-slate-400">Master Enterprise Group (Global)</span>
+                )}
               </div>
             </div>
           </div>

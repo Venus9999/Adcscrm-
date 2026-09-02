@@ -5903,7 +5903,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Companies & Users
   const addCompany = useCallback(
     (compData: Omit<Company, 'id' | 'createdAt' | 'activeServicesCount' | 'totalClientsCount'>) => {
-      const creatorEmpIds = compData.employeeIds || [];
+      const creatorEmpIds = [...(compData.employeeIds || [])];
       if (currentUser?.id && currentUser.role !== 'client' && !creatorEmpIds.includes(currentUser.id)) {
         creatorEmpIds.push(currentUser.id);
       }
@@ -5921,6 +5921,26 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isLocalDebounceSavingRef.current = true;
 
       setCompanies((prev) => [...prev, newComp]);
+
+      // Synchronize assigned employees' user profiles
+      if (creatorEmpIds.length > 0) {
+        setUsers((prevUsers) =>
+          prevUsers.map((u) => {
+            if (creatorEmpIds.includes(u.id)) {
+              const currentIds = u.companyIds || (u.companyId ? [u.companyId] : []);
+              if (!currentIds.includes(newComp.id)) {
+                return {
+                  ...u,
+                  companyId: u.companyId || newComp.id,
+                  companyIds: [...currentIds, newComp.id],
+                };
+              }
+            }
+            return u;
+          })
+        );
+      }
+
       recordAuditLog('Company Registered', 'Companies', `Registered new company / branch: ${newComp.name}`);
     },
     [recordAuditLog, currentUser]
@@ -5964,11 +5984,20 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           prevUsers.map((u) => {
             const isAssigned = updates.employeeIds!.includes(u.id);
             const currentIds = u.companyIds || (u.companyId ? [u.companyId] : []);
-            if (isAssigned && !currentIds.includes(id)) {
+            if (isAssigned) {
+              if (!currentIds.includes(id)) {
+                return {
+                  ...u,
+                  companyId: u.companyId || id,
+                  companyIds: [...currentIds, id],
+                };
+              }
+            } else if (currentIds.includes(id)) {
+              const remainingIds = currentIds.filter((cid) => cid !== id);
               return {
                 ...u,
-                companyId: u.companyId || id,
-                companyIds: [...currentIds, id],
+                companyId: u.companyId === id ? remainingIds[0] || '' : u.companyId,
+                companyIds: remainingIds,
               };
             }
             return u;
@@ -7987,64 +8016,140 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (Boolean(currentUser?.role) && !['master', 'admin'].includes(currentUser?.role || ''));
   const isClientRole = currentUser?.role === 'client';
 
-  const filteredCompanies = React.useMemo(() => {
-    return (companies || []).filter((comp) => {
-      if (!comp) return false;
-      if (isClientRole) {
-        return (
-          comp.id === currentUser?.companyId ||
-          Boolean(currentUser?.companyIds && currentUser.companyIds.includes(comp.id))
-        );
+  // Synchronize currentUser profile when users array is updated by Admin
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const matchedUser = (users || []).find(
+      (u) =>
+        u.id === currentUser.id ||
+        (u.email && currentUser.email && u.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
+    );
+    if (matchedUser) {
+      const isDifferent =
+        matchedUser.companyId !== currentUser.companyId ||
+        JSON.stringify(matchedUser.companyIds || []) !== JSON.stringify(currentUser.companyIds || []) ||
+        matchedUser.role !== currentUser.role ||
+        matchedUser.department !== currentUser.department ||
+        JSON.stringify(matchedUser.permissions || {}) !== JSON.stringify(currentUser.permissions || {});
+
+      if (isDifferent) {
+        setCurrentUserState((prev) => ({
+          ...prev,
+          ...matchedUser,
+        }));
+        try {
+          localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(matchedUser));
+        } catch {}
       }
+    }
+  }, [users, currentUser?.id, currentUser?.email, currentUser?.companyId, currentUser?.companyIds, currentUser?.role, currentUser?.department, currentUser?.permissions]);
 
-      if (isEmployeeRole) {
-        const hasCompanyAccessPrivileges =
-          Boolean(currentUser?.permissions?.canViewAllCompanies) ||
-          Boolean(currentUser?.permissions?.canCreateCompanies) ||
-          Boolean(currentUser?.permissions?.canCreateCompany) ||
-          Boolean(currentUser?.permissions?.canManageCompanies) ||
-          currentUser?.role?.toLowerCase() === 'sales' ||
-          currentUser?.department?.toLowerCase().includes('sales') ||
-          currentUser?.jobTitle?.toLowerCase().includes('sales');
+  // Base list of companies accessible to current user (irrespective of selectedCompanyId filter)
+  const accessibleCompanies = React.useMemo(() => {
+    // Master and Admin have access to all companies
+    if (currentUser?.role === 'master' || currentUser?.role === 'admin') {
+      return companies || [];
+    }
 
-        if (hasCompanyAccessPrivileges) {
-          if (selectedCompanyId !== 'all') {
-            return comp.id === selectedCompanyId;
-          }
-          return true;
-        }
+    const latestUser = (users || []).find((u) => u.id === currentUser?.id) || currentUser;
+    const userRole = latestUser?.role || currentUser?.role;
 
-        const isAssignedStaff =
-          (comp.employeeIds && comp.employeeIds.includes(currentUser?.id)) ||
-          comp.adminId === currentUser?.id ||
-          (comp as any).assignedAdminIds?.includes(currentUser?.id) ||
-          comp.id === currentUser?.companyId ||
-          Boolean(currentUser?.companyIds && currentUser.companyIds.includes(comp.id)) ||
-          (clients || []).some(
-            (c) =>
-              c &&
-              c.companyId === comp.id &&
-              ((c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
-                (c as any).assignedEmployeeId === currentUser?.id ||
-                c.assignedAdminId === currentUser?.id)
-          );
+    if (userRole === 'client') {
+      const clientCompanyIds = [
+        ...(latestUser?.companyIds || []),
+        ...(latestUser?.companyId ? [latestUser.companyId] : []),
+        ...(currentUser?.companyIds || []),
+        ...(currentUser?.companyId ? [currentUser.companyId] : []),
+      ];
+      const matched = (companies || []).filter(
+        (comp) =>
+          comp &&
+          (clientCompanyIds.includes(comp.id) ||
+            (comp.employeeIds && (comp.employeeIds.includes(latestUser.id) || comp.employeeIds.includes(currentUser.id))))
+      );
+      return matched.length > 0 ? matched : (companies || []).slice(0, 1);
+    }
 
-        if (!isAssignedStaff) return false;
+    // Check staff access privileges
+    const hasCompanyAccessPrivileges =
+      Boolean(latestUser?.permissions?.canViewAllCompanies) ||
+      Boolean(latestUser?.permissions?.canCreateCompanies) ||
+      Boolean(latestUser?.permissions?.canCreateCompany) ||
+      Boolean(latestUser?.permissions?.canManageCompanies) ||
+      Boolean(latestUser?.permissions?.canCreateBranches) ||
+      Boolean(latestUser?.permissions?.canManageBranches) ||
+      latestUser?.role?.toLowerCase() === 'sales' ||
+      latestUser?.department?.toLowerCase().includes('sales') ||
+      latestUser?.jobTitle?.toLowerCase().includes('sales') ||
+      latestUser?.customRoleId === 'role-sales' ||
+      currentUser?.role?.toLowerCase() === 'sales' ||
+      currentUser?.department?.toLowerCase().includes('sales') ||
+      currentUser?.jobTitle?.toLowerCase().includes('sales') ||
+      currentUser?.customRoleId === 'role-sales';
 
-        if (selectedCompanyId !== 'all') {
-          return comp.id === selectedCompanyId;
-        }
+    if (hasCompanyAccessPrivileges) {
+      return companies || [];
+    }
 
+    const assignedCompanyIds = new Set<string>([
+      ...(latestUser?.companyIds || []),
+      ...(latestUser?.companyId ? [latestUser.companyId] : []),
+      ...(currentUser?.companyIds || []),
+      ...(currentUser?.companyId ? [currentUser.companyId] : []),
+    ]);
+
+    const accessible = (companies || []).filter((comp) => {
+      if (!comp) return false;
+
+      // 1. Directly assigned via user profile
+      if (assignedCompanyIds.has(comp.id)) return true;
+
+      // 2. Assigned via company roster (employeeIds / adminId / assignedAdminIds)
+      if (comp.employeeIds && (comp.employeeIds.includes(latestUser.id) || comp.employeeIds.includes(currentUser.id))) {
+        return true;
+      }
+      if (comp.adminId === latestUser.id || comp.adminId === currentUser.id) return true;
+      if (comp.assignedAdminIds && (comp.assignedAdminIds.includes(latestUser.id) || comp.assignedAdminIds.includes(currentUser.id))) {
         return true;
       }
 
+      // 3. Branch / Parent hierarchy: if assigned to parent, access branch, and vice versa
+      if (comp.parentCompanyId && assignedCompanyIds.has(comp.parentCompanyId)) return true;
+      const childBranches = (companies || []).filter((c) => c.parentCompanyId === comp.id);
+      if (childBranches.some((b) => assignedCompanyIds.has(b.id))) return true;
+
+      // 4. Assigned via clients in that company
+      const hasAssignedClientInCompany = (clients || []).some(
+        (c) =>
+          c &&
+          c.companyId === comp.id &&
+          (c.assignedEmployeeId === latestUser.id ||
+            c.assignedEmployeeId === currentUser.id ||
+            (c.assignedEmployeeIds && (c.assignedEmployeeIds.includes(latestUser.id) || c.assignedEmployeeIds.includes(currentUser.id))) ||
+            c.assignedAdminId === latestUser.id ||
+            c.assignedAdminId === currentUser.id)
+      );
+      if (hasAssignedClientInCompany) return true;
+
+      return false;
+    });
+
+    // Fallback: If no companies matched yet, default to primary company
+    if (accessible.length === 0 && (companies || []).length > 0) {
+      return (companies || []).slice(0, 1);
+    }
+
+    return accessible;
+  }, [companies, users, currentUser, clients]);
+
+  const filteredCompanies = React.useMemo(() => {
+    return accessibleCompanies.filter((comp) => {
       if (selectedCompanyId !== 'all') {
         return comp.id === selectedCompanyId;
       }
-
       return true;
     });
-  }, [companies, isClientRole, isEmployeeRole, currentUser, selectedCompanyId, clients]);
+  }, [accessibleCompanies, selectedCompanyId]);
 
   // Auto-reset selectedCompanyId to 'all' if the employee/client doesn't have permission for the current company view
   useEffect(() => {
@@ -8512,7 +8617,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         selectedClientId,
         setSelectedClientId,
 
-        companies: isEmployeeRole || isClientRole ? filteredCompanies : companies,
+        companies: accessibleCompanies,
         filteredCompanies,
         departments,
         vendors: isEmployeeRole || isClientRole ? filteredVendors : vendors,

@@ -691,7 +691,15 @@ export const EmployeesManagement: React.FC = () => {
                   c.assignedAdminId === user.id)
               );
               const userTasks = (tasks || []).filter((t) => t && t.assignedToUserId === user.id);
-              const userBranch = (companies || []).find((c) => c && c.id === user.companyId);
+              const userCompIds = user.companyIds && user.companyIds.length > 0
+                ? user.companyIds
+                : user.companyId
+                ? [user.companyId]
+                : [];
+              const userBranches = (companies || []).filter(
+                (c) => c && (userCompIds.includes(c.id) || (c.employeeIds && c.employeeIds.includes(user.id)))
+              );
+              const userBranch = userBranches[0] || (companies || []).find((c) => c && c.id === user.companyId);
               const customRoleObj = user.customRoleId
                 ? (roles || []).find((r) => r && r.id === user.customRoleId)
                 : null;
@@ -755,9 +763,22 @@ export const EmployeesManagement: React.FC = () => {
                         <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <span>{user.phone || '+971 50 000 0000'}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{userBranch ? userBranch.name : 'All ADCS Branches (Master)'}</span>
+                      <div className="flex items-start gap-2">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                        <div className="flex flex-wrap items-center gap-1">
+                          {userBranches.length > 0 ? (
+                            userBranches.map((b) => (
+                              <span
+                                key={b.id}
+                                className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900"
+                              >
+                                {b.name} {b.branchLocation ? `(${b.branchLocation})` : ''}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400">All ADCS Branches (Global)</span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1041,38 +1062,81 @@ export const EmployeesManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Branch Assignment
-                  </label>
-                  <select
-                    value={formData.companyId ?? ''}
-                    onChange={(e) => {
-                      const newCompId = e.target.value;
-                      setFormData({ ...formData, companyId: newCompId, companyIds: [newCompId] });
-                    }}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                  >
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
-                      </option>
-                    ))}
-                  </select>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Primary Branch
+                    </label>
+                    <select
+                      value={formData.companyId ?? ''}
+                      onChange={(e) => {
+                        const newCompId = e.target.value;
+                        const curIds = formData.companyIds || [];
+                        const nextIds = curIds.includes(newCompId) ? curIds : [...curIds, newCompId];
+                        setFormData({ ...formData, companyId: newCompId, companyIds: nextIds });
+                      }}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    >
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Initial Login Password
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.password ?? ''}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Initial Login Password
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.password ?? ''}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
-                  />
-                </div>
+                {companies.length > 1 && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      Assigned Companies & Branches (Multi-Branch Access)
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                      {companies.map((c) => {
+                        const isChecked = (formData.companyIds || []).includes(c.id) || formData.companyId === c.id;
+                        return (
+                          <label key={c.id} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const curIds = formData.companyIds || (formData.companyId ? [formData.companyId] : []);
+                                let nextIds: string[];
+                                if (e.target.checked) {
+                                  nextIds = [...new Set([...curIds, c.id])];
+                                } else {
+                                  nextIds = curIds.filter((id) => id !== c.id);
+                                }
+                                setFormData({
+                                  ...formData,
+                                  companyId: nextIds.includes(formData.companyId || '') ? formData.companyId : (nextIds[0] || ''),
+                                  companyIds: nextIds,
+                                });
+                              }}
+                              className="rounded text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="truncate">
+                              {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
@@ -1227,44 +1291,85 @@ export const EmployeesManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Account Status
-                  </label>
-                  <select
-                    value={formData.status ?? 'active'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
-                  >
-                    <option value="active">Active Access</option>
-                    <option value="inactive">Suspended / Inactive</option>
-                  </select>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Account Status
+                    </label>
+                    <select
+                      value={formData.status ?? 'active'}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
+                    >
+                      <option value="active">Active Access</option>
+                      <option value="inactive">Suspended / Inactive</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Primary Branch
+                    </label>
+                    <select
+                      value={formData.companyId ?? ''}
+                      onChange={(e) => {
+                        const newCompId = e.target.value;
+                        const curCompIds = formData.companyIds || [];
+                        const updatedIds = curCompIds.includes(newCompId)
+                          ? curCompIds
+                          : [...curCompIds.filter((id) => id !== formData.companyId), newCompId];
+                        setFormData({ ...formData, companyId: newCompId, companyIds: updatedIds });
+                      }}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    >
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Branch Assignment
-                  </label>
-                  <select
-                    value={formData.companyId ?? ''}
-                    onChange={(e) => {
-                      const newCompId = e.target.value;
-                      const curCompIds = formData.companyIds || [];
-                      const updatedIds = curCompIds.includes(newCompId)
-                        ? curCompIds
-                        : [...curCompIds.filter((id) => id !== formData.companyId), newCompId];
-                      setFormData({ ...formData, companyId: newCompId, companyIds: updatedIds });
-                    }}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                  >
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {companies.length > 1 && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      Assigned Companies & Branches (Multi-Branch Access)
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                      {companies.map((c) => {
+                        const isChecked = (formData.companyIds || []).includes(c.id) || formData.companyId === c.id;
+                        return (
+                          <label key={c.id} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const curIds = formData.companyIds || (formData.companyId ? [formData.companyId] : []);
+                                let nextIds: string[];
+                                if (e.target.checked) {
+                                  nextIds = [...new Set([...curIds, c.id])];
+                                } else {
+                                  nextIds = curIds.filter((id) => id !== c.id);
+                                }
+                                setFormData({
+                                  ...formData,
+                                  companyId: nextIds.includes(formData.companyId || '') ? formData.companyId : (nextIds[0] || ''),
+                                  companyIds: nextIds,
+                                });
+                              }}
+                              className="rounded text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="truncate">
+                              {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
