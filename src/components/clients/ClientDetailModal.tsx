@@ -932,7 +932,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                   </div>
                   <button
                     onClick={() => {
-                      if (confirm(`Are you sure you want to delete ${client.fullName}?`)) {
+                      if (confirm(`Are you sure you want to permanently delete ${client.fullName}? This will remove all associated documents, tasks, and invoices from cloud and local storage.`)) {
                         deleteClient(client.id);
                         onClose();
                       }

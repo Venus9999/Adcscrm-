@@ -227,16 +227,63 @@ export const LoginScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Feature Highlights */}
-            <div className="pt-4 space-y-3.5">
+            {/* Feature Highlights & Company Portal Quick Access */}
+            <div className="pt-4 space-y-3">
+              {/* Quick Select Company Portals */}
+              {companies.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-950/70 to-blue-950/60 border border-indigo-800/60 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-indigo-200 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Company Portals Quick Fill</span>
+                    </span>
+                    <span className="text-[10px] text-indigo-400 font-mono">
+                      {companies.length} {companies.length === 1 ? 'Entity' : 'Entities'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {companies.slice(0, 4).map((comp) => {
+                      const portalEmail = comp.portalLoginEmail || comp.email || 'admin@company.ae';
+                      const portalPass = comp.portalTempPassword || 'Company@2026!';
+                      return (
+                        <button
+                          key={comp.id}
+                          type="button"
+                          onClick={() => {
+                            setEmail(portalEmail);
+                            setPassword(portalPass);
+                            setAuthMode('login');
+                            setLoginError(null);
+                          }}
+                          className="w-full text-left p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800/90 border border-indigo-900/50 hover:border-indigo-500/50 text-slate-300 hover:text-white transition-all text-xs flex items-center justify-between group cursor-pointer"
+                        >
+                          <div className="min-w-0 pr-1">
+                            <p className="font-bold text-slate-200 group-hover:text-white truncate text-[11px]">
+                              {comp.name}
+                            </p>
+                            <p className="text-[10px] font-mono text-slate-400 truncate">
+                              {portalEmail}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 shrink-0">
+                            Select
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 backdrop-blur-xs flex items-start gap-3">
                 <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0 mt-0.5">
                   <Shield className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">Role-Based Access Security</h4>
+                  <h4 className="text-xs font-bold text-slate-200">Company Data Isolation</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Master governance, branch operations, PRO document processing, and client investor portal.
+                    Each company workspace only accesses its assigned client dossiers, invoices, and records.
                   </p>
                 </div>
               </div>

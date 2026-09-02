@@ -290,6 +290,13 @@ export interface Company {
   branchLocation?: string;
   branchName?: string;
   isBranch?: boolean;
+  portalLoginEnabled?: boolean;
+  portalLoginEmail?: string;
+  portalAdminName?: string;
+  portalAdminRole?: string;
+  portalTempPassword?: string;
+  portalSecurityPin?: string;
+  portalUserId?: string;
 }
 
 export interface Department {

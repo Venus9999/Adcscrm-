@@ -26,6 +26,15 @@ import {
   ChevronRight,
   Shield,
   ArrowRight,
+  KeyRound,
+  LogIn,
+  Copy,
+  Eye,
+  EyeOff,
+  Lock,
+  UserCheck,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { Company, User } from '../../types/crm';
@@ -40,12 +49,20 @@ export const CompaniesManagement: React.FC = () => {
     clients,
     invoices,
     currentUser,
+    setCurrentUser,
     setSelectedCompanyId,
     setActiveTab,
   } = useCRM();
 
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [credentialsCompany, setCredentialsCompany] = useState<Company | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showModalPassword, setShowModalPassword] = useState(false);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [passwordUpdateSuccess, setPasswordUpdateSuccess] = useState<string | null>(null);
+
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
 
@@ -83,6 +100,13 @@ export const CompaniesManagement: React.FC = () => {
     accountNumber: '1029384756',
     iban: 'AE12033102938475601',
     swift: 'EBILAEADXXX',
+    // Portal Login Setup
+    portalLoginEnabled: true,
+    portalLoginEmail: '',
+    portalAdminName: 'Managing Director',
+    portalAdminRole: 'Company Administrator',
+    portalTempPassword: 'Company@2026!',
+    portalSecurityPin: '1234',
   });
 
   // Permission Checks based on Role & Capabilities
@@ -159,6 +183,7 @@ export const CompaniesManagement: React.FC = () => {
     if (chosenType === 'branch' && parentObj) {
       const branchCount = companies.filter((c) => c.parentCompanyId === parentObj.id).length + 1;
       const branchCodeStr = `BR-${(parentObj.city || 'DXB').slice(0, 3).toUpperCase()}-0${branchCount}`;
+      const defaultDomain = parentObj.email ? parentObj.email.split('@')[1] : 'adcs.ae';
 
       setFormData({
         name: `${parentObj.name} - ${parentObj.city || 'Dubai'} Branch`,
@@ -172,7 +197,7 @@ export const CompaniesManagement: React.FC = () => {
         city: parentObj.city || 'Dubai',
         address: parentObj.address || 'Business Bay, Dubai, UAE',
         phone: parentObj.phone || '+971 4 399 0000',
-        email: `branch.${branchCount}@${parentObj.email ? parentObj.email.split('@')[1] : 'adcs.ae'}`,
+        email: `branch.${branchCount}@${defaultDomain}`,
         whatsapp: parentObj.whatsapp || '+971 50 000 0000',
         currency: parentObj.currency || 'AED',
         corporateDiscountType: parentObj.corporateDiscountType || 'percentage',
@@ -184,6 +209,12 @@ export const CompaniesManagement: React.FC = () => {
         accountNumber: parentObj.bankDetails?.accountNumber || '1029384756',
         iban: parentObj.bankDetails?.iban || 'AE12033102938475601',
         swift: parentObj.bankDetails?.swift || 'EBILAEADXXX',
+        portalLoginEnabled: true,
+        portalLoginEmail: `branch.manager.${branchCount}@${defaultDomain}`,
+        portalAdminName: `${parentObj.city || 'Dubai'} Branch Manager`,
+        portalAdminRole: 'Branch General Manager',
+        portalTempPassword: 'Branch@2026!',
+        portalSecurityPin: '1234',
       });
     } else {
       setFormData({
@@ -210,6 +241,12 @@ export const CompaniesManagement: React.FC = () => {
         accountNumber: '102938475601',
         iban: 'AE290260000102938475601',
         swift: 'EBILAEADXXX',
+        portalLoginEnabled: true,
+        portalLoginEmail: 'admin@company.ae',
+        portalAdminName: 'Managing Director',
+        portalAdminRole: 'Company Managing Director',
+        portalTempPassword: 'Company@2026!',
+        portalSecurityPin: '1234',
       });
     }
 
@@ -238,6 +275,8 @@ export const CompaniesManagement: React.FC = () => {
           iban: parentObj.bankDetails?.iban || prev.iban,
           accountNumber: parentObj.bankDetails?.accountNumber || prev.accountNumber,
           swift: parentObj.bankDetails?.swift || prev.swift,
+          portalAdminRole: 'Branch General Manager',
+          portalTempPassword: prev.portalTempPassword || 'Branch@2026!',
         }));
       }
     }
@@ -294,13 +333,22 @@ export const CompaniesManagement: React.FC = () => {
       accountNumber: comp.bankDetails?.accountNumber || '1029384756',
       iban: comp.bankDetails?.iban || 'AE12033102938475601',
       swift: comp.bankDetails?.swift || 'EBILAEADXXX',
+      portalLoginEnabled: comp.portalLoginEnabled ?? true,
+      portalLoginEmail: comp.portalLoginEmail || comp.email || 'admin@company.ae',
+      portalAdminName: comp.portalAdminName || 'Managing Director',
+      portalAdminRole: comp.portalAdminRole || (isBranchEntity ? 'Branch General Manager' : 'Company Managing Director'),
+      portalTempPassword: comp.portalTempPassword || 'Company@2026!',
+      portalSecurityPin: comp.portalSecurityPin || '1234',
     });
     setShowModal(true);
   };
 
   const handleOpenDelete = (comp: Company) => {
     setCompanyToDelete(comp);
-    setShowDeleteModal(true);
+    setShowDeleteModal(false);
+    setTimeout(() => {
+      setShowDeleteModal(true);
+    }, 10);
   };
 
   const handleConfirmDelete = () => {
@@ -308,6 +356,87 @@ export const CompaniesManagement: React.FC = () => {
     deleteCompany(companyToDelete.id);
     setShowDeleteModal(false);
     setCompanyToDelete(null);
+  };
+
+  const handleOpenCredentials = (comp: Company) => {
+    setCredentialsCompany(comp);
+    setShowModalPassword(false);
+    setNewPasswordInput('');
+    setPasswordUpdateSuccess(null);
+    setShowCredentialsModal(true);
+  };
+
+  const handleDirectLoginAsCompany = (comp: Company) => {
+    // Find matching user or portal user
+    const matchedUser = users.find(
+      (u) =>
+        (comp.portalUserId && u.id === comp.portalUserId) ||
+        (comp.portalLoginEmail && u.email.toLowerCase() === comp.portalLoginEmail.toLowerCase()) ||
+        (comp.adminId && u.id === comp.adminId) ||
+        (u.companyId === comp.id && u.role === 'admin')
+    );
+
+    if (matchedUser) {
+      setCurrentUser(matchedUser);
+      setSelectedCompanyId(comp.id);
+      setActiveTab('dashboard');
+      setShowCredentialsModal(false);
+    } else {
+      // Fallback construct active session for this company admin
+      const companyAdminUser: User = {
+        id: comp.portalUserId || `user-admin-${comp.id}`,
+        name: comp.portalAdminName || `${comp.name} Administrator`,
+        email: comp.portalLoginEmail || comp.email || `admin@${comp.id}.ae`,
+        phone: comp.phone || '+971 4 000 0000',
+        role: 'admin',
+        jobTitle: comp.portalAdminRole || (comp.isBranch ? 'Branch General Manager' : 'Company Managing Director'),
+        department: 'Executive Administration',
+        status: 'active',
+        companyId: comp.id,
+        companyIds: [comp.id],
+        avatar: comp.logo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+        createdAt: new Date().toISOString(),
+        permissions: {
+          canCreateClients: true,
+          canEditStages: true,
+          canManagePayments: true,
+          canManageBilling: true,
+          canEditInvoices: true,
+          canDeleteInvoices: false,
+          canViewAllCompanies: false,
+          canAssignEmployees: true,
+          canAssignTasks: true,
+          canDeleteRecords: false,
+          canExportReports: true,
+          canViewReports: true,
+          canManageLeads: true,
+          canManageTransactions: true,
+          canManageUsers: true,
+          canManageCompanies: false,
+          canCreateCompanies: false,
+          canCreateBranches: true,
+          canManageBranches: true,
+          canCreateClient: true,
+          canDeleteClient: false,
+          canExportData: true,
+          canViewFinancials: true,
+          canManageWorkflows: false,
+          canEditWorkflows: false,
+          canManageRoles: false,
+          canManageSystemSettings: false,
+          canManageDepartments: true,
+          canManageVendors: true,
+          canManageDocuments: true,
+          canSendBroadcasts: true,
+          canManageCommissions: true,
+          canApproveDiscounts: true,
+        },
+      };
+      setCurrentUser(companyAdminUser);
+      setSelectedCompanyId(comp.id);
+      setActiveTab('dashboard');
+      setShowCredentialsModal(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -354,6 +483,12 @@ export const CompaniesManagement: React.FC = () => {
           iban: formData.iban,
           swift: formData.swift,
         },
+        portalLoginEnabled: formData.portalLoginEnabled,
+        portalLoginEmail: formData.portalLoginEmail,
+        portalAdminName: formData.portalAdminName,
+        portalAdminRole: formData.portalAdminRole,
+        portalTempPassword: formData.portalTempPassword,
+        portalSecurityPin: formData.portalSecurityPin,
       });
     } else {
       addCompany({
@@ -392,6 +527,12 @@ export const CompaniesManagement: React.FC = () => {
         assignedAdminIds: formData.assignedAdminIds,
         employeeIds: formData.employeeIds,
         currency: formData.currency,
+        portalLoginEnabled: formData.portalLoginEnabled,
+        portalLoginEmail: formData.portalLoginEmail,
+        portalAdminName: formData.portalAdminName,
+        portalAdminRole: formData.portalAdminRole,
+        portalTempPassword: formData.portalTempPassword,
+        portalSecurityPin: formData.portalSecurityPin,
       });
     }
     setShowModal(false);
@@ -711,6 +852,55 @@ export const CompaniesManagement: React.FC = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Company Dedicated Portal & Administrator Login */}
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-indigo-50/70 via-blue-50/50 to-purple-50/50 dark:from-indigo-950/40 dark:via-blue-950/30 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <KeyRound className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                        <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                          Company Portal & Login
+                        </span>
+                      </div>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Active</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs font-mono text-slate-600 dark:text-slate-400 truncate bg-white/70 dark:bg-slate-900/60 p-1.5 rounded-xl border border-indigo-100/80 dark:border-indigo-900/40">
+                      <div className="truncate flex items-center gap-1">
+                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate text-[11px]">
+                          {comp.portalLoginEmail || comp.email || 'admin@company.ae'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-sans font-semibold shrink-0 ml-1">
+                        {comp.portalAdminRole || (isBranch ? 'Branch Mgr' : 'Admin')}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCredentials(comp)}
+                        className="py-1.5 px-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs"
+                      >
+                        <Lock className="w-3 h-3 text-indigo-500" />
+                        <span>Credentials</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDirectLoginAsCompany(comp)}
+                        className="py-1.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs shadow-indigo-500/20"
+                        title={`Log in as ${comp.name} administrator`}
+                      >
+                        <LogIn className="w-3 h-3" />
+                        <span>Log In Workspace</span>
+                      </button>
+                    </div>
+                  </div>
 
                   {/* Assigned Branch Admins */}
                   <div>
@@ -1193,6 +1383,106 @@ export const CompaniesManagement: React.FC = () => {
                 </div>
               </div>
 
+              {/* Dedicated Company Administrator Portal Login Setup */}
+              <div className="p-4 bg-gradient-to-br from-indigo-50/80 to-blue-50/50 dark:from-indigo-950/40 dark:to-blue-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                      <KeyRound className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                        Dedicated Company Admin Login & Portal Access
+                      </h4>
+                      <p className="text-[10px] text-slate-500">
+                        Enables an isolated login for this company to see only their assigned dossiers
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.portalLoginEnabled}
+                      onChange={(e) => setFormData({ ...formData, portalLoginEnabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+
+                {formData.portalLoginEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-indigo-100 dark:border-indigo-900/60">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Portal Administrator Name
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.portalAdminName}
+                        onChange={(e) => setFormData({ ...formData, portalAdminName: e.target.value })}
+                        placeholder="Managing Director / General Manager"
+                        className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl text-xs border border-indigo-200 dark:border-indigo-800"
+                        required={formData.portalLoginEnabled}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Administrator Title / Role
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.portalAdminRole}
+                        onChange={(e) => setFormData({ ...formData, portalAdminRole: e.target.value })}
+                        placeholder="Company Managing Director"
+                        className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl text-xs border border-indigo-200 dark:border-indigo-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Portal Login Email
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.portalLoginEmail}
+                        onChange={(e) => setFormData({ ...formData, portalLoginEmail: e.target.value })}
+                        placeholder="admin@company.ae"
+                        className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl text-xs border border-indigo-200 dark:border-indigo-800 font-mono"
+                        required={formData.portalLoginEnabled}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                          Initial Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newPass = `${formData.name.split(' ')[0] || 'Company'}@${Math.floor(1000 + Math.random() * 9000)}!`;
+                            setFormData({ ...formData, portalTempPassword: newPass });
+                          }}
+                          className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-0.5"
+                        >
+                          <RefreshCw className="w-2.5 h-2.5" />
+                          <span>Generate</span>
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={formData.portalTempPassword}
+                        onChange={(e) => setFormData({ ...formData, portalTempPassword: e.target.value })}
+                        placeholder="Company@2026!"
+                        className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl text-xs border border-indigo-200 dark:border-indigo-800 font-mono"
+                        required={formData.portalLoginEnabled}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Branch Administrator / Manager Assignment */}
               <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
                 <div className="flex items-center justify-between">
@@ -1359,6 +1649,189 @@ export const CompaniesManagement: React.FC = () => {
               >
                 Confirm Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PORTAL CREDENTIALS & ACCESS MODAL */}
+      {showCredentialsModal && credentialsCompany && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl space-y-4">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Company Portal Access
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {credentialsCompany.name} ({credentialsCompany.isBranch ? 'Branch Office' : 'Parent Entity'})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCredentialsModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scoped Content Notice */}
+            <div className="p-3 rounded-2xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 flex items-start gap-2.5 text-xs text-blue-900 dark:text-blue-200">
+              <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <p>
+                <strong>Isolated Workspace:</strong> When logged in with these credentials, this company administrator will only see clients, dossiers, invoices, and transactions created for <strong>{credentialsCompany.name}</strong>.
+              </p>
+            </div>
+
+            {/* Credentials Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3">
+              {/* Admin Name & Role */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
+                <div className="text-xs">
+                  <span className="text-slate-400 block text-[10px]">Administrator Name:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {credentialsCompany.portalAdminName || 'Managing Director'}
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  {credentialsCompany.portalAdminRole || (credentialsCompany.isBranch ? 'Branch Manager' : 'Company Administrator')}
+                </span>
+              </div>
+
+              {/* Login Email */}
+              <div>
+                <span className="text-slate-400 block text-[10px] mb-1">Portal Login Email:</span>
+                <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200 select-all truncate">
+                    {credentialsCompany.portalLoginEmail || credentialsCompany.email || 'admin@company.ae'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(credentialsCompany.portalLoginEmail || credentialsCompany.email || 'admin@company.ae');
+                      setCopiedField('email');
+                      setTimeout(() => setCopiedField(null), 2000);
+                    }}
+                    className="p-1 text-slate-400 hover:text-indigo-600 transition-colors ml-2 cursor-pointer"
+                    title="Copy Email"
+                  >
+                    {copiedField === 'email' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <span className="text-slate-400 block text-[10px] mb-1">Password:</span>
+                <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200 select-all truncate">
+                    {showModalPassword
+                      ? (credentialsCompany.portalTempPassword || 'Company@2026!')
+                      : '••••••••••••••••'}
+                  </span>
+                  <div className="flex items-center gap-1 ml-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowModalPassword(!showModalPassword)}
+                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors cursor-pointer"
+                      title={showModalPassword ? 'Hide Password' : 'Show Password'}
+                    >
+                      {showModalPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(credentialsCompany.portalTempPassword || 'Company@2026!');
+                        setCopiedField('password');
+                        setTimeout(() => setCopiedField(null), 2000);
+                      }}
+                      className="p-1 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                      title="Copy Password"
+                    >
+                      {copiedField === 'password' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Security PIN */}
+              <div>
+                <span className="text-slate-400 block text-[10px] mb-1">Security PIN / Bypass Code:</span>
+                <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {credentialsCompany.portalSecurityPin || '1234'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(credentialsCompany.portalSecurityPin || '1234');
+                      setCopiedField('pin');
+                      setTimeout(() => setCopiedField(null), 2000);
+                    }}
+                    className="p-1 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                    title="Copy PIN"
+                  >
+                    {copiedField === 'pin' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => handleDirectLoginAsCompany(credentialsCompany)}
+                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Log In to {credentialsCompany.name} Workspace Now</span>
+              </button>
+
+              {/* Update Password Toggle */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    placeholder="Enter new password to update..."
+                    className="flex-1 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                  />
+                  <button
+                    type="button"
+                    disabled={!newPasswordInput.trim()}
+                    onClick={() => {
+                      if (!newPasswordInput.trim()) return;
+                      updateCompany(credentialsCompany.id, {
+                        portalTempPassword: newPasswordInput.trim(),
+                      });
+                      setCredentialsCompany({
+                        ...credentialsCompany,
+                        portalTempPassword: newPasswordInput.trim(),
+                      });
+                      setNewPasswordInput('');
+                      setPasswordUpdateSuccess('Password updated successfully!');
+                      setTimeout(() => setPasswordUpdateSuccess(null), 3000);
+                    }}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-xl text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                  >
+                    Update
+                  </button>
+                </div>
+                {passwordUpdateSuccess && (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>{passwordUpdateSuccess}</span>
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -427,8 +427,40 @@ async function startServer() {
         if (!data.leadSources || !Array.isArray(data.leadSources)) data.leadSources = [];
         if (!data.leadStages || !Array.isArray(data.leadStages)) data.leadStages = [];
         if (!data.deletedCompanyIds || !Array.isArray(data.deletedCompanyIds)) data.deletedCompanyIds = [];
+        if (!data.deletedClientIds || !Array.isArray(data.deletedClientIds)) data.deletedClientIds = [];
+        if (!data.deletedDocumentIds || !Array.isArray(data.deletedDocumentIds)) data.deletedDocumentIds = [];
+        if (!data.deletedTaskIds || !Array.isArray(data.deletedTaskIds)) data.deletedTaskIds = [];
+        if (!data.deletedInvoiceIds || !Array.isArray(data.deletedInvoiceIds)) data.deletedInvoiceIds = [];
+        if (!data.deletedLeadIds || !Array.isArray(data.deletedLeadIds)) data.deletedLeadIds = [];
+        if (!data.deletedVendorIds || !Array.isArray(data.deletedVendorIds)) data.deletedVendorIds = [];
+        if (!data.deletedUserIds || !Array.isArray(data.deletedUserIds)) data.deletedUserIds = [];
+
         if (data.companies && Array.isArray(data.companies)) {
           data.companies = data.companies.filter((c: any) => c && c.id && !data.deletedCompanyIds.includes(c.id));
+        }
+        if (data.clients && Array.isArray(data.clients)) {
+          data.clients = data.clients.filter((c: any) => c && c.id && !data.deletedClientIds.includes(c.id));
+        }
+        if (data.documents && Array.isArray(data.documents)) {
+          data.documents = data.documents.filter(
+            (d: any) => d && d.id && !data.deletedDocumentIds.includes(d.id) && (!d.clientId || !data.deletedClientIds.includes(d.clientId))
+          );
+        }
+        if (data.tasks && Array.isArray(data.tasks)) {
+          data.tasks = data.tasks.filter(
+            (t: any) => t && t.id && !data.deletedTaskIds.includes(t.id) && (!t.clientId || !data.deletedClientIds.includes(t.clientId))
+          );
+        }
+        if (data.invoices && Array.isArray(data.invoices)) {
+          data.invoices = data.invoices.filter(
+            (i: any) => i && i.id && !data.deletedInvoiceIds.includes(i.id) && (!i.clientId || !data.deletedClientIds.includes(i.clientId))
+          );
+        }
+        if (data.leads && Array.isArray(data.leads)) {
+          data.leads = data.leads.filter((ld: any) => ld && ld.id && !data.deletedLeadIds.includes(ld.id));
+        }
+        if (data.vendors && Array.isArray(data.vendors)) {
+          data.vendors = data.vendors.filter((v: any) => v && v.id && !data.deletedVendorIds.includes(v.id));
         }
         return res.json({ success: true, data, hasData: true });
       }
@@ -518,7 +550,49 @@ async function startServer() {
         ]),
       ];
 
-      // Handle companies: if payload explicitly sends companies, use payload companies; otherwise merge existing
+      const combinedDeletedClientIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedClientIds) ? payload.deletedClientIds : []),
+          ...(Array.isArray(existing.deletedClientIds) ? existing.deletedClientIds : []),
+        ]),
+      ];
+
+      const combinedDeletedDocumentIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedDocumentIds) ? payload.deletedDocumentIds : []),
+          ...(Array.isArray(existing.deletedDocumentIds) ? existing.deletedDocumentIds : []),
+        ]),
+      ];
+
+      const combinedDeletedTaskIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedTaskIds) ? payload.deletedTaskIds : []),
+          ...(Array.isArray(existing.deletedTaskIds) ? existing.deletedTaskIds : []),
+        ]),
+      ];
+
+      const combinedDeletedInvoiceIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedInvoiceIds) ? payload.deletedInvoiceIds : []),
+          ...(Array.isArray(existing.deletedInvoiceIds) ? existing.deletedInvoiceIds : []),
+        ]),
+      ];
+
+      const combinedDeletedLeadIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedLeadIds) ? payload.deletedLeadIds : []),
+          ...(Array.isArray(existing.deletedLeadIds) ? existing.deletedLeadIds : []),
+        ]),
+      ];
+
+      const combinedDeletedVendorIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedVendorIds) ? payload.deletedVendorIds : []),
+          ...(Array.isArray(existing.deletedVendorIds) ? existing.deletedVendorIds : []),
+        ]),
+      ];
+
+      // Handle companies
       let cleanCompanies: any[] = [];
       if (Array.isArray(payload.companies)) {
         cleanCompanies = payload.companies.filter((c: any) => c && c.id && !combinedDeletedCompanyIds.includes(c.id));
@@ -528,34 +602,75 @@ async function startServer() {
         cleanCompanies = initialCompanies.filter((c: any) => c && c.id && !combinedDeletedCompanyIds.includes(c.id));
       }
 
-      // Defensive merge: never wipe submitted data, update existing records and append new ones
+      // Handle clients: strictly filter out deleted clients
+      const incomingOrExistingClients = Array.isArray(payload.clients) ? payload.clients : (existing.clients || []);
+      const cleanClients = incomingOrExistingClients.filter(
+        (c: any) => c && c.id && !combinedDeletedClientIds.includes(c.id)
+      );
+
+      // Handle documents: strictly filter out deleted documents or documents belonging to deleted clients
+      const incomingOrExistingDocs = Array.isArray(payload.documents) ? payload.documents : (existing.documents || []);
+      const cleanDocs = incomingOrExistingDocs.filter(
+        (d: any) => d && d.id && !combinedDeletedDocumentIds.includes(d.id) && (!d.clientId || !combinedDeletedClientIds.includes(d.clientId))
+      );
+
+      // Handle tasks: strictly filter out deleted tasks or tasks belonging to deleted clients
+      const incomingOrExistingTasks = Array.isArray(payload.tasks) ? payload.tasks : (existing.tasks || []);
+      const cleanTasks = incomingOrExistingTasks.filter(
+        (t: any) => t && t.id && !combinedDeletedTaskIds.includes(t.id) && (!t.clientId || !combinedDeletedClientIds.includes(t.clientId))
+      );
+
+      // Handle invoices: strictly filter out deleted invoices or invoices belonging to deleted clients
+      const incomingOrExistingInvoices = Array.isArray(payload.invoices) ? payload.invoices : (existing.invoices || []);
+      const cleanInvoices = incomingOrExistingInvoices.filter(
+        (i: any) => i && i.id && !combinedDeletedInvoiceIds.includes(i.id) && (!i.clientId || !combinedDeletedClientIds.includes(i.clientId))
+      );
+
+      // Handle leads: strictly filter out deleted leads
+      const incomingOrExistingLeads = Array.isArray(payload.leads) ? payload.leads : (existing.leads || []);
+      const cleanLeads = incomingOrExistingLeads.filter(
+        (ld: any) => ld && ld.id && !combinedDeletedLeadIds.includes(ld.id)
+      );
+
+      // Handle vendors: strictly filter out deleted vendors
+      const incomingOrExistingVendors = Array.isArray(payload.vendors) ? payload.vendors : (existing.vendors || []);
+      const cleanVendors = incomingOrExistingVendors.filter(
+        (v: any) => v && v.id && !combinedDeletedVendorIds.includes(v.id)
+      );
+
+      // Build merged object respecting deletions from client payload snapshot
       const merged = {
         ...existing,
         ...payload,
-        clients: mergeCollection(existing.clients, payload.clients),
-        invoices: mergeCollection(existing.invoices, payload.invoices),
-        tasks: mergeCollection(existing.tasks, payload.tasks),
-        documents: mergeCollection(existing.documents, payload.documents),
-        transactions: mergeCollection(existing.transactions, payload.transactions),
-        messages: mergeCollection(existing.messages, payload.messages),
-        stages: mergeCollection(existing.stages, payload.stages),
-        workflows: mergeCollection(existing.workflows, payload.workflows),
-        serviceCategories: mergeCollection(existing.serviceCategories, payload.serviceCategories),
-        serviceClassifications: mergeCollection(existing.serviceClassifications, payload.serviceClassifications),
-        auditLogs: mergeCollection(existing.auditLogs, payload.auditLogs),
-        notifications: mergeCollection(existing.notifications, payload.notifications),
-        leads: mergeCollection(existing.leads, payload.leads),
-        vendors: mergeCollection(existing.vendors, payload.vendors),
-        departments: mergeCollection(existing.departments, payload.departments),
-        leadCategories: mergeCollection(existing.leadCategories, payload.leadCategories),
-        leadSources: mergeCollection(existing.leadSources, payload.leadSources),
-        leadStages: mergeCollection(existing.leadStages, payload.leadStages),
-        users: mergeCollection(existing.users, payload.users),
+        clients: cleanClients,
+        documents: cleanDocs,
+        tasks: cleanTasks,
+        invoices: cleanInvoices,
+        leads: cleanLeads,
+        vendors: cleanVendors,
+        transactions: Array.isArray(payload.transactions) ? payload.transactions : (existing.transactions || []),
+        messages: Array.isArray(payload.messages) ? payload.messages : (existing.messages || []),
+        stages: Array.isArray(payload.stages) ? payload.stages : (existing.stages || []),
+        workflows: Array.isArray(payload.workflows) ? payload.workflows : (existing.workflows || []),
+        serviceCategories: Array.isArray(payload.serviceCategories) ? payload.serviceCategories : (existing.serviceCategories || []),
+        serviceClassifications: Array.isArray(payload.serviceClassifications) ? payload.serviceClassifications : (existing.serviceClassifications || []),
+        auditLogs: Array.isArray(payload.auditLogs) ? payload.auditLogs : (existing.auditLogs || []),
+        notifications: Array.isArray(payload.notifications) ? payload.notifications : (existing.notifications || []),
+        departments: Array.isArray(payload.departments) ? payload.departments : (existing.departments || []),
+        leadCategories: Array.isArray(payload.leadCategories) ? payload.leadCategories : (existing.leadCategories || []),
+        leadSources: Array.isArray(payload.leadSources) ? payload.leadSources : (existing.leadSources || []),
+        leadStages: Array.isArray(payload.leadStages) ? payload.leadStages : (existing.leadStages || []),
+        users: Array.isArray(payload.users) ? payload.users : (existing.users || []),
         companies: cleanCompanies,
         deletedCompanyIds: combinedDeletedCompanyIds,
-        visaApplications: mergeCollection(existing.visaApplications, payload.visaApplications),
-        visaCountryCatalog: mergeCollection(existing.visaCountryCatalog, payload.visaCountryCatalog),
-        deletedVendorIds: payload.deletedVendorIds !== undefined ? payload.deletedVendorIds : (existing.deletedVendorIds || []),
+        deletedClientIds: combinedDeletedClientIds,
+        deletedDocumentIds: combinedDeletedDocumentIds,
+        deletedTaskIds: combinedDeletedTaskIds,
+        deletedInvoiceIds: combinedDeletedInvoiceIds,
+        deletedLeadIds: combinedDeletedLeadIds,
+        deletedVendorIds: combinedDeletedVendorIds,
+        visaApplications: Array.isArray(payload.visaApplications) ? payload.visaApplications : (existing.visaApplications || []),
+        visaCountryCatalog: Array.isArray(payload.visaCountryCatalog) ? payload.visaCountryCatalog : (existing.visaCountryCatalog || []),
         deletedVisaCountryCodes: payload.deletedVisaCountryCodes !== undefined ? payload.deletedVisaCountryCodes : (existing.deletedVisaCountryCodes || []),
         deletedVisaServiceIds: payload.deletedVisaServiceIds !== undefined ? payload.deletedVisaServiceIds : (existing.deletedVisaServiceIds || []),
         deletedVisaAppIds: payload.deletedVisaAppIds !== undefined ? payload.deletedVisaAppIds : (existing.deletedVisaAppIds || []),
@@ -570,10 +685,14 @@ async function startServer() {
       return res.json({
         success: true,
         savedAt: merged.lastUpdated,
+        clientsCount: merged.clients?.length || 0,
+        documentsCount: merged.documents?.length || 0,
         leadsCount: merged.leads?.length || 0,
         usersCount: merged.users?.length || 0,
         departmentsCount: merged.departments?.length || 0,
-        message: 'CRM database snapshot safely persisted to server disk',
+        deletedClientsCount: combinedDeletedClientIds.length,
+        deletedDocumentsCount: combinedDeletedDocumentIds.length,
+        message: 'CRM database snapshot safely persisted to server disk with deletion tombstones enforced',
       });
     } catch (err: any) {
       console.error('Error saving CRM store:', err);

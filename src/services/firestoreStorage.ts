@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   onSnapshot,
   Firestore,
   serverTimestamp,
@@ -17,6 +18,7 @@ import {
   ref as rtdbRef,
   set as rtdbSet,
   get as rtdbGet,
+  remove as rtdbRemove,
   onValue as rtdbOnValue,
   Database,
 } from 'firebase/database';
@@ -473,4 +475,77 @@ export function subscribeToCloudCRMData(
     });
   };
 }
+
+/**
+ * Remove a client record directly from Cloud Firestore and Realtime Database
+ */
+export async function deleteClientFromCloud(clientId: string): Promise<{ success: boolean; error?: string }> {
+  if (!clientId) return { success: false, error: 'No client ID specified for deletion' };
+
+  let rtdbDone = false;
+  let firestoreDone = false;
+  let errorMsg: string | undefined;
+
+  // 1. Remove from RTDB sub-path if partitioned
+  if (rtdb) {
+    try {
+      const clientRef = rtdbRef(rtdb, `${RTDB_CRM_STORE_PATH}/payload/clients/${clientId}`);
+      await rtdbRemove(clientRef).catch(() => {});
+      rtdbDone = true;
+    } catch (e: any) {
+      console.warn('[RTDB Client Removal Warning]', e);
+    }
+  }
+
+  // 2. Direct Firestore deletion if dedicated doc exists
+  if (!isFirestoreQuotaExhausted()) {
+    try {
+      const directDocRef = doc(db, 'crm_clients', clientId);
+      await deleteDoc(directDocRef).catch(() => {});
+      firestoreDone = true;
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `crm_clients/${clientId}`);
+      errorMsg = err?.message || 'Firestore delete failed';
+    }
+  }
+
+  return { success: rtdbDone || firestoreDone, error: errorMsg };
+}
+
+/**
+ * Remove a document record directly from Cloud Firestore and Realtime Database
+ */
+export async function deleteDocumentFromCloud(docId: string): Promise<{ success: boolean; error?: string }> {
+  if (!docId) return { success: false, error: 'No document ID specified for deletion' };
+
+  let rtdbDone = false;
+  let firestoreDone = false;
+  let errorMsg: string | undefined;
+
+  // 1. Remove from RTDB
+  if (rtdb) {
+    try {
+      const docRef = rtdbRef(rtdb, `${RTDB_CRM_STORE_PATH}/payload/documents/${docId}`);
+      await rtdbRemove(docRef).catch(() => {});
+      rtdbDone = true;
+    } catch (e: any) {
+      console.warn('[RTDB Document Removal Warning]', e);
+    }
+  }
+
+  // 2. Direct Firestore deletion
+  if (!isFirestoreQuotaExhausted()) {
+    try {
+      const directDocRef = doc(db, 'crm_documents', docId);
+      await deleteDoc(directDocRef).catch(() => {});
+      firestoreDone = true;
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `crm_documents/${docId}`);
+      errorMsg = err?.message || 'Firestore delete failed';
+    }
+  }
+
+  return { success: rtdbDone || firestoreDone, error: errorMsg };
+}
+
 

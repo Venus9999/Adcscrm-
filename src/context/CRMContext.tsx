@@ -4,6 +4,8 @@ import {
   loadCRMDataFromCloud,
   saveCRMDataToCloud,
   subscribeToCloudCRMData,
+  deleteClientFromCloud,
+  deleteDocumentFromCloud,
 } from '../services/firestoreStorage';
 import { signInWithGoogleAccount } from '../services/googleAuth';
 import {
@@ -265,6 +267,10 @@ interface CRMContextType {
   addCompany: (company: Omit<Company, 'id' | 'createdAt' | 'activeServicesCount' | 'totalClientsCount'>) => void;
   updateCompany: (id: string, updates: Partial<Company>) => void;
   deleteCompany: (id: string) => void;
+  createOrUpdateCompanyLogin: (companyId: string, loginData: { name: string; email: string; password?: string; securityPin?: string; title?: string }) => { success: boolean; user?: User; error?: string };
+  isMasterUser: boolean;
+  isCompanyScopedUser: boolean;
+  accessibleCompanies: Company[];
   addUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => void;
@@ -371,6 +377,11 @@ const DELETED_VENDORS_STORAGE_KEY = 'adcs_crm_deleted_vendor_ids';
 const DELETED_VISA_APPS_STORAGE_KEY = 'adcs_crm_deleted_visa_app_ids';
 const DELETED_VISA_COUNTRIES_STORAGE_KEY = 'adcs_crm_deleted_visa_country_codes';
 const DELETED_VISA_SERVICES_STORAGE_KEY = 'adcs_crm_deleted_visa_service_ids';
+const DELETED_CLIENTS_STORAGE_KEY = 'adcs_crm_deleted_client_ids';
+const DELETED_DOCUMENTS_STORAGE_KEY = 'adcs_crm_deleted_document_ids';
+const DELETED_INVOICES_STORAGE_KEY = 'adcs_crm_deleted_invoice_ids';
+const DELETED_TASKS_STORAGE_KEY = 'adcs_crm_deleted_task_ids';
+const DELETED_LEADS_STORAGE_KEY = 'adcs_crm_deleted_lead_ids';
 
 export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Load saved state or default
@@ -480,18 +491,119 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>(() =>
     getInitialStorageList('serviceCategories', INITIAL_SERVICE_CATEGORIES, true)
   );
-  const [clients, setClients] = useState<Client[]>(() =>
-    getInitialStorageList('clients', INITIAL_CLIENTS, false)
-  );
-  const [documents, setDocuments] = useState<DocumentItem[]>(() =>
-    getInitialStorageList('documents', INITIAL_DOCUMENTS, false)
-  );
-  const [tasks, setTasks] = useState<TaskItem[]>(() =>
-    getInitialStorageList('tasks', INITIAL_TASKS, false)
-  );
-  const [invoices, setInvoices] = useState<Invoice[]>(() =>
-    getInitialStorageList('invoices', INITIAL_INVOICES, false)
-  );
+  const [clients, setClients] = useState<Client[]>(() => {
+    try {
+      let deletedClientIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+        if (delRaw) deletedClientIds = JSON.parse(delRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.clients && Array.isArray(parsed.clients)) {
+          return (parsed.clients as Client[]).filter((c) => c && c.id && !deletedClientIds.includes(c.id));
+        }
+      }
+      return (INITIAL_CLIENTS || []).filter((c) => !deletedClientIds.includes(c.id));
+    } catch {
+      return INITIAL_CLIENTS || [];
+    }
+  });
+  const [documents, setDocuments] = useState<DocumentItem[]>(() => {
+    try {
+      let deletedDocIds: string[] = [];
+      let deletedClientIds: string[] = [];
+      try {
+        const delDocRaw = localStorage.getItem(DELETED_DOCUMENTS_STORAGE_KEY);
+        if (delDocRaw) deletedDocIds = JSON.parse(delDocRaw);
+        const delCliRaw = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+        if (delCliRaw) deletedClientIds = JSON.parse(delCliRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.documents && Array.isArray(parsed.documents)) {
+          return (parsed.documents as DocumentItem[]).filter(
+            (d) => d && d.id && !deletedDocIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))
+          );
+        }
+      }
+      return (INITIAL_DOCUMENTS || []).filter(
+        (d) => !deletedDocIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))
+      );
+    } catch {
+      return INITIAL_DOCUMENTS || [];
+    }
+  });
+  const [tasks, setTasks] = useState<TaskItem[]>(() => {
+    try {
+      let deletedTaskIds: string[] = [];
+      let deletedClientIds: string[] = [];
+      try {
+        const delTaskRaw = localStorage.getItem(DELETED_TASKS_STORAGE_KEY);
+        if (delTaskRaw) deletedTaskIds = JSON.parse(delTaskRaw);
+        const delCliRaw = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+        if (delCliRaw) deletedClientIds = JSON.parse(delCliRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.tasks && Array.isArray(parsed.tasks)) {
+          return (parsed.tasks as TaskItem[]).filter(
+            (t) => t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
+          );
+        }
+      }
+      return (INITIAL_TASKS || []).filter(
+        (t) => !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
+      );
+    } catch {
+      return INITIAL_TASKS || [];
+    }
+  });
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    try {
+      let deletedInvoiceIds: string[] = [];
+      let deletedClientIds: string[] = [];
+      try {
+        const delInvRaw = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY);
+        if (delInvRaw) deletedInvoiceIds = JSON.parse(delInvRaw);
+        const delCliRaw = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+        if (delCliRaw) deletedClientIds = JSON.parse(delCliRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.invoices && Array.isArray(parsed.invoices)) {
+          return (parsed.invoices as Invoice[]).filter(
+            (i) => i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
+          );
+        }
+      }
+      return (INITIAL_INVOICES || []).filter(
+        (i) => !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
+      );
+    } catch {
+      return INITIAL_INVOICES || [];
+    }
+  });
   const [messages, setMessages] = useState<MessageItem[]>(() =>
     getInitialStorageList('messages', INITIAL_MESSAGES, false)
   );
@@ -501,9 +613,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() =>
     getInitialStorageList('notifications', INITIAL_NOTIFICATIONS, false)
   );
-  const [leads, setLeads] = useState<Lead[]>(() =>
-    getInitialStorageList('leads', INITIAL_LEADS, false)
-  );
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    try {
+      let deletedLeadIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_LEADS_STORAGE_KEY);
+        if (delRaw) deletedLeadIds = JSON.parse(delRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.leads && Array.isArray(parsed.leads)) {
+          return (parsed.leads as Lead[]).filter((l) => l && l.id && !deletedLeadIds.includes(l.id));
+        }
+      }
+      return (INITIAL_LEADS || []).filter((l) => !deletedLeadIds.includes(l.id));
+    } catch {
+      return INITIAL_LEADS || [];
+    }
+  });
   const [leadCategories, setLeadCategories] = useState<LeadCategory[]>(() =>
     getInitialStorageList('leadCategories', INITIAL_LEAD_CATEGORIES, true)
   );
@@ -739,6 +871,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let deletedAppIds: string[] = [];
     let deletedCountryCodes: string[] = [];
     let deletedServiceIds: string[] = [];
+    let deletedClientIds: string[] = [];
+    let deletedDocumentIds: string[] = [];
+    let deletedTaskIds: string[] = [];
+    let deletedInvoiceIds: string[] = [];
+    let deletedLeadIds: string[] = [];
+
     try {
       const delCompRaw = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY);
       if (delCompRaw) deletedCompanyIds = JSON.parse(delCompRaw);
@@ -750,6 +888,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (delCodesRaw) deletedCountryCodes = JSON.parse(delCodesRaw);
       const delSrvRaw = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY);
       if (delSrvRaw) deletedServiceIds = JSON.parse(delSrvRaw);
+      const delCliRaw = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+      if (delCliRaw) deletedClientIds = JSON.parse(delCliRaw);
+      const delDocRaw = localStorage.getItem(DELETED_DOCUMENTS_STORAGE_KEY);
+      if (delDocRaw) deletedDocumentIds = JSON.parse(delDocRaw);
+      const delTaskRaw = localStorage.getItem(DELETED_TASKS_STORAGE_KEY);
+      if (delTaskRaw) deletedTaskIds = JSON.parse(delTaskRaw);
+      const delInvRaw = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY);
+      if (delInvRaw) deletedInvoiceIds = JSON.parse(delInvRaw);
+      const delLeadRaw = localStorage.getItem(DELETED_LEADS_STORAGE_KEY);
+      if (delLeadRaw) deletedLeadIds = JSON.parse(delLeadRaw);
 
       if (Array.isArray(parsed.deletedCompanyIds)) {
         parsed.deletedCompanyIds.forEach((id: string) => {
@@ -781,6 +929,36 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (id && !deletedServiceIds.includes(id)) deletedServiceIds.push(id);
         });
         localStorage.setItem(DELETED_VISA_SERVICES_STORAGE_KEY, JSON.stringify(deletedServiceIds));
+      }
+      if (Array.isArray(parsed.deletedClientIds)) {
+        parsed.deletedClientIds.forEach((id: string) => {
+          if (id && !deletedClientIds.includes(id)) deletedClientIds.push(id);
+        });
+        localStorage.setItem(DELETED_CLIENTS_STORAGE_KEY, JSON.stringify(deletedClientIds));
+      }
+      if (Array.isArray(parsed.deletedDocumentIds)) {
+        parsed.deletedDocumentIds.forEach((id: string) => {
+          if (id && !deletedDocumentIds.includes(id)) deletedDocumentIds.push(id);
+        });
+        localStorage.setItem(DELETED_DOCUMENTS_STORAGE_KEY, JSON.stringify(deletedDocumentIds));
+      }
+      if (Array.isArray(parsed.deletedTaskIds)) {
+        parsed.deletedTaskIds.forEach((id: string) => {
+          if (id && !deletedTaskIds.includes(id)) deletedTaskIds.push(id);
+        });
+        localStorage.setItem(DELETED_TASKS_STORAGE_KEY, JSON.stringify(deletedTaskIds));
+      }
+      if (Array.isArray(parsed.deletedInvoiceIds)) {
+        parsed.deletedInvoiceIds.forEach((id: string) => {
+          if (id && !deletedInvoiceIds.includes(id)) deletedInvoiceIds.push(id);
+        });
+        localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(deletedInvoiceIds));
+      }
+      if (Array.isArray(parsed.deletedLeadIds)) {
+        parsed.deletedLeadIds.forEach((id: string) => {
+          if (id && !deletedLeadIds.includes(id)) deletedLeadIds.push(id);
+        });
+        localStorage.setItem(DELETED_LEADS_STORAGE_KEY, JSON.stringify(deletedLeadIds));
       }
     } catch {}
 
@@ -902,50 +1080,64 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) setServiceCategories(parsed.serviceCategories);
     if (parsed.clients && Array.isArray(parsed.clients)) {
       const parsedInvoices = Array.isArray(parsed.invoices) ? parsed.invoices : [];
-      const cleanClients = parsed.clients.map((c: any) => {
-        const clientEmail = (c.email || '').toLowerCase().trim();
-        const userInvoices = parsedInvoices.filter(
-          (inv: any) =>
-            inv &&
-            (inv.clientId === c.id ||
-              (inv.clientEmail && inv.clientEmail.toLowerCase().trim() === clientEmail))
-        );
-        let totalAmount = c.totalAmount || 0;
-        let outstandingAmount = c.outstandingAmount || 0;
-        let services = Array.isArray(c.services) ? c.services : [];
+      const cleanClients = parsed.clients
+        .filter((c: any) => c && c.id && !deletedClientIds.includes(c.id))
+        .map((c: any) => {
+          const clientEmail = (c.email || '').toLowerCase().trim();
+          const userInvoices = parsedInvoices.filter(
+            (inv: any) =>
+              inv &&
+              (inv.clientId === c.id ||
+                (inv.clientEmail && inv.clientEmail.toLowerCase().trim() === clientEmail))
+          );
+          let totalAmount = c.totalAmount || 0;
+          let outstandingAmount = c.outstandingAmount || 0;
+          let services = Array.isArray(c.services) ? c.services : [];
 
-        // If client has no real invoices and their balance is the hardcoded 4700 legacy balance, reset to clean slate
-        if (userInvoices.length === 0 && (totalAmount === 4700 || outstandingAmount === 4700)) {
-          totalAmount = 0;
-          outstandingAmount = 0;
-          services = services.filter((s: any) => s && s.serviceId !== 'srv-residency-visa');
-        }
+          // If client has no real invoices and their balance is the hardcoded 4700 legacy balance, reset to clean slate
+          if (userInvoices.length === 0 && (totalAmount === 4700 || outstandingAmount === 4700)) {
+            totalAmount = 0;
+            outstandingAmount = 0;
+            services = services.filter((s: any) => s && s.serviceId !== 'srv-residency-visa');
+          }
 
-        return {
-          ...c,
-          totalAmount,
-          outstandingAmount,
-          services,
-          notes: Array.isArray(c.notes) ? c.notes : [],
-          tags: Array.isArray(c.tags) ? c.tags : [],
-        };
-      });
-      setClients((prev) => mergeEntitiesById(prev, cleanClients, []));
+          return {
+            ...c,
+            totalAmount,
+            outstandingAmount,
+            services,
+            notes: Array.isArray(c.notes) ? c.notes : [],
+            tags: Array.isArray(c.tags) ? c.tags : [],
+          };
+        });
+      setClients(cleanClients);
     }
     if (parsed.documents && Array.isArray(parsed.documents)) {
-      setDocuments((prev) => mergeEntitiesById(prev, parsed.documents, []));
+      const cleanDocs = parsed.documents.filter(
+        (d: any) => d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))
+      );
+      setDocuments(cleanDocs);
     }
     if (parsed.tasks && Array.isArray(parsed.tasks)) {
-      setTasks((prev) => mergeEntitiesById(prev, parsed.tasks, []));
+      const cleanTasks = parsed.tasks.filter(
+        (t: any) => t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
+      );
+      setTasks(cleanTasks);
     }
     if (parsed.invoices && Array.isArray(parsed.invoices)) {
-      setInvoices((prev) => mergeEntitiesById(prev, parsed.invoices, []));
+      const cleanInvoices = parsed.invoices.filter(
+        (i: any) => i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
+      );
+      setInvoices(cleanInvoices);
     }
     if (parsed.messages && Array.isArray(parsed.messages)) setMessages(parsed.messages);
     if (parsed.auditLogs && Array.isArray(parsed.auditLogs)) setAuditLogs(parsed.auditLogs);
     if (parsed.notifications && Array.isArray(parsed.notifications)) setNotifications(parsed.notifications);
     if (parsed.leads && Array.isArray(parsed.leads)) {
-      setLeads((prev) => mergeEntitiesById(prev, parsed.leads, []));
+      const cleanLeads = parsed.leads.filter(
+        (ld: any) => ld && ld.id && !deletedLeadIds.includes(ld.id)
+      );
+      setLeads(cleanLeads);
     }
     if (parsed.leadCategories && Array.isArray(parsed.leadCategories)) {
       setLeadCategories((prev) => mergeEntitiesById(prev, parsed.leadCategories, INITIAL_LEAD_CATEGORIES));
@@ -1339,6 +1531,54 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       deletedCompanyIds: (() => {
         try {
           const raw = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      deletedClientIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      deletedDocumentIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_DOCUMENTS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      deletedTaskIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_TASKS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      deletedInvoiceIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      deletedLeadIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_LEADS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      deletedUserIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_USERS_STORAGE_KEY);
           return raw ? JSON.parse(raw) : [];
         } catch {
           return [];
@@ -3411,16 +3651,96 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const client = clients.find((c) => c.id === id);
       if (!client) return;
 
-      setClients((prev) => (prev || []).filter((c) => c && c.id !== id));
-      setDocuments((prev) => (prev || []).filter((d) => d && d.clientId !== id));
-      setTasks((prev) => (prev || []).filter((t) => t && t.clientId !== id));
-      setInvoices((prev) => (prev || []).filter((i) => i && i.clientId !== id));
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      let nextDeletedClientIds: string[] = [];
+      let nextDeletedDocIds: string[] = [];
+      let nextDeletedTaskIds: string[] = [];
+      let nextDeletedInvoiceIds: string[] = [];
+
+      try {
+        const rawClients = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+        if (rawClients) nextDeletedClientIds = JSON.parse(rawClients);
+        if (!nextDeletedClientIds.includes(id)) nextDeletedClientIds.push(id);
+        localStorage.setItem(DELETED_CLIENTS_STORAGE_KEY, JSON.stringify(nextDeletedClientIds));
+
+        // Also record related documents, tasks, and invoices in tombstones
+        const relatedDocs = (documents || []).filter((d) => d && d.clientId === id);
+        const rawDocs = localStorage.getItem(DELETED_DOCUMENTS_STORAGE_KEY);
+        if (rawDocs) nextDeletedDocIds = JSON.parse(rawDocs);
+        relatedDocs.forEach((d) => {
+          if (!nextDeletedDocIds.includes(d.id)) nextDeletedDocIds.push(d.id);
+        });
+        localStorage.setItem(DELETED_DOCUMENTS_STORAGE_KEY, JSON.stringify(nextDeletedDocIds));
+
+        const relatedTasks = (tasks || []).filter((t) => t && t.clientId === id);
+        const rawTasks = localStorage.getItem(DELETED_TASKS_STORAGE_KEY);
+        if (rawTasks) nextDeletedTaskIds = JSON.parse(rawTasks);
+        relatedTasks.forEach((t) => {
+          if (!nextDeletedTaskIds.includes(t.id)) nextDeletedTaskIds.push(t.id);
+        });
+        localStorage.setItem(DELETED_TASKS_STORAGE_KEY, JSON.stringify(nextDeletedTaskIds));
+
+        const relatedInvoices = (invoices || []).filter((i) => i && i.clientId === id);
+        const rawInvoices = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY);
+        if (rawInvoices) nextDeletedInvoiceIds = JSON.parse(rawInvoices);
+        relatedInvoices.forEach((i) => {
+          if (!nextDeletedInvoiceIds.includes(i.id)) nextDeletedInvoiceIds.push(i.id);
+        });
+        localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(nextDeletedInvoiceIds));
+      } catch {}
+
+      const nextClients = (clients || []).filter((c) => c && c.id !== id);
+      const nextDocs = (documents || []).filter((d) => d && d.clientId !== id);
+      const nextTasks = (tasks || []).filter((t) => t && t.clientId !== id);
+      const nextInvoices = (invoices || []).filter((i) => i && i.clientId !== id);
+
+      setClients(nextClients);
+      setDocuments(nextDocs);
+      setTasks(nextTasks);
+      setInvoices(nextInvoices);
 
       if (selectedClientId === id) setSelectedClientId(null);
 
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.clients = nextClients;
+          parsed.documents = nextDocs;
+          parsed.tasks = nextTasks;
+          parsed.invoices = nextInvoices;
+          parsed.deletedClientIds = nextDeletedClientIds;
+          parsed.deletedDocumentIds = nextDeletedDocIds;
+          parsed.deletedTaskIds = nextDeletedTaskIds;
+          parsed.deletedInvoiceIds = nextDeletedInvoiceIds;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+              type: 'CRM_TAB_UPDATE',
+              snapshot: parsed,
+            });
+          }
+
+          deleteClientFromCloud(id).catch(() => {});
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
+
       recordAuditLog('Client Deleted', 'Clients', `Deleted client ${client.fullName} and related records`);
     },
-    [clients, selectedClientId, recordAuditLog, checkDeletePermission]
+    [clients, documents, tasks, invoices, selectedClientId, recordAuditLog, checkDeletePermission]
   );
 
   // Add Note to Client (Internal / Sent via WhatsApp / Email)
@@ -4252,10 +4572,66 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteDocument = useCallback(
     (docId: string) => {
       if (!checkDeletePermission('Document', docId)) return;
-      setDocuments((prev) => (prev || []).filter((d) => d && d.id !== docId));
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      let nextDeletedDocIds: string[] = [];
+      try {
+        const rawDel = localStorage.getItem(DELETED_DOCUMENTS_STORAGE_KEY);
+        if (rawDel) nextDeletedDocIds = JSON.parse(rawDel);
+        if (!nextDeletedDocIds.includes(docId)) nextDeletedDocIds.push(docId);
+        localStorage.setItem(DELETED_DOCUMENTS_STORAGE_KEY, JSON.stringify(nextDeletedDocIds));
+      } catch {}
+
+      const nextDocs = (documents || []).filter((d) => d && d.id !== docId);
+      setDocuments(nextDocs);
+
+      // Also clean up client requiredDocs if linked
+      setClients((prevClients) =>
+        (prevClients || []).map((c) => {
+          if (!c.services) return c;
+          const updatedServices = c.services.map((s) => ({
+            ...s,
+            requiredDocs: (s.requiredDocs || []).map((req) =>
+              req.documentId === docId ? { ...req, isUploaded: false, status: 'pending' as const, fileUrl: undefined, documentId: undefined } : req
+            ),
+          }));
+          return { ...c, services: updatedServices };
+        })
+      );
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.documents = nextDocs;
+          parsed.deletedDocumentIds = nextDeletedDocIds;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+              type: 'CRM_TAB_UPDATE',
+              snapshot: parsed,
+            });
+          }
+
+          deleteDocumentFromCloud(docId).catch(() => {});
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
+
       recordAuditLog('Document Deleted', 'Documents', `Deleted document ID ${docId}`);
     },
-    [recordAuditLog, checkDeletePermission]
+    [documents, recordAuditLog, checkDeletePermission]
   );
 
   // Tasks
@@ -4358,10 +4734,51 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteTask = useCallback(
     (taskId: string) => {
       if (!checkDeletePermission('Task', taskId)) return;
-      setTasks((prev) => (prev || []).filter((t) => t && t.id !== taskId));
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      let nextDeletedTaskIds: string[] = [];
+      try {
+        const rawDel = localStorage.getItem(DELETED_TASKS_STORAGE_KEY);
+        if (rawDel) nextDeletedTaskIds = JSON.parse(rawDel);
+        if (!nextDeletedTaskIds.includes(taskId)) nextDeletedTaskIds.push(taskId);
+        localStorage.setItem(DELETED_TASKS_STORAGE_KEY, JSON.stringify(nextDeletedTaskIds));
+      } catch {}
+
+      const nextTasks = (tasks || []).filter((t) => t && t.id !== taskId);
+      setTasks(nextTasks);
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.tasks = nextTasks;
+          parsed.deletedTaskIds = nextDeletedTaskIds;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+              type: 'CRM_TAB_UPDATE',
+              snapshot: parsed,
+            });
+          }
+
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
+
       recordAuditLog('Task Deleted', 'Tasks', `Deleted task ID ${taskId}`);
     },
-    [recordAuditLog, checkDeletePermission]
+    [tasks, recordAuditLog, checkDeletePermission]
   );
 
   const addTaskComment = useCallback(
@@ -4638,31 +5055,74 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteInvoice = useCallback(
     (invoiceId: string) => {
       if (!checkDeletePermission('Invoice', invoiceId)) return;
-      const inv = invoices.find((i) => i.id === invoiceId);
-      setInvoices((prev) => (prev || []).filter((i) => i && i.id !== invoiceId));
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      let nextDeletedInvoiceIds: string[] = [];
+      try {
+        const rawDel = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY);
+        if (rawDel) nextDeletedInvoiceIds = JSON.parse(rawDel);
+        if (!nextDeletedInvoiceIds.includes(invoiceId)) nextDeletedInvoiceIds.push(invoiceId);
+        localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(nextDeletedInvoiceIds));
+      } catch {}
+
+      const inv = (invoices || []).find((i) => i && i.id === invoiceId);
+      const nextInvoices = (invoices || []).filter((i) => i && i.id !== invoiceId);
+      setInvoices(nextInvoices);
+
+      let nextClients = clients;
       if (inv) {
-        setClients((prev) =>
-          prev.map((c) => {
-            if (c.id === inv.clientId) {
-              const newTotal = Math.max(0, c.totalAmount - inv.grandTotal);
-              const newPaid = Math.max(0, c.paidAmount - inv.amountPaid);
-              const newOutstanding = Math.max(0, newTotal - newPaid);
-              return {
-                ...c,
-                totalAmount: newTotal,
-                paidAmount: newPaid,
-                outstandingAmount: newOutstanding,
-                paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
-                updatedAt: new Date().toISOString(),
-              };
-            }
-            return c;
-          })
-        );
+        nextClients = (clients || []).map((c) => {
+          if (c.id === inv.clientId) {
+            const newTotal = Math.max(0, c.totalAmount - inv.grandTotal);
+            const newPaid = Math.max(0, c.paidAmount - inv.amountPaid);
+            const newOutstanding = Math.max(0, newTotal - newPaid);
+            return {
+              ...c,
+              totalAmount: newTotal,
+              paidAmount: newPaid,
+              outstandingAmount: newOutstanding,
+              paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return c;
+        });
+        setClients(nextClients);
       }
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.invoices = nextInvoices;
+          parsed.clients = nextClients;
+          parsed.deletedInvoiceIds = nextDeletedInvoiceIds;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+              type: 'CRM_TAB_UPDATE',
+              snapshot: parsed,
+            });
+          }
+
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
+
       recordAuditLog('Invoice Deleted', 'Payments', `Deleted invoice ID ${invoiceId}`);
     },
-    [invoices, recordAuditLog, checkDeletePermission]
+    [invoices, clients, recordAuditLog, checkDeletePermission]
   );
 
   // Services Catalog & Classification Management
@@ -5237,11 +5697,49 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
-      setLeads((prev) => (prev || []).filter((ld) => ld.id !== id));
-      setTasks((prev) => (prev || []).filter((t) => t.leadId !== id));
+      let nextDeletedLeadIds: string[] = [];
+      try {
+        const rawDel = localStorage.getItem(DELETED_LEADS_STORAGE_KEY);
+        if (rawDel) nextDeletedLeadIds = JSON.parse(rawDel);
+        if (!nextDeletedLeadIds.includes(id)) nextDeletedLeadIds.push(id);
+        localStorage.setItem(DELETED_LEADS_STORAGE_KEY, JSON.stringify(nextDeletedLeadIds));
+      } catch {}
+
+      const nextLeads = (leads || []).filter((ld) => ld && ld.id !== id);
+      const nextTasks = (tasks || []).filter((t) => t && t.leadId !== id);
+      setLeads(nextLeads);
+      setTasks(nextTasks);
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.leads = nextLeads;
+          parsed.tasks = nextTasks;
+          parsed.deletedLeadIds = nextDeletedLeadIds;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+              type: 'CRM_TAB_UPDATE',
+              snapshot: parsed,
+            });
+          }
+
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
+
       recordAuditLog('Lead Deleted', 'Leads', `Deleted lead record ID ${id}`);
     },
-    [recordAuditLog, checkDeletePermission]
+    [leads, tasks, recordAuditLog, checkDeletePermission]
   );
 
   // Bulk Assign Leads
@@ -5945,24 +6443,126 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Companies & Users
   const addCompany = useCallback(
     (compData: Omit<Company, 'id' | 'createdAt' | 'activeServicesCount' | 'totalClientsCount'>) => {
+      const newCompId = `comp-${Date.now()}`;
       const creatorEmpIds = [...(compData.employeeIds || [])];
       if (currentUser?.id && currentUser.role !== 'client' && !creatorEmpIds.includes(currentUser.id)) {
         creatorEmpIds.push(currentUser.id);
       }
+
+      // Provision company administrator account if portal login is enabled or email provided
+      const adminEmail = (compData.portalLoginEmail || compData.email || '').toLowerCase().trim();
+      let adminUserId = compData.adminId;
+      let createdAdminUser: User | null = null;
+
+      if (adminEmail && compData.portalLoginEnabled !== false) {
+        adminUserId = `user-admin-${Date.now()}`;
+        const adminName = compData.portalAdminName || `${compData.name} Administrator`;
+        const adminPassword = compData.portalTempPassword || 'Company@2026!';
+        const adminPin = compData.portalSecurityPin || '1234';
+        const adminTitle = compData.portalAdminRole || (compData.isBranch ? 'Branch General Manager' : 'Company Managing Director');
+
+        createdAdminUser = {
+          id: adminUserId,
+          name: adminName,
+          email: adminEmail,
+          phone: compData.phone || '+971 4 000 0000',
+          password: adminPassword,
+          securityPin: adminPin,
+          role: 'admin',
+          companyId: newCompId,
+          companyIds: [newCompId],
+          title: adminTitle,
+          jobTitle: adminTitle,
+          department: 'Management',
+          status: 'active',
+          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+          permissions: {
+            canViewAllCompanies: false,
+            canCreateClients: true,
+            canEditStages: true,
+            canManagePayments: true,
+            canManageBilling: true,
+            canEditInvoices: true,
+            canAssignEmployees: true,
+            canExportReports: true,
+            canViewReports: true,
+            canManageLeads: true,
+            canManageTransactions: true,
+            canManageUsers: true,
+            canManageCompanies: false,
+            canCreateCompanies: false,
+            canManageBranches: true,
+            canCreateBranches: true,
+            canManageDocuments: true,
+            canManageVendors: true,
+            canDeleteRecords: false,
+          },
+          createdAt: new Date().toISOString(),
+        };
+
+        if (!creatorEmpIds.includes(adminUserId)) {
+          creatorEmpIds.push(adminUserId);
+        }
+      }
+
+      const assignedAdmins = Array.from(
+        new Set([
+          ...(compData.assignedAdminIds || []),
+          ...(adminUserId ? [adminUserId] : []),
+        ])
+      );
+
       const newComp: Company = {
         ...compData,
         employeeIds: creatorEmpIds,
-        id: `comp-${Date.now()}`,
+        id: newCompId,
+        adminId: adminUserId || compData.adminId || currentUser?.id || 'user-master',
+        assignedAdminIds: assignedAdmins,
+        portalUserId: adminUserId || undefined,
+        portalLoginEnabled: compData.portalLoginEnabled !== false,
+        portalLoginEmail: adminEmail || compData.portalLoginEmail,
+        portalAdminName: compData.portalAdminName || `${compData.name} Administrator`,
+        portalAdminRole: compData.portalAdminRole || (compData.isBranch ? 'Branch General Manager' : 'Company Managing Director'),
+        portalTempPassword: compData.portalTempPassword || 'Company@2026!',
+        portalSecurityPin: compData.portalSecurityPin || '1234',
         activeServicesCount: 0,
         totalClientsCount: 0,
         createdAt: new Date().toISOString(),
       };
+
       hasUserEditedRef.current = true;
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
       setCompanies((prev) => [...prev, newComp]);
+
+      // Add or update the admin user in users state
+      if (createdAdminUser) {
+        setUsers((prevUsers) => {
+          const existingIndex = prevUsers.findIndex((u) => u.email.toLowerCase().trim() === adminEmail);
+          if (existingIndex >= 0) {
+            const existing = prevUsers[existingIndex];
+            const updated: User = {
+              ...existing,
+              name: compData.portalAdminName || existing.name,
+              password: compData.portalTempPassword || existing.password || 'Company@2026!',
+              securityPin: compData.portalSecurityPin || existing.securityPin || '1234',
+              companyId: newCompId,
+              companyIds: Array.from(new Set([...(existing.companyIds || []), newCompId])),
+              role: existing.role === 'master' ? 'master' : 'admin',
+              permissions: {
+                ...existing.permissions,
+                canViewAllCompanies: existing.role === 'master' ? true : false,
+              },
+            };
+            const copy = [...prevUsers];
+            copy[existingIndex] = updated;
+            return copy;
+          }
+          return [...prevUsers, createdAdminUser!];
+        });
+      }
 
       // Synchronize assigned employees' user profiles
       if (creatorEmpIds.length > 0) {
@@ -5983,9 +6583,126 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
 
-      recordAuditLog('Company Registered', 'Companies', `Registered new company / branch: ${newComp.name}`);
+      recordAuditLog('Company Registered', 'Companies', `Registered new company / branch: ${newComp.name} with portal login for ${adminEmail || 'admin'}`);
     },
     [recordAuditLog, currentUser]
+  );
+
+  const createOrUpdateCompanyLogin = useCallback(
+    (companyId: string, loginData: { name: string; email: string; password?: string; securityPin?: string; title?: string }) => {
+      const cleanEmail = (loginData.email || '').toLowerCase().trim();
+      if (!cleanEmail) {
+        return { success: false, error: 'Email is required for portal login.' };
+      }
+
+      const pass = loginData.password || 'Company@2026!';
+      const pin = loginData.securityPin || '1234';
+      const title = loginData.title || 'Company Managing Director';
+      const name = loginData.name || 'Company Administrator';
+
+      let targetUser: User | null = null;
+      let targetUserId = '';
+
+      setUsers((prevUsers) => {
+        const existingIndex = prevUsers.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail);
+        if (existingIndex >= 0) {
+          const existing = prevUsers[existingIndex];
+          targetUserId = existing.id;
+          const updated: User = {
+            ...existing,
+            name,
+            password: pass,
+            securityPin: pin,
+            companyId: companyId,
+            companyIds: Array.from(new Set([...(existing.companyIds || []), companyId])),
+            role: existing.role === 'master' ? 'master' : 'admin',
+            title,
+            jobTitle: title,
+            permissions: {
+              ...existing.permissions,
+              canViewAllCompanies: existing.role === 'master' ? true : false,
+            },
+          };
+          targetUser = updated;
+          const copy = [...prevUsers];
+          copy[existingIndex] = updated;
+          return copy;
+        }
+
+        targetUserId = `user-admin-${Date.now()}`;
+        const newUser: User = {
+          id: targetUserId,
+          name,
+          email: cleanEmail,
+          phone: '+971 4 000 0000',
+          password: pass,
+          securityPin: pin,
+          role: 'admin',
+          companyId,
+          companyIds: [companyId],
+          title,
+          jobTitle: title,
+          department: 'Management',
+          status: 'active',
+          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+          permissions: {
+            canViewAllCompanies: false,
+            canCreateClients: true,
+            canEditStages: true,
+            canManagePayments: true,
+            canManageBilling: true,
+            canEditInvoices: true,
+            canAssignEmployees: true,
+            canExportReports: true,
+            canViewReports: true,
+            canManageLeads: true,
+            canManageTransactions: true,
+            canManageUsers: true,
+            canManageCompanies: false,
+            canCreateCompanies: false,
+            canManageBranches: true,
+            canCreateBranches: true,
+            canManageDocuments: true,
+            canManageVendors: true,
+            canDeleteRecords: false,
+          },
+          createdAt: new Date().toISOString(),
+        };
+        targetUser = newUser;
+        return [...prevUsers, newUser];
+      });
+
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      setCompanies((prev) =>
+        prev.map((c) => {
+          if (c.id === companyId) {
+            const adminId = targetUserId || c.adminId;
+            return {
+              ...c,
+              portalLoginEnabled: true,
+              portalLoginEmail: cleanEmail,
+              portalAdminName: name,
+              portalAdminRole: title,
+              portalTempPassword: pass,
+              portalSecurityPin: pin,
+              portalUserId: adminId,
+              adminId: adminId,
+              assignedAdminIds: Array.from(new Set([...(c.assignedAdminIds || []), adminId])),
+              employeeIds: Array.from(new Set([...(c.employeeIds || []), adminId])),
+            };
+          }
+          return c;
+        })
+      );
+
+      recordAuditLog('Company Login Configured', 'Security', `Configured portal login credentials for company ${companyId}: ${cleanEmail}`);
+      return { success: true, user: targetUser || undefined };
+    },
+    [recordAuditLog]
   );
 
   const updateCompany = useCallback(
@@ -6019,6 +6736,27 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return c;
         })
       );
+
+      // If portal credentials were updated, synchronize user profile as well
+      if (updates.portalLoginEmail) {
+        const cleanEmail = updates.portalLoginEmail.toLowerCase().trim();
+        setUsers((prevUsers) => {
+          const userIdx = prevUsers.findIndex((u) => u.email.toLowerCase().trim() === cleanEmail || (updates.portalUserId && u.id === updates.portalUserId));
+          if (userIdx >= 0) {
+            const copy = [...prevUsers];
+            copy[userIdx] = {
+              ...copy[userIdx],
+              name: updates.portalAdminName || copy[userIdx].name,
+              email: cleanEmail,
+              password: updates.portalTempPassword || copy[userIdx].password,
+              securityPin: updates.portalSecurityPin || copy[userIdx].securityPin,
+              title: updates.portalAdminRole || copy[userIdx].title,
+            };
+            return copy;
+          }
+          return prevUsers;
+        });
+      }
 
       // If employeeIds were explicitly updated, bidirectionally synchronize users state
       if (updates.employeeIds !== undefined) {
@@ -8131,15 +8869,34 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [users, currentUser?.id, currentUser?.email, currentUser?.companyId, currentUser?.companyIds, currentUser?.role, currentUser?.department, currentUser?.permissions]);
 
+  // Check global admin privileges (Master or unassigned global admin)
+  const isGlobalAdmin = React.useMemo(() => {
+    if (currentUser?.role === 'master' || currentUser?.email?.toLowerCase().trim() === 'master@adcs.ae' || currentUser?.email?.toLowerCase().trim() === 'gurpreet.singh369@gmail.com') {
+      return true;
+    }
+    if (currentUser?.role === 'admin' && !currentUser?.companyId && currentUser?.permissions?.canViewAllCompanies !== false) {
+      return true;
+    }
+    return Boolean(currentUser?.permissions?.canViewAllCompanies);
+  }, [currentUser]);
+
+  const isMasterUser = React.useMemo(() => {
+    return Boolean(currentUser?.role === 'master' || currentUser?.email?.toLowerCase().trim() === 'master@adcs.ae');
+  }, [currentUser]);
+
+  const isCompanyScopedUser = React.useMemo(() => {
+    return !isGlobalAdmin;
+  }, [isGlobalAdmin]);
+
   // Base list of companies accessible to current user (irrespective of selectedCompanyId filter)
   const accessibleCompanies = React.useMemo(() => {
-    // Master and Admin have access to all companies
-    if (currentUser?.role === 'master' || currentUser?.role === 'admin') {
+    if (isGlobalAdmin) {
       return companies || [];
     }
 
     const latestUser = (users || []).find((u) => u.id === currentUser?.id) || currentUser;
     const userRole = latestUser?.role || currentUser?.role;
+    const userCleanEmail = (latestUser?.email || currentUser?.email || '').toLowerCase().trim();
 
     if (userRole === 'client') {
       const clientCompanyIds = [
@@ -8157,17 +8914,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return matched.length > 0 ? matched : (companies || []).slice(0, 1);
     }
 
-    // Check staff access privileges (Only if explicitly allowed to view all companies)
-    const hasViewAllCompaniesPrivilege =
-      Boolean(latestUser?.permissions?.canViewAllCompanies) ||
-      Boolean(currentUser?.permissions?.canViewAllCompanies);
-
-    if (hasViewAllCompaniesPrivilege) {
-      return companies || [];
-    }
-
-    // For employees, officers, and agents: ONLY return the companies/branches they are specifically assigned to
-    const assignedCompanyIds = new Set<string>([
+    // For company admins, branch managers, officers, and employees: ONLY return their assigned company and subsidiaries
+    const directCompanyIds = new Set<string>([
       ...(latestUser?.companyIds || []),
       ...(latestUser?.companyId ? [latestUser.companyId] : []),
       ...(currentUser?.companyIds || []),
@@ -8177,10 +8925,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const accessible = (companies || []).filter((comp) => {
       if (!comp) return false;
 
-      // 1. Directly assigned via employee profile (companyId or companyIds)
-      if (assignedCompanyIds.has(comp.id)) return true;
+      // 1. Directly assigned via company ID or companyIds
+      if (directCompanyIds.has(comp.id)) return true;
 
-      // 2. Assigned via company staff roster (employeeIds / adminId / assignedAdminIds)
+      // 2. Assigned via portal login email or portal user
+      if (comp.portalUserId && (comp.portalUserId === latestUser?.id || comp.portalUserId === currentUser?.id)) return true;
+      if (comp.portalLoginEmail && comp.portalLoginEmail.toLowerCase().trim() === userCleanEmail) return true;
+
+      // 3. Assigned via company staff / admin roster
       if (comp.employeeIds && (comp.employeeIds.includes(latestUser.id) || comp.employeeIds.includes(currentUser.id))) {
         return true;
       }
@@ -8192,8 +8944,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return false;
     });
 
+    // Also include branch offices whose parentCompanyId is one of the user's accessible companies
+    const accessibleParentIds = new Set(accessible.map((c) => c.id));
+    const allWithBranches = (companies || []).filter((comp) => {
+      if (!comp) return false;
+      if (accessibleParentIds.has(comp.id)) return true;
+      if (comp.parentCompanyId && accessibleParentIds.has(comp.parentCompanyId)) return true;
+      return false;
+    });
+
+    if (allWithBranches.length > 0) return allWithBranches;
+
     // Fallback if no specific assignment found: match user's direct primary companyId if present
-    if (accessible.length === 0 && (companies || []).length > 0) {
+    if ((companies || []).length > 0) {
       if (latestUser?.companyId) {
         const found = (companies || []).filter((c) => c && c.id === latestUser.companyId);
         if (found.length > 0) return found;
@@ -8201,8 +8964,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return [(companies || [])[0]];
     }
 
-    return accessible;
-  }, [companies, users, currentUser]);
+    return [];
+  }, [companies, users, currentUser, isGlobalAdmin]);
+
+  const accessibleCompanyIdSet = React.useMemo(() => {
+    return new Set((accessibleCompanies || []).map((c) => c.id));
+  }, [accessibleCompanies]);
 
   const filteredCompanies = React.useMemo(() => {
     return accessibleCompanies.filter((comp) => {
@@ -8215,7 +8982,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Auto-reset selectedCompanyId to 'all' if the employee/client doesn't have permission for the current company view
   useEffect(() => {
-    if (isEmployeeRole || isClientRole) {
+    if (!isGlobalAdmin) {
       if (selectedCompanyId !== 'all' && filteredCompanies.length > 0) {
         const hasAccess = filteredCompanies.some((c) => c.id === selectedCompanyId);
         if (!hasAccess) {
@@ -8223,7 +8990,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       }
     }
-  }, [isEmployeeRole, isClientRole, selectedCompanyId, filteredCompanies, setSelectedCompanyId]);
+  }, [isGlobalAdmin, selectedCompanyId, filteredCompanies, setSelectedCompanyId]);
 
   const filteredClients = React.useMemo(() => {
     return (clients || []).filter((c) => {
@@ -8234,6 +9001,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           (c.email && c.email.toLowerCase().trim() === userCleanEmail) ||
           (currentUser?.id && c.id === currentUser.id);
         return Boolean(isSelf);
+      }
+
+      // Strict company-level isolation for non-global admin
+      if (!isGlobalAdmin) {
+        const inComp = c.companyId ? accessibleCompanyIdSet.has(c.companyId) : false;
+        const isAssigned =
+          (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
+          (c as any).assignedEmployeeId === currentUser?.id ||
+          c.assignedAdminId === currentUser?.id;
+        if (!inComp && !isAssigned) return false;
       }
 
       if (selectedCompanyId !== 'all' && c.companyId && c.companyId !== selectedCompanyId) return false;
@@ -8261,7 +9038,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [clients, isClientRole, isEmployeeRole, currentUser, selectedCompanyId, selectedEmployeeId]);
+  }, [clients, isClientRole, isEmployeeRole, isGlobalAdmin, currentUser, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
 
   const selfClientProfile = React.useMemo(() => {
     if (!isClientRole) return null;
@@ -8280,6 +9057,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return (vendors || []).filter((v) => {
       if (!v) return false;
       if (isClientRole) return false;
+
+      if (!isGlobalAdmin) {
+        if (v.companyId && !accessibleCompanyIdSet.has(v.companyId)) return false;
+      }
+
       if (isEmployeeRole) {
         // Vendors section is only visible to specific employees assigned by master or admin
         const isAssigned =
@@ -8295,7 +9077,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       return true;
     });
-  }, [vendors, isClientRole, isEmployeeRole, currentUser, selectedCompanyId]);
+  }, [vendors, isClientRole, isEmployeeRole, isGlobalAdmin, currentUser, selectedCompanyId, accessibleCompanyIdSet]);
 
   const filteredInvoices = React.useMemo(() => {
     return (invoices || []).filter((i) => {
@@ -8312,6 +9094,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           (linkedClient && currentUser?.id && linkedClient.id === currentUser.id) ||
           (selfClientProfile && linkedClient && linkedClient.id === selfClientProfile.id);
         return Boolean(isMatch);
+      }
+
+      // Company scope restriction
+      if (!isGlobalAdmin) {
+        const inComp = (i.companyId && accessibleCompanyIdSet.has(i.companyId)) || (linkedClient?.companyId && accessibleCompanyIdSet.has(linkedClient.companyId));
+        if (!inComp) return false;
       }
 
       if (selectedCompanyId !== 'all' && i.companyId !== selectedCompanyId) return false;
@@ -8343,7 +9131,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [invoices, clients, currentUser, isClientRole, isEmployeeRole, selfClientProfile, selectedCompanyId, selectedEmployeeId]);
+  }, [invoices, clients, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
 
   const filteredTasks = React.useMemo(() => {
     return (tasks || []).filter((t) => {
@@ -8356,6 +9144,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           (t.clientId && currentUser?.id && t.clientId === currentUser.id) ||
           (selfClientProfile && t.clientId === selfClientProfile.id)
         );
+      }
+
+      // Company scope restriction
+      if (!isGlobalAdmin) {
+        const linkedClient = (clients || []).find((c) => c && c.id === t.clientId);
+        const inComp = (t.companyId && accessibleCompanyIdSet.has(t.companyId)) || (linkedClient?.companyId && accessibleCompanyIdSet.has(linkedClient.companyId));
+        const isAssigned = t.assignedEmployeeId === currentUser?.id || (t as any).createdByUserId === currentUser?.id;
+        if (!inComp && !isAssigned) return false;
       }
 
       if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
@@ -8383,7 +9179,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [tasks, clients, currentUser, isClientRole, isEmployeeRole, selfClientProfile, selectedCompanyId, selectedEmployeeId]);
+  }, [tasks, clients, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
 
   const filteredDocuments = React.useMemo(() => {
     return (documents || []).filter((d) => {
@@ -8397,6 +9193,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           (d.clientId && currentUser?.id && d.clientId === currentUser.id) ||
           (selfClientProfile && d.clientId === selfClientProfile.id)
         );
+      }
+
+      // Company scope restriction
+      if (!isGlobalAdmin) {
+        const inComp = (client?.companyId && accessibleCompanyIdSet.has(client.companyId)) || ((d as any).companyId && accessibleCompanyIdSet.has((d as any).companyId));
+        const isUploader = d.uploadedByUserId === currentUser?.id;
+        if (!inComp && !isUploader) return false;
       }
 
       if (selectedCompanyId !== 'all' && client && client.companyId !== selectedCompanyId) return false;
@@ -8425,12 +9228,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [documents, clients, currentUser, isClientRole, isEmployeeRole, selfClientProfile, selectedCompanyId, selectedEmployeeId]);
+  }, [documents, clients, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
 
   const filteredLeads = React.useMemo(() => {
     return (leads || []).filter((l) => {
       if (!l) return false;
       if (isClientRole) return false;
+
+      // Company scope restriction
+      if (!isGlobalAdmin) {
+        const inComp = l.companyId ? accessibleCompanyIdSet.has(l.companyId) : false;
+        const isAssigned =
+          l.assignedEmployeeId === currentUser?.id ||
+          (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(currentUser?.id)) ||
+          l.createdByUserId === currentUser?.id;
+        if (!inComp && !isAssigned) return false;
+      }
 
       if (selectedCompanyId !== 'all' && l.companyId !== selectedCompanyId) return false;
 
@@ -8453,7 +9266,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [leads, currentUser, isClientRole, isEmployeeRole, selectedCompanyId, selectedEmployeeId]);
+  }, [leads, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
 
   const filteredTransactions = React.useMemo(() => {
     return (transactions || []).filter((tx) => {
@@ -8467,6 +9280,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           (tx.clientId && currentUser?.id && tx.clientId === currentUser.id) ||
           (selfClientProfile && tx.clientId === selfClientProfile.id)
         );
+      }
+
+      // Company scope restriction
+      if (!isGlobalAdmin) {
+        const inComp = (tx.companyId && accessibleCompanyIdSet.has(tx.companyId)) || (linkedClient?.companyId && accessibleCompanyIdSet.has(linkedClient.companyId));
+        if (!inComp) return false;
       }
 
       if (selectedCompanyId !== 'all' && tx.companyId !== selectedCompanyId) return false;
@@ -8494,7 +9313,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [transactions, clients, currentUser, isClientRole, isEmployeeRole, selfClientProfile, selectedCompanyId, selectedEmployeeId]);
+  }, [transactions, clients, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
 
   // Calculate Expiring Documents Radar (Passports, Emirates IDs, Visas, Trade Licenses)
   const expiringDocuments = React.useMemo(() => {
@@ -8803,6 +9622,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addCompany,
         updateCompany,
         deleteCompany,
+        createOrUpdateCompanyLogin,
+        isMasterUser,
+        isCompanyScopedUser,
+        accessibleCompanies,
         addUser,
         updateUser,
         deleteUser,

@@ -401,7 +401,11 @@ export const DocumentVault: React.FC = () => {
                         {doc.status.replace('_', ' ')}
                       </span>
                       <button
-                        onClick={() => deleteDocument(doc.id)}
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to permanently delete "${doc.name}"? This will remove it from all records and cloud storage.`)) {
+                            deleteDocument(doc.id);
+                          }
+                        }}
                         className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                         title="Delete Document"
                       >
