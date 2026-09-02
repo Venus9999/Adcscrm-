@@ -514,6 +514,24 @@ export const EmployeesManagement: React.FC = () => {
     }
   };
 
+  if (currentUser.role === 'employee' || currentUser.role === 'agent' || currentUser.role === 'client') {
+    if (!currentUser.permissions?.canManageUsers) {
+      return (
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-8 border border-slate-200 dark:border-slate-800 text-center max-w-lg mx-auto my-12 space-y-4 shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 dark:border-amber-800">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Access Restricted</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+              Staff and employee accounts are strictly restricted to assigned client profiles, cases, and tasks. Team directory and role configuration are reserved for system administrators.
+            </p>
+          </div>
+        </div>
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}

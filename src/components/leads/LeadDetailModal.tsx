@@ -27,6 +27,7 @@ import {
   MessageCircle,
   ExternalLink,
   History,
+  Lock,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { Lead, TaskItem, InternalNote } from '../../types/crm';
@@ -248,6 +249,38 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300';
     }
   };
+
+  if (currentUser.role === 'employee' || currentUser.role === 'agent') {
+    const isAssigned =
+      lead.assignedEmployeeId === currentUser.id ||
+      (lead.assignedEmployeeIds && lead.assignedEmployeeIds.includes(currentUser.id)) ||
+      (lead as any).assignedToStaffId === currentUser.id ||
+      lead.createdByUserId === currentUser.id;
+
+    if (!isAssigned) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 text-center shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 dark:border-amber-800">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Access Restricted</h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                You are only authorized to access lead records and inquiries explicitly assigned to your account.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+            >
+              Close Window
+            </button>
+          </div>
+        </div>
+      );
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs">

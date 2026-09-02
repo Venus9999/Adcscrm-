@@ -17,6 +17,11 @@ export interface UserPermissions {
   canManageTransactions?: boolean;
   canManageUsers?: boolean;
   canManageCompanies?: boolean;
+  canCreateCompanies?: boolean;
+  canCreateCompany?: boolean;
+  canCreateBranches?: boolean;
+  canCreateBranch?: boolean;
+  canManageBranches?: boolean;
   canCreateClient?: boolean;
   canDeleteClient?: boolean;
   canExportData?: boolean;
@@ -278,6 +283,13 @@ export interface Company {
   totalClientsCount: number;
   currency: string;
   createdAt: string;
+  entityType?: 'company' | 'branch';
+  parentCompanyId?: string;
+  parentCompanyName?: string;
+  branchCode?: string;
+  branchLocation?: string;
+  branchName?: string;
+  isBranch?: boolean;
 }
 
 export interface Department {

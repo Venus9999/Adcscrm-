@@ -34,6 +34,7 @@ import {
   Eye,
   ExternalLink,
   Paperclip,
+  Lock,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
@@ -233,7 +234,29 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
 
   if (!clientId) return null;
   const client = (clients || []).find((c) => c && c.id === clientId);
-  if (!client) return null;
+  if (!client) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-6 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-xl text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 dark:border-amber-800">
+            <Lock className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">Access Restricted</h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              You are only authorized to access client profiles, billing data, and documents explicitly assigned to your account.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+          >
+            Close Window
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const clientDocs = (documents || []).filter((d) => d && d.clientId === client.id);
   const clientInvoices = (invoices || []).filter((i) => i && i.clientId === client.id);

@@ -320,6 +320,16 @@ export const RolesAndCapabilitiesView: React.FC<RolesAndCapabilitiesViewProps> =
                         Privilege Highlights:
                       </span>
                       <div className="flex flex-wrap gap-1">
+                        {r.permissions.canCreateCompanies && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                            🏢 Create Companies
+                          </span>
+                        )}
+                        {r.permissions.canCreateBranches && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                            🌿 Create Branches
+                          </span>
+                        )}
                         {r.permissions.canCreateClients && (
                           <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
                             ✓ Client Dossiers

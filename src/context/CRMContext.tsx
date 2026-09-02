@@ -7867,70 +7867,77 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [recordAuditLog]);
 
   // Computed Filtered Views (Strict Employee Data Isolation & Branch Filtering)
-  const isEmployeeRole = currentUser?.role === 'employee' || currentUser?.role === 'agent';
+  const isEmployeeRole =
+    currentUser?.role === 'employee' ||
+    currentUser?.role === 'agent' ||
+    (Boolean(currentUser?.role) && !['master', 'admin'].includes(currentUser?.role || ''));
   const isClientRole = currentUser?.role === 'client';
 
-  const filteredCompanies = (companies || []).filter((comp) => {
-    if (!comp) return false;
-    if (isClientRole) {
-      return (
-        comp.id === currentUser?.companyId ||
-        Boolean(currentUser?.companyIds && currentUser.companyIds.includes(comp.id))
-      );
-    }
+  const filteredCompanies = React.useMemo(() => {
+    return (companies || []).filter((comp) => {
+      if (!comp) return false;
+      if (isClientRole) {
+        return (
+          comp.id === currentUser?.companyId ||
+          Boolean(currentUser?.companyIds && currentUser.companyIds.includes(comp.id))
+        );
+      }
 
-    if (isEmployeeRole) {
-      const isAssignedStaff =
-        (comp.employeeIds && comp.employeeIds.includes(currentUser?.id)) ||
-        comp.adminId === currentUser?.id ||
-        (comp as any).assignedAdminIds?.includes(currentUser?.id) ||
-        comp.id === currentUser?.companyId ||
-        Boolean(currentUser?.companyIds && currentUser.companyIds.includes(comp.id));
-      return Boolean(isAssignedStaff);
-    }
+      if (isEmployeeRole) {
+        const isAssignedStaff =
+          (comp.employeeIds && comp.employeeIds.includes(currentUser?.id)) ||
+          comp.adminId === currentUser?.id ||
+          (comp as any).assignedAdminIds?.includes(currentUser?.id) ||
+          comp.id === currentUser?.companyId ||
+          Boolean(currentUser?.companyIds && currentUser.companyIds.includes(comp.id));
+        return Boolean(isAssignedStaff);
+      }
 
-    if (selectedCompanyId !== 'all') {
-      return comp.id === selectedCompanyId;
-    }
+      if (selectedCompanyId !== 'all') {
+        return comp.id === selectedCompanyId;
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [companies, isClientRole, isEmployeeRole, currentUser, selectedCompanyId]);
 
-  const filteredClients = (clients || []).filter((c) => {
-    if (!c) return false;
-    if (isClientRole) {
-      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
-      const isSelf =
-        (c.email && c.email.toLowerCase().trim() === userCleanEmail) ||
-        (currentUser?.id && c.id === currentUser.id);
-      return Boolean(isSelf);
-    }
+  const filteredClients = React.useMemo(() => {
+    return (clients || []).filter((c) => {
+      if (!c) return false;
+      if (isClientRole) {
+        const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+        const isSelf =
+          (c.email && c.email.toLowerCase().trim() === userCleanEmail) ||
+          (currentUser?.id && c.id === currentUser.id);
+        return Boolean(isSelf);
+      }
 
-    if (selectedCompanyId !== 'all' && c.companyId && c.companyId !== selectedCompanyId) return false;
+      if (selectedCompanyId !== 'all' && c.companyId && c.companyId !== selectedCompanyId) return false;
 
-    if (isEmployeeRole) {
-      const isAssigned =
-        (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
-        (c as any).assignedEmployeeId === currentUser?.id ||
-        c.assignedAdminId === currentUser?.id ||
-        (c as any).createdByUserId === currentUser?.id ||
-        (c.services && c.services.some((s) => s.assignedEmployeeId === currentUser?.id));
-      return Boolean(isAssigned);
-    }
+      if (isEmployeeRole) {
+        const isAssigned =
+          (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
+          (c as any).assignedEmployeeId === currentUser?.id ||
+          c.assignedAdminId === currentUser?.id ||
+          (c as any).createdByUserId === currentUser?.id ||
+          (c.services && c.services.some((s) => s.assignedEmployeeId === currentUser?.id));
+        return Boolean(isAssigned);
+      }
 
-    // If an explicit employee/officer filter is active (selected by Admin/Master in Navbar or page filter)
-    if (selectedEmployeeId !== 'all') {
-      const isAssigned =
-        (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-        (c as any).assignedEmployeeId === selectedEmployeeId ||
-        c.assignedAdminId === selectedEmployeeId ||
-        (c as any).createdByUserId === selectedEmployeeId ||
-        (c.services && c.services.some((s) => s.assignedEmployeeId === selectedEmployeeId));
-      return Boolean(isAssigned);
-    }
+      // If an explicit employee/officer filter is active (selected by Admin/Master in Navbar or page filter)
+      if (selectedEmployeeId !== 'all') {
+        const isAssigned =
+          (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+          (c as any).assignedEmployeeId === selectedEmployeeId ||
+          c.assignedAdminId === selectedEmployeeId ||
+          (c as any).createdByUserId === selectedEmployeeId ||
+          (c.services && c.services.some((s) => s.assignedEmployeeId === selectedEmployeeId));
+        return Boolean(isAssigned);
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [clients, isClientRole, isEmployeeRole, currentUser, selectedCompanyId, selectedEmployeeId]);
 
   const selfClientProfile = React.useMemo(() => {
     if (!isClientRole) return null;
@@ -7945,205 +7952,225 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   }, [isClientRole, clients, currentUser]);
 
-  const filteredVendors = (vendors || []).filter((v) => {
-    if (!v) return false;
-    if (isClientRole) return false;
-    if (isEmployeeRole) {
-      // Vendors section is only visible to specific employees assigned by master or admin
-      const isAssigned =
-        (v.assignedEmployeeIds && v.assignedEmployeeIds.includes(currentUser.id)) ||
-        v.assignedEmployeeId === currentUser.id ||
-        (currentUser.assignedVendorIds && currentUser.assignedVendorIds.includes(v.id));
-      if (!isAssigned) return false;
-      if (currentUser?.companyId && v.companyId && v.companyId !== currentUser.companyId) return false;
+  const filteredVendors = React.useMemo(() => {
+    return (vendors || []).filter((v) => {
+      if (!v) return false;
+      if (isClientRole) return false;
+      if (isEmployeeRole) {
+        // Vendors section is only visible to specific employees assigned by master or admin
+        const isAssigned =
+          (v.assignedEmployeeIds && v.assignedEmployeeIds.includes(currentUser.id)) ||
+          v.assignedEmployeeId === currentUser.id ||
+          (currentUser.assignedVendorIds && currentUser.assignedVendorIds.includes(v.id));
+        if (!isAssigned) return false;
+        if (currentUser?.companyId && v.companyId && v.companyId !== currentUser.companyId) return false;
+        return true;
+      }
+      if (selectedCompanyId !== 'all' && v.companyId && v.companyId !== selectedCompanyId) {
+        return false;
+      }
       return true;
-    }
-    if (selectedCompanyId !== 'all' && v.companyId && v.companyId !== selectedCompanyId) {
-      return false;
-    }
-    return true;
-  });
+    });
+  }, [vendors, isClientRole, isEmployeeRole, currentUser, selectedCompanyId]);
 
-  const filteredInvoices = (invoices || []).filter((i) => {
-    if (!i) return false;
-    const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
-    const linkedClient = (clients || []).find((c) => c && c.id === i.clientId);
+  const filteredInvoices = React.useMemo(() => {
+    return (invoices || []).filter((i) => {
+      if (!i) return false;
+      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+      const linkedClient = (clients || []).find((c) => c && c.id === i.clientId);
 
-    if (isClientRole) {
-      const isMatch =
-        (i.clientEmail && i.clientEmail.toLowerCase().trim() === userCleanEmail) ||
-        (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
-        (i.clientId && currentUser?.id && i.clientId === currentUser.id) ||
-        (selfClientProfile && i.clientId === selfClientProfile.id) ||
-        (linkedClient && currentUser?.id && linkedClient.id === currentUser.id) ||
-        (selfClientProfile && linkedClient && linkedClient.id === selfClientProfile.id);
-      return Boolean(isMatch);
-    }
+      if (isClientRole) {
+        const isMatch =
+          (i.clientEmail && i.clientEmail.toLowerCase().trim() === userCleanEmail) ||
+          (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
+          (i.clientId && currentUser?.id && i.clientId === currentUser.id) ||
+          (selfClientProfile && i.clientId === selfClientProfile.id) ||
+          (linkedClient && currentUser?.id && linkedClient.id === currentUser.id) ||
+          (selfClientProfile && linkedClient && linkedClient.id === selfClientProfile.id);
+        return Boolean(isMatch);
+      }
 
-    if (selectedCompanyId !== 'all' && i.companyId !== selectedCompanyId) return false;
+      if (selectedCompanyId !== 'all' && i.companyId !== selectedCompanyId) return false;
 
-    if (isEmployeeRole) {
-      const isIssuer = i.issuedByUserId === currentUser?.id;
-      const isAssigned =
-        linkedClient &&
-        ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
-          (linkedClient as any).assignedEmployeeId === currentUser?.id ||
-          linkedClient.assignedAdminId === currentUser?.id ||
-          (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
-      return Boolean(isIssuer || isAssigned);
-    }
+      if (isEmployeeRole) {
+        const isIssuer = i.issuedByUserId === currentUser?.id;
+        const isAssigned =
+          (linkedClient &&
+            ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
+              (linkedClient as any).assignedEmployeeId === currentUser?.id ||
+              linkedClient.assignedAdminId === currentUser?.id ||
+              (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === currentUser?.id)))) ||
+          (i as any).assignedEmployeeId === currentUser?.id ||
+          (i as any).createdByUserId === currentUser?.id;
+        return Boolean(isIssuer || isAssigned);
+      }
 
-    if (selectedEmployeeId !== 'all') {
-      const isIssuer = i.issuedByUserId === selectedEmployeeId;
-      const isAssigned =
-        linkedClient &&
-        ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
-          linkedClient.assignedAdminId === selectedEmployeeId ||
-          (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
-      if (!isIssuer && !isAssigned) return false;
+      if (selectedEmployeeId !== 'all') {
+        const isIssuer = i.issuedByUserId === selectedEmployeeId;
+        const isAssigned =
+          linkedClient &&
+          ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+            (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
+            linkedClient.assignedAdminId === selectedEmployeeId ||
+            (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
+        if (!isIssuer && !isAssigned) return false;
+        return true;
+      }
+
       return true;
-    }
+    });
+  }, [invoices, clients, currentUser, isClientRole, isEmployeeRole, selfClientProfile, selectedCompanyId, selectedEmployeeId]);
 
-    return true;
-  });
+  const filteredTasks = React.useMemo(() => {
+    return (tasks || []).filter((t) => {
+      if (!t) return false;
+      if (isClientRole) {
+        const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+        const linkedClient = (clients || []).find((c) => c && c.id === t.clientId);
+        return Boolean(
+          (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
+          (t.clientId && currentUser?.id && t.clientId === currentUser.id) ||
+          (selfClientProfile && t.clientId === selfClientProfile.id)
+        );
+      }
 
-  const filteredTasks = (tasks || []).filter((t) => {
-    if (!t) return false;
-    if (isClientRole) {
-      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
-      const linkedClient = (clients || []).find((c) => c && c.id === t.clientId);
-      return Boolean(
-        (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
-        (t.clientId && currentUser?.id && t.clientId === currentUser.id) ||
-        (selfClientProfile && t.clientId === selfClientProfile.id)
-      );
-    }
+      if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
 
-    if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
+      if (isEmployeeRole) {
+        const linkedClient = (clients || []).find((c) => c && c.id === t.clientId);
+        const isAssigned =
+          t.assignedEmployeeId === currentUser?.id ||
+          ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(currentUser?.id)) ||
+          (t as any).createdByUserId === currentUser?.id ||
+          (linkedClient &&
+            ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
+              (linkedClient as any).assignedEmployeeId === currentUser?.id ||
+              linkedClient.assignedAdminId === currentUser?.id));
+        return Boolean(isAssigned);
+      }
 
-    if (isEmployeeRole) {
-      const isAssigned =
-        t.assignedEmployeeId === currentUser?.id ||
-        ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(currentUser?.id)) ||
-        (t as any).createdByUserId === currentUser?.id;
-      return Boolean(isAssigned);
-    }
+      if (selectedEmployeeId !== 'all') {
+        return (
+          t.assignedEmployeeId === selectedEmployeeId ||
+          ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(selectedEmployeeId)) ||
+          (t as any).createdByUserId === selectedEmployeeId
+        );
+      }
 
-    if (selectedEmployeeId !== 'all') {
-      return (
-        t.assignedEmployeeId === selectedEmployeeId ||
-        ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(selectedEmployeeId)) ||
-        (t as any).createdByUserId === selectedEmployeeId
-      );
-    }
+      return true;
+    });
+  }, [tasks, clients, currentUser, isClientRole, isEmployeeRole, selfClientProfile, selectedCompanyId, selectedEmployeeId]);
 
-    return true;
-  });
+  const filteredDocuments = React.useMemo(() => {
+    return (documents || []).filter((d) => {
+      if (!d) return false;
+      const client = (clients || []).find((c) => c && c.id === d.clientId);
 
-  const filteredDocuments = (documents || []).filter((d) => {
-    if (!d) return false;
-    const client = (clients || []).find((c) => c && c.id === d.clientId);
+      if (isClientRole) {
+        const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+        return Boolean(
+          (client && client.email && client.email.toLowerCase().trim() === userCleanEmail) ||
+          (d.clientId && currentUser?.id && d.clientId === currentUser.id) ||
+          (selfClientProfile && d.clientId === selfClientProfile.id)
+        );
+      }
 
-    if (isClientRole) {
-      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
-      return Boolean(
-        (client && client.email && client.email.toLowerCase().trim() === userCleanEmail) ||
-        (d.clientId && currentUser?.id && d.clientId === currentUser.id) ||
-        (selfClientProfile && d.clientId === selfClientProfile.id)
-      );
-    }
+      if (selectedCompanyId !== 'all' && client && client.companyId !== selectedCompanyId) return false;
 
-    if (selectedCompanyId !== 'all' && client && client.companyId !== selectedCompanyId) return false;
+      if (isEmployeeRole) {
+        const isUploader = d.uploadedByUserId === currentUser?.id;
+        const isAssigned =
+          client &&
+          ((client.assignedEmployeeIds && client.assignedEmployeeIds.includes(currentUser?.id)) ||
+            (client as any).assignedEmployeeId === currentUser?.id ||
+            client.assignedAdminId === currentUser?.id ||
+            (client.services && client.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
+        return Boolean(isUploader || isAssigned);
+      }
 
-    if (isEmployeeRole) {
-      const isUploader = d.uploadedByUserId === currentUser?.id;
-      const isAssigned =
-        client &&
-        ((client.assignedEmployeeIds && client.assignedEmployeeIds.includes(currentUser?.id)) ||
-          (client as any).assignedEmployeeId === currentUser?.id ||
-          client.assignedAdminId === currentUser?.id ||
-          (client.services && client.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
-      return Boolean(isUploader || isAssigned);
-    }
+      if (selectedEmployeeId !== 'all') {
+        const isUploader = d.uploadedByUserId === selectedEmployeeId;
+        const isAssigned =
+          client &&
+          ((client.assignedEmployeeIds && client.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+            (client as any).assignedEmployeeId === selectedEmployeeId ||
+            client.assignedAdminId === selectedEmployeeId ||
+            (client.services && client.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
+        return Boolean(isUploader || isAssigned);
+      }
 
-    if (selectedEmployeeId !== 'all') {
-      const isUploader = d.uploadedByUserId === selectedEmployeeId;
-      const isAssigned =
-        client &&
-        ((client.assignedEmployeeIds && client.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          (client as any).assignedEmployeeId === selectedEmployeeId ||
-          client.assignedAdminId === selectedEmployeeId ||
-          (client.services && client.services.some((s) => s.assignedEmployeeId === selectedEmployeeId)));
-      return Boolean(isUploader || isAssigned);
-    }
+      return true;
+    });
+  }, [documents, clients, currentUser, isClientRole, isEmployeeRole, selfClientProfile, selectedCompanyId, selectedEmployeeId]);
 
-    return true;
-  });
+  const filteredLeads = React.useMemo(() => {
+    return (leads || []).filter((l) => {
+      if (!l) return false;
+      if (isClientRole) return false;
 
-  const filteredLeads = (leads || []).filter((l) => {
-    if (!l) return false;
-    if (isClientRole) return false;
+      if (selectedCompanyId !== 'all' && l.companyId !== selectedCompanyId) return false;
 
-    if (selectedCompanyId !== 'all' && l.companyId !== selectedCompanyId) return false;
+      if (isEmployeeRole) {
+        const isAssigned =
+          l.assignedEmployeeId === currentUser?.id ||
+          (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(currentUser?.id)) ||
+          (l as any).assignedToStaffId === currentUser?.id ||
+          l.createdByUserId === currentUser?.id;
+        return Boolean(isAssigned);
+      }
 
-    if (isEmployeeRole) {
-      const isAssigned =
-        l.assignedEmployeeId === currentUser?.id ||
-        (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(currentUser?.id)) ||
-        (l as any).assignedToStaffId === currentUser?.id ||
-        l.createdByUserId === currentUser?.id;
-      return Boolean(isAssigned);
-    }
+      if (selectedEmployeeId !== 'all') {
+        const matchEmp =
+          l.assignedEmployeeId === selectedEmployeeId ||
+          (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+          l.createdByUserId === selectedEmployeeId;
+        return Boolean(matchEmp);
+      }
 
-    if (selectedEmployeeId !== 'all') {
-      const matchEmp =
-        l.assignedEmployeeId === selectedEmployeeId ||
-        (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-        l.createdByUserId === selectedEmployeeId;
-      return Boolean(matchEmp);
-    }
+      return true;
+    });
+  }, [leads, currentUser, isClientRole, isEmployeeRole, selectedCompanyId, selectedEmployeeId]);
 
-    return true;
-  });
+  const filteredTransactions = React.useMemo(() => {
+    return (transactions || []).filter((tx) => {
+      if (!tx) return false;
+      const linkedClient = (clients || []).find((c) => c && c.id === tx.clientId);
 
-  const filteredTransactions = (transactions || []).filter((tx) => {
-    if (!tx) return false;
-    const linkedClient = (clients || []).find((c) => c && c.id === tx.clientId);
+      if (isClientRole) {
+        const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
+        return Boolean(
+          (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
+          (tx.clientId && currentUser?.id && tx.clientId === currentUser.id) ||
+          (selfClientProfile && tx.clientId === selfClientProfile.id)
+        );
+      }
 
-    if (isClientRole) {
-      const userCleanEmail = (currentUser?.email || '').toLowerCase().trim();
-      return Boolean(
-        (linkedClient && linkedClient.email && linkedClient.email.toLowerCase().trim() === userCleanEmail) ||
-        (tx.clientId && currentUser?.id && tx.clientId === currentUser.id) ||
-        (selfClientProfile && tx.clientId === selfClientProfile.id)
-      );
-    }
+      if (selectedCompanyId !== 'all' && tx.companyId !== selectedCompanyId) return false;
 
-    if (selectedCompanyId !== 'all' && tx.companyId !== selectedCompanyId) return false;
+      if (isEmployeeRole) {
+        const isRecorder = tx.recordedByUserId === currentUser?.id;
+        const isAssigned =
+          linkedClient &&
+          ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
+            (linkedClient as any).assignedEmployeeId === currentUser?.id ||
+            linkedClient.assignedAdminId === currentUser?.id ||
+            (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
+        return Boolean(isRecorder || isAssigned);
+      }
 
-    if (isEmployeeRole) {
-      const isRecorder = tx.recordedByUserId === currentUser?.id;
-      const isAssigned =
-        linkedClient &&
-        ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
-          (linkedClient as any).assignedEmployeeId === currentUser?.id ||
-          linkedClient.assignedAdminId === currentUser?.id);
-      return Boolean(isRecorder || isAssigned);
-    }
+      if (selectedEmployeeId !== 'all') {
+        const isRecorder = tx.recordedByUserId === selectedEmployeeId;
+        const isAssigned =
+          linkedClient &&
+          ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+            (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
+            linkedClient.assignedAdminId === selectedEmployeeId);
+        return Boolean(isRecorder || isAssigned);
+      }
 
-    if (selectedEmployeeId !== 'all') {
-      const isRecorder = tx.recordedByUserId === selectedEmployeeId;
-      const isAssigned =
-        linkedClient &&
-        ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
-          linkedClient.assignedAdminId === selectedEmployeeId);
-      return Boolean(isRecorder || isAssigned);
-    }
-
-    return true;
-  });
+      return true;
+    });
+  }, [transactions, clients, currentUser, isClientRole, isEmployeeRole, selfClientProfile, selectedCompanyId, selectedEmployeeId]);
 
   // Calculate Expiring Documents Radar (Passports, Emirates IDs, Visas, Trade Licenses)
   const expiringDocuments = React.useMemo(() => {
@@ -8268,7 +8295,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (selectedCompanyId !== 'all' && vsa.companyId && vsa.companyId !== selectedCompanyId) return false;
 
       if (isEmployeeRole) {
-        const isAssigned = vsa.assignedOfficerId === currentUser?.id;
+        const isAssigned =
+          vsa.assignedOfficerId === currentUser?.id ||
+          (vsa as any).assignedEmployeeId === currentUser?.id ||
+          (filteredClients || []).some((c) => c && c.id === vsa.clientId);
         return Boolean(isAssigned);
       }
 
@@ -8278,7 +8308,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [visaApplications, selectedCompanyId, selectedEmployeeId, isEmployeeRole, isClientRole, currentUser, selectedClientId, selfClientProfile]);
+  }, [visaApplications, selectedCompanyId, selectedEmployeeId, isEmployeeRole, isClientRole, currentUser, filteredClients, selfClientProfile]);
+
+  const sanitizedUsers = React.useMemo(() => {
+    if (currentUser.role === 'master' || currentUser.role === 'admin') {
+      return users;
+    }
+    // For staff/employees: hide sensitive credentials (passwords, pins) of other users
+    return (users || []).map((u) => ({
+      ...u,
+      password: (u.id === currentUser.id) ? u.password : undefined,
+      securityPin: (u.id === currentUser.id) ? u.securityPin : undefined,
+    }));
+  }, [users, currentUser]);
 
   return (
     <CRMContext.Provider
@@ -8286,7 +8328,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isAuthenticated,
         currentUser,
         setCurrentUser,
-        availableUsers: users,
+        availableUsers: sanitizedUsers,
         login,
         loginWithGoogle,
         logout,
@@ -8313,29 +8355,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         selectedClientId,
         setSelectedClientId,
 
-        companies,
+        companies: isEmployeeRole || isClientRole ? filteredCompanies : companies,
         filteredCompanies,
         departments,
-        vendors,
-        users,
+        vendors: isEmployeeRole || isClientRole ? filteredVendors : vendors,
+        users: sanitizedUsers,
         roles,
         stages,
         workflows,
         serviceClassifications,
         serviceCategories,
-        clients,
-        documents,
-        tasks,
-        invoices,
+        clients: isEmployeeRole || isClientRole ? filteredClients : clients,
+        documents: isEmployeeRole || isClientRole ? filteredDocuments : documents,
+        tasks: isEmployeeRole || isClientRole ? filteredTasks : tasks,
+        invoices: isEmployeeRole || isClientRole ? filteredInvoices : invoices,
         messages,
         auditLogs,
         notifications,
-        leads,
+        leads: isEmployeeRole || isClientRole ? filteredLeads : leads,
         leadCategories,
         leadSources,
         leadStages,
-        transactions,
-        visaApplications,
+        transactions: isEmployeeRole || isClientRole ? filteredTransactions : transactions,
+        visaApplications: isEmployeeRole || isClientRole ? filteredVisaApplications : visaApplications,
 
         addDepartment,
         updateDepartment,
