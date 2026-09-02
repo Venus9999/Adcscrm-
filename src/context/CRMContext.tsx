@@ -1107,7 +1107,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.clients && Array.isArray(parsed.clients)) {
       const parsedInvoices = Array.isArray(parsed.invoices) ? parsed.invoices : [];
       const cleanClients = parsed.clients
-        .filter((c: any) => c && c.id && !deletedClientIds.includes(c.id))
+        .filter((c: any) => c && c.id && c.id !== 'client-test-1' && !deletedClientIds.includes(c.id))
         .map((c: any) => {
           const clientEmail = (c.email || '').toLowerCase().trim();
           const userInvoices = parsedInvoices.filter(
@@ -1149,8 +1149,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
       setClients((prev) => {
         if (parsed.forceReset) return cleanClients;
-        if (cleanClients.length === 0 && prev.length > 0) return prev;
-        return cleanClients;
+        const map = new Map<string, Client>();
+        (prev || []).forEach((c) => {
+          if (c && c.id && c.id !== 'client-test-1' && !deletedClientIds.includes(c.id)) {
+            map.set(c.id, c);
+          }
+        });
+        cleanClients.forEach((c) => {
+          if (c && c.id && c.id !== 'client-test-1' && !deletedClientIds.includes(c.id)) {
+            const current = map.get(c.id);
+            map.set(c.id, current ? { ...current, ...c } : c);
+          }
+        });
+        return Array.from(map.values());
       });
     }
     if (parsed.documents && Array.isArray(parsed.documents)) {
@@ -1159,8 +1170,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       setDocuments((prev) => {
         if (parsed.forceReset) return cleanDocs;
-        if (cleanDocs.length === 0 && prev.length > 0) return prev;
-        return cleanDocs;
+        const map = new Map<string, DocumentItem>();
+        (prev || []).forEach((d) => {
+          if (d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))) {
+            map.set(d.id, d);
+          }
+        });
+        cleanDocs.forEach((d) => {
+          if (d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))) {
+            const current = map.get(d.id);
+            map.set(d.id, current ? { ...current, ...d } : d);
+          }
+        });
+        return Array.from(map.values());
       });
     }
     if (parsed.tasks && Array.isArray(parsed.tasks)) {
@@ -1169,8 +1191,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       setTasks((prev) => {
         if (parsed.forceReset) return cleanTasks;
-        if (cleanTasks.length === 0 && prev.length > 0) return prev;
-        return cleanTasks;
+        const map = new Map<string, TaskItem>();
+        (prev || []).forEach((t) => {
+          if (t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))) {
+            map.set(t.id, t);
+          }
+        });
+        cleanTasks.forEach((t) => {
+          if (t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))) {
+            const current = map.get(t.id);
+            map.set(t.id, current ? { ...current, ...t } : t);
+          }
+        });
+        return Array.from(map.values());
       });
     }
     if (parsed.invoices && Array.isArray(parsed.invoices)) {
@@ -1179,8 +1212,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       setInvoices((prev) => {
         if (parsed.forceReset) return cleanInvoices;
-        if (cleanInvoices.length === 0 && prev.length > 0) return prev;
-        return cleanInvoices;
+        const map = new Map<string, Invoice>();
+        (prev || []).forEach((i) => {
+          if (i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))) {
+            map.set(i.id, i);
+          }
+        });
+        cleanInvoices.forEach((i) => {
+          if (i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))) {
+            const current = map.get(i.id);
+            map.set(i.id, current ? { ...current, ...i } : i);
+          }
+        });
+        return Array.from(map.values());
       });
     }
     if (parsed.messages && Array.isArray(parsed.messages)) {
@@ -1198,8 +1242,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       setLeads((prev) => {
         if (parsed.forceReset) return cleanLeads;
-        if (cleanLeads.length === 0 && prev.length > 0) return prev;
-        return cleanLeads;
+        const map = new Map<string, Lead>();
+        (prev || []).forEach((l) => {
+          if (l && l.id && !deletedLeadIds.includes(l.id)) {
+            map.set(l.id, l);
+          }
+        });
+        cleanLeads.forEach((l) => {
+          if (l && l.id && !deletedLeadIds.includes(l.id)) {
+            const current = map.get(l.id);
+            map.set(l.id, current ? { ...current, ...l } : l);
+          }
+        });
+        return Array.from(map.values());
       });
     }
     if (parsed.leadCategories && Array.isArray(parsed.leadCategories)) {
@@ -1222,7 +1277,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const cleanApps = (rawApps || []).filter(
         (a: any) => a && a.id && !deletedAppIds.includes(a.id)
       );
-      setVisaApplications(cleanApps);
+      setVisaApplications((prev) => {
+        if (parsed.forceReset) return cleanApps;
+        const map = new Map<string, any>();
+        (prev || []).forEach((a) => {
+          if (a && a.id && !deletedAppIds.includes(a.id)) {
+            map.set(a.id, a);
+          }
+        });
+        cleanApps.forEach((a) => {
+          if (a && a.id && !deletedAppIds.includes(a.id)) {
+            const current = map.get(a.id);
+            map.set(a.id, current ? { ...current, ...a } : a);
+          }
+        });
+        return Array.from(map.values());
+      });
     }
     if (parsed.visaCountryCatalog !== undefined) {
       const rawCatalog = Array.isArray(parsed.visaCountryCatalog)
@@ -1625,28 +1695,33 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (remoteData: any, source: 'firestore' | 'server'): boolean => {
       if (!remoteData || typeof remoteData !== 'object') return false;
 
+      // Filter out synthetic test client from incoming remoteData
+      if (Array.isArray(remoteData.clients)) {
+        remoteData.clients = remoteData.clients.filter((c: any) => c && c.id !== 'client-test-1');
+      }
+
       const localSnap = getCurrentLocalSnapshot();
       const localTotalRecords =
-        (localSnap.clients?.length || 0) +
+        (localSnap.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) +
         (localSnap.leads?.length || 0) +
         (localSnap.tasks?.length || 0) +
         (localSnap.invoices?.length || 0);
 
       const remoteTotalRecords =
-        (Array.isArray(remoteData.clients) ? remoteData.clients.length : 0) +
+        (Array.isArray(remoteData.clients) ? remoteData.clients.filter((c: any) => c && c.id !== 'client-test-1').length : 0) +
         (Array.isArray(remoteData.leads) ? remoteData.leads.length : 0) +
         (Array.isArray(remoteData.tasks) ? remoteData.tasks.length : 0) +
         (Array.isArray(remoteData.invoices) ? remoteData.invoices.length : 0);
 
       // CRITICAL FIX FOR VANISHING DATA:
-      // If local state has real records (>1 total, or active clients/leads), but remote snapshot is empty
-      // or nearly empty (e.g. 0 leads, 0 tasks, 0-1 client), NEVER wipe local state!
+      // If local state has real records, but remote snapshot is cold-start, empty,
+      // or missing records (e.g. 0-1 records), NEVER wipe local state!
       // Instead, preserve local state and seed the remote server database and cloud!
       if (
-        localTotalRecords > 1 &&
-        (remoteTotalRecords <= 1 || (remoteData.clients?.length <= 1 && (!remoteData.leads || remoteData.leads.length === 0)))
+        localTotalRecords > 0 &&
+        (remoteData.isColdStart || remoteTotalRecords === 0 || (localTotalRecords > remoteTotalRecords && remoteTotalRecords <= 1))
       ) {
-        console.info('Preserving local CRM data: remote snapshot is empty or incomplete. Seeding server disk & cloud.');
+        console.info('Preserving local CRM data: remote snapshot is cold or incomplete. Seeding server disk & cloud.');
         syncSnapshot(localSnap);
         return false;
       }
@@ -1659,13 +1734,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return false;
       }
 
-      // If remote is strictly newer or local has zero records, hydrate
+      // If remote is strictly newer or local has zero records, hydrate safely
       if (isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current) || localTotalRecords === 0) {
         lastAppliedRemoteIsoRef.current = remoteData.lastUpdated || new Date().toISOString();
         hydrateStateFromSnapshot(remoteData);
-        try {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remoteData));
-        } catch {}
+        setTimeout(() => {
+          try {
+            const mergedSnap = getCurrentLocalSnapshot();
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedSnap));
+          } catch {}
+        }, 100);
         setLastServerSyncTime(new Date().toLocaleTimeString());
         setServerSyncStatus('synced');
         return true;
@@ -1714,7 +1792,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const contentType = serverRes.headers.get('content-type') || '';
             if (contentType.includes('application/json')) {
               const serverData = await serverRes.json();
-              if (active && serverData.success && serverData.hasData && serverData.data) {
+              if (active && serverData.success && serverData.hasData && serverData.data && !serverData.data.isColdStart) {
                 const applied = processRemoteUpdate(serverData.data, 'server');
                 if (applied) serverLoaded = true;
               }
@@ -1754,18 +1832,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           console.warn('Cloud sync load fallback notice:', cloudErr);
         }
 
-        // 3. ONLY seed cloud from local cache if BOTH server and cloud were completely empty on first launch
-        if (!serverLoaded && !cloudLoaded && localLoaded) {
-          const currentLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
+        // 3. Seed server disk & cloud from local cache if local has records and server or cloud are empty/cold
+        if (localLoaded) {
+          const currentLocal =
+            localStorage.getItem(LOCAL_STORAGE_KEY) ||
+            localStorage.getItem('adcs_crm_db_v2') ||
+            localStorage.getItem('adcs_crm_db');
           if (currentLocal) {
             try {
               const parsed = JSON.parse(currentLocal);
-              saveCRMDataToCloud(parsed, true).catch(() => {});
-              fetch('/api/crm/data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: currentLocal,
-              }).catch(() => {});
+              const localTotal =
+                (parsed.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) +
+                (parsed.leads?.length || 0) +
+                (parsed.tasks?.length || 0) +
+                (parsed.invoices?.length || 0);
+              if (localTotal > 0 && (!serverLoaded || !cloudLoaded)) {
+                console.info('Seeding server disk with local CRM working state on startup...');
+                saveCRMDataToCloud(parsed, true).catch(() => {});
+                fetch('/api/crm/data', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: currentLocal,
+                }).catch(() => {});
+              }
             } catch {}
           }
         }
@@ -1825,12 +1914,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const statusRes = await fetch('/api/crm/status', { cache: 'no-store' });
         if (statusRes.ok && statusRes.headers.get('content-type')?.includes('application/json')) {
           const statusJson = await statusRes.json();
-          if (statusJson.success && statusJson.hasData && statusJson.lastUpdated) {
+          if (statusJson.success && statusJson.hasData && statusJson.lastUpdated && !statusJson.isColdStart) {
             if (isRemoteStrictlyNewer(statusJson.lastUpdated, lastAppliedRemoteIsoRef.current)) {
               const serverRes = await fetch('/api/crm/data', { cache: 'no-store' });
               if (serverRes.ok && serverRes.headers.get('content-type')?.includes('application/json')) {
                 const serverJson = await serverRes.json();
-                if (serverJson.success && serverJson.hasData && serverJson.data) {
+                if (serverJson.success && serverJson.hasData && serverJson.data && !serverJson.data.isColdStart) {
                   processRemoteUpdate(serverJson.data, 'server');
                   return;
                 }

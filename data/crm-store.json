@@ -1515,8 +1515,8 @@
     }
   ],
   "hasCustomModifications": true,
-  "isColdStart": false,
-  "lastUpdated": "2026-09-02T17:17:37.388Z",
+  "isColdStart": true,
+  "lastUpdated": "2020-01-01T00:00:00.000Z",
   "leadCategories": [
     {
       "badgeBg": "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800",
@@ -3497,37 +3497,7 @@
     }
   ],
   "leads": [],
-  "test": true,
-  "clients": [
-    {
-      "id": "client-test-1",
-      "refNo": "DXB-2026-1001",
-      "fullName": "Test Client",
-      "firstName": "Test",
-      "lastName": "Client",
-      "companyId": "comp-1",
-      "nationality": "United Arab Emirates",
-      "dob": "1990-01-01",
-      "gender": "Male",
-      "passportNo": "N7849201",
-      "passportExpiry": "2030-01-01",
-      "emiratesId": "784-1990-1234567-1",
-      "emiratesIdExpiry": "2028-01-01",
-      "mobile": "+971 50 000 0000",
-      "email": "test.client@example.com",
-      "currentStageId": "stage-1",
-      "currentStageName": "New Inquiry",
-      "paymentStatus": "unpaid",
-      "totalAmount": 0,
-      "paidAmount": 0,
-      "outstandingAmount": 0,
-      "services": [],
-      "notes": [],
-      "tags": ["Corporate"],
-      "createdAt": "2026-09-02T12:00:00.000Z",
-      "updatedAt": "2026-09-02T12:00:00.000Z"
-    }
-  ],
+  "clients": [],
   "documents": [],
   "tasks": [],
   "invoices": [],
@@ -3721,10 +3691,7 @@
       "type": "system"
     }
   ],
-  "deletedCompanyIds": [
-    "comp-3",
-    "comp-2"
-  ],
+  "deletedCompanyIds": [],
   "deletedClientIds": [
     "client-1788344816148"
   ],
@@ -3738,33 +3705,8 @@
     "vend-1787852748549"
   ],
   "visaApplications": [],
-  "deletedVisaCountryCodes": [
-    "qa",
-    "fr",
-    "it",
-    "ch",
-    "gb",
-    "us",
-    "za",
-    "az",
-    "ge",
-    "ca",
-    "sg",
-    "jp",
-    "cn",
-    "th",
-    "au",
-    "nz",
-    "tr",
-    "eg"
-  ],
-  "deletedVisaServiceIds": [
-    "qa-hayya-tourist"
-  ],
-  "deletedVisaAppIds": [
-    "vsa-app-1001",
-    "vsa-app-1002",
-    "vsa-app-1003"
-  ],
+  "deletedVisaCountryCodes": [],
+  "deletedVisaServiceIds": [],
+  "deletedVisaAppIds": [],
   "deletedUserIds": []
 }

@@ -409,12 +409,19 @@ async function startServer() {
       if (fs.existsSync(STORE_FILE)) {
         const raw = fs.readFileSync(STORE_FILE, 'utf-8');
         const data = JSON.parse(raw);
+        const hasRecords =
+          (data.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) > 0 ||
+          (data.leads?.length || 0) > 0 ||
+          (data.invoices?.length || 0) > 0 ||
+          (data.tasks?.length || 0) > 0;
+        const isColdStart = Boolean(data.isColdStart) && !hasRecords;
         return res.json({
           success: true,
-          hasData: true,
-          lastUpdated: data.lastUpdated || null,
+          hasData: !isColdStart,
+          isColdStart,
+          lastUpdated: isColdStart ? null : (data.lastUpdated || null),
           usersCount: data.users?.length || 0,
-          clientsCount: data.clients?.length || 0,
+          clientsCount: data.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0,
           vendorsCount: data.vendors?.length || 0,
           leadsCount: data.leads?.length || 0,
           departmentsCount: data.departments?.length || 0,
@@ -422,7 +429,7 @@ async function startServer() {
           tasksCount: data.tasks?.length || 0,
         });
       }
-      return res.json({ success: true, hasData: false, lastUpdated: null });
+      return res.json({ success: true, hasData: false, isColdStart: true, lastUpdated: null });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -527,9 +534,15 @@ async function startServer() {
         if (data.vendors && Array.isArray(data.vendors)) {
           data.vendors = data.vendors.filter((v: any) => v && v.id && !data.deletedVendorIds.includes(v.id));
         }
-        return res.json({ success: true, data, hasData: true });
+        const hasRecords =
+          (data.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) > 0 ||
+          (data.leads?.length || 0) > 0 ||
+          (data.invoices?.length || 0) > 0 ||
+          (data.tasks?.length || 0) > 0;
+        const isCold = Boolean(data.isColdStart) && !hasRecords;
+        return res.json({ success: true, data, hasData: !isCold, isColdStart: isCold });
       }
-      return res.json({ success: true, data: null, hasData: false });
+      return res.json({ success: true, data: null, hasData: false, isColdStart: true });
     } catch (err: any) {
       console.error('Error reading CRM store:', err);
       return res.status(500).json({ success: false, error: 'Failed to read persistent store', details: err.message });
@@ -555,20 +568,24 @@ async function startServer() {
 
       // Non-destructive ID-based merge helper
       const mergeCollection = (existingList: any[], incomingList: any[]) => {
-        if (!Array.isArray(incomingList)) return Array.isArray(existingList) ? existingList : [];
-        if (!Array.isArray(existingList) || existingList.length === 0) return incomingList;
+        if (!Array.isArray(incomingList)) return Array.isArray(existingList) ? existingList.filter((item) => item && (item.id || item.countryCode || item.code) !== 'client-test-1') : [];
+        if (!Array.isArray(existingList) || existingList.length === 0) return incomingList.filter((item) => item && (item.id || item.countryCode || item.code) !== 'client-test-1');
         const map = new Map<string, any>();
         existingList.forEach((item) => {
           if (item && (item.id || item.countryCode || item.code)) {
             const key = item.id || item.countryCode || item.code;
-            map.set(key, item);
+            if (key !== 'client-test-1') {
+              map.set(key, item);
+            }
           }
         });
         incomingList.forEach((item) => {
           if (item && (item.id || item.countryCode || item.code)) {
             const key = item.id || item.countryCode || item.code;
-            const current = map.get(key);
-            map.set(key, current ? { ...current, ...item } : item);
+            if (key !== 'client-test-1') {
+              const current = map.get(key);
+              map.set(key, current ? { ...current, ...item } : item);
+            }
           }
         });
         return Array.from(map.values());
@@ -681,7 +698,7 @@ async function startServer() {
         }
       }
       const cleanClients = mergedClients.filter(
-        (c: any) => c && c.id && !combinedDeletedClientIds.includes(c.id)
+        (c: any) => c && c.id && c.id !== 'client-test-1' && !combinedDeletedClientIds.includes(c.id)
       );
 
       // Handle documents: merge non-destructively and strictly filter out deleted documents or documents belonging to deleted clients
@@ -788,6 +805,7 @@ async function startServer() {
         deletedVisaCountryCodes: payload.deletedVisaCountryCodes !== undefined ? payload.deletedVisaCountryCodes : (existing.deletedVisaCountryCodes || []),
         deletedVisaServiceIds: payload.deletedVisaServiceIds !== undefined ? payload.deletedVisaServiceIds : (existing.deletedVisaServiceIds || []),
         deletedVisaAppIds: payload.deletedVisaAppIds !== undefined ? payload.deletedVisaAppIds : (existing.deletedVisaAppIds || []),
+        isColdStart: false,
         lastUpdated: payload.lastUpdated || new Date().toISOString(),
       };
 
