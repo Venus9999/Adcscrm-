@@ -86,17 +86,27 @@ export const CompaniesManagement: React.FC = () => {
   });
 
   // Permission Checks based on Role & Capabilities
+  const isSalesStaff =
+    currentUser.role?.toLowerCase() === 'sales' ||
+    currentUser.department?.toLowerCase().includes('sales') ||
+    currentUser.jobTitle?.toLowerCase().includes('sales') ||
+    currentUser.customRoleId === 'role-sales';
+
   const canCreateCompany =
     currentUser.role === 'master' ||
     Boolean(currentUser.permissions?.canCreateCompanies) ||
-    Boolean(currentUser.permissions?.canManageCompanies);
+    Boolean(currentUser.permissions?.canCreateCompany) ||
+    Boolean(currentUser.permissions?.canManageCompanies) ||
+    isSalesStaff;
 
   const canCreateBranch =
     currentUser.role === 'master' ||
     currentUser.role === 'admin' ||
     Boolean(currentUser.permissions?.canCreateBranches) ||
+    Boolean(currentUser.permissions?.canCreateBranch) ||
     Boolean(currentUser.permissions?.canManageBranches) ||
-    Boolean(currentUser.permissions?.canManageCompanies);
+    Boolean(currentUser.permissions?.canManageCompanies) ||
+    isSalesStaff;
 
   const canAnyCreate = canCreateCompany || canCreateBranch;
 

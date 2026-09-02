@@ -5876,8 +5876,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Companies & Users
   const addCompany = useCallback(
     (compData: Omit<Company, 'id' | 'createdAt' | 'activeServicesCount' | 'totalClientsCount'>) => {
+      const creatorEmpIds = compData.employeeIds || [];
+      if (currentUser?.id && currentUser.role !== 'client' && !creatorEmpIds.includes(currentUser.id)) {
+        creatorEmpIds.push(currentUser.id);
+      }
       const newComp: Company = {
         ...compData,
+        employeeIds: creatorEmpIds,
         id: `comp-${Date.now()}`,
         activeServicesCount: 0,
         totalClientsCount: 0,
@@ -5891,7 +5896,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setCompanies((prev) => [...prev, newComp]);
       recordAuditLog('Company Registered', 'Companies', `Registered new company / branch: ${newComp.name}`);
     },
-    [recordAuditLog]
+    [recordAuditLog, currentUser]
   );
 
   const updateCompany = useCallback(
@@ -7884,6 +7889,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       if (isEmployeeRole) {
+        const hasCompanyAccessPrivileges =
+          Boolean(currentUser?.permissions?.canViewAllCompanies) ||
+          Boolean(currentUser?.permissions?.canCreateCompanies) ||
+          Boolean(currentUser?.permissions?.canCreateCompany) ||
+          Boolean(currentUser?.permissions?.canManageCompanies) ||
+          currentUser?.role?.toLowerCase() === 'sales' ||
+          currentUser?.department?.toLowerCase().includes('sales') ||
+          currentUser?.jobTitle?.toLowerCase().includes('sales');
+
+        if (hasCompanyAccessPrivileges) {
+          if (selectedCompanyId !== 'all') {
+            return comp.id === selectedCompanyId;
+          }
+          return true;
+        }
+
         const isAssignedStaff =
           (comp.employeeIds && comp.employeeIds.includes(currentUser?.id)) ||
           comp.adminId === currentUser?.id ||

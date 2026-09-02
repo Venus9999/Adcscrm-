@@ -41,6 +41,7 @@ interface SidebarNavItem {
   allowedRoles: string[];
   badge?: number;
   badgeColor?: string;
+  canAccess?: (user: any) => boolean;
 }
 
 interface SidebarProps {
@@ -112,7 +113,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       id: 'companies',
       label: 'Companies & Branches',
       icon: Building2,
-      allowedRoles: ['master', 'admin'],
+      allowedRoles: ['master', 'admin', 'employee', 'agent'],
+      canAccess: (u) =>
+        u?.role === 'master' ||
+        u?.role === 'admin' ||
+        u?.role?.toLowerCase() === 'sales' ||
+        u?.department?.toLowerCase().includes('sales') ||
+        u?.jobTitle?.toLowerCase().includes('sales') ||
+        u?.customRoleId === 'role-sales' ||
+        Boolean(u?.permissions?.canCreateCompanies) ||
+        Boolean(u?.permissions?.canCreateCompany) ||
+        Boolean(u?.permissions?.canManageCompanies) ||
+        Boolean(u?.permissions?.canCreateBranches) ||
+        Boolean(u?.permissions?.canManageBranches) ||
+        Boolean(u?.permissions?.canViewAllCompanies),
     },
     {
       id: 'departments',
@@ -265,7 +279,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
   ];
 
   const renderNavGroup = (items: SidebarNavItem[], groupTitle?: string) => {
-    const visible = items.filter((item) => item.allowedRoles.includes(currentUser.role));
+    const visible = items.filter((item) => {
+      if (item.canAccess) {
+        return item.canAccess(currentUser);
+      }
+      return item.allowedRoles.includes(currentUser.role);
+    });
     if (visible.length === 0) return null;
 
     return (
