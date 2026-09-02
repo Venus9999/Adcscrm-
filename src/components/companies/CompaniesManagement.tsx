@@ -90,23 +90,34 @@ export const CompaniesManagement: React.FC = () => {
     currentUser.role?.toLowerCase() === 'sales' ||
     currentUser.department?.toLowerCase().includes('sales') ||
     currentUser.jobTitle?.toLowerCase().includes('sales') ||
-    currentUser.customRoleId === 'role-sales';
+    currentUser.customRoleId === 'role-sales' ||
+    currentUser.role === 'employee' ||
+    currentUser.role === 'admin' ||
+    currentUser.role === 'master';
 
   const canCreateCompany =
     currentUser.role === 'master' ||
+    currentUser.role === 'admin' ||
+    currentUser.role?.toLowerCase() === 'sales' ||
+    currentUser.department?.toLowerCase().includes('sales') ||
+    currentUser.jobTitle?.toLowerCase().includes('sales') ||
+    currentUser.customRoleId === 'role-sales' ||
     Boolean(currentUser.permissions?.canCreateCompanies) ||
     Boolean(currentUser.permissions?.canCreateCompany) ||
     Boolean(currentUser.permissions?.canManageCompanies) ||
-    isSalesStaff;
+    Boolean(currentUser.permissions?.canViewAllCompanies);
 
   const canCreateBranch =
     currentUser.role === 'master' ||
     currentUser.role === 'admin' ||
+    currentUser.role?.toLowerCase() === 'sales' ||
+    currentUser.department?.toLowerCase().includes('sales') ||
+    currentUser.jobTitle?.toLowerCase().includes('sales') ||
+    currentUser.customRoleId === 'role-sales' ||
     Boolean(currentUser.permissions?.canCreateBranches) ||
     Boolean(currentUser.permissions?.canCreateBranch) ||
     Boolean(currentUser.permissions?.canManageBranches) ||
-    Boolean(currentUser.permissions?.canManageCompanies) ||
-    isSalesStaff;
+    Boolean(currentUser.permissions?.canManageCompanies);
 
   const canAnyCreate = canCreateCompany || canCreateBranch;
 

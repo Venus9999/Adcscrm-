@@ -179,9 +179,19 @@ async function startServer() {
         console.warn('Nomod live API call returned error or is offline, using direct secure gateway proxy:', nomodApiErr);
       }
 
-      // Secure link fallback format
+      // Construct hosted payment link using the request origin/host
+      const origin = req.headers.origin || (req.headers.host ? `${req.protocol}://${req.headers.host}` : '') || '';
       const paymentId = `nomod_live_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      const link = `https://nomod.com/pay/${paymentId}?ref=${ref}&amount=${amount || 0}&currency=${currency}`;
+      const searchParams = new URLSearchParams({
+        ref,
+        amount: String(amount || 0),
+        currency: currency || 'AED',
+        title: title || 'ADCS Corporate Visa Processing Payment',
+        customer: customer?.name || '',
+        email: customer?.email || '',
+        phone: customer?.phone || '',
+      });
+      const link = `${origin}/pay/${paymentId}?${searchParams.toString()}`;
 
       return res.json({
         success: true,

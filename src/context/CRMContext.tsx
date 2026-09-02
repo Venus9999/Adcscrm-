@@ -1023,6 +1023,33 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [hydrateStateFromSnapshot]);
 
+  // Synchronize active currentUser session whenever user record or branch assignment changes in state
+  useEffect(() => {
+    if (!currentUser?.id || !users || users.length === 0) return;
+    const freshUser = users.find((u) => u.id === currentUser.id);
+    if (freshUser) {
+      const isCompanyChanged =
+        freshUser.companyId !== currentUser.companyId ||
+        JSON.stringify(freshUser.companyIds || []) !== JSON.stringify(currentUser.companyIds || []);
+      const isRoleOrPermsChanged =
+        freshUser.role !== currentUser.role ||
+        freshUser.name !== currentUser.name ||
+        freshUser.department !== currentUser.department ||
+        freshUser.jobTitle !== currentUser.jobTitle ||
+        JSON.stringify(freshUser.permissions || {}) !== JSON.stringify(currentUser.permissions || {});
+
+      if (isCompanyChanged || isRoleOrPermsChanged) {
+        setCurrentUserState((prev) => {
+          const merged = { ...prev, ...freshUser };
+          try {
+            localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
+    }
+  }, [users, currentUser?.id, currentUser?.companyId, currentUser?.companyIds, currentUser?.role, currentUser?.name, currentUser?.department, currentUser?.jobTitle, currentUser?.permissions]);
+
   // Robust multi-system initialization: Cloud Firestore -> Server Disk -> Local Storage
   useEffect(() => {
     let active = true;
@@ -5930,6 +5957,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return c;
         })
       );
+
+      // If employeeIds were explicitly updated, bidirectionally synchronize users state
+      if (updates.employeeIds !== undefined) {
+        setUsers((prevUsers) =>
+          prevUsers.map((u) => {
+            const isAssigned = updates.employeeIds!.includes(u.id);
+            const currentIds = u.companyIds || (u.companyId ? [u.companyId] : []);
+            if (isAssigned && !currentIds.includes(id)) {
+              return {
+                ...u,
+                companyId: u.companyId || id,
+                companyIds: [...currentIds, id],
+              };
+            }
+            return u;
+          })
+        );
+      }
       recordAuditLog('Company Updated', 'Companies', `Updated company profile for ${id}`);
     },
     [recordAuditLog]
@@ -5979,6 +6024,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           });
           return updatedDepts;
         });
+      }
+
+      // If company was assigned for new user, update company's employeeIds roster
+      const targetCompanyIds = newUser.companyIds || (newUser.companyId ? [newUser.companyId] : []);
+      if (targetCompanyIds.length > 0) {
+        setCompanies((prevComps) =>
+          prevComps.map((c) => {
+            if (targetCompanyIds.includes(c.id)) {
+              const curEmpIds = c.employeeIds || [];
+              if (!curEmpIds.includes(newId)) {
+                return { ...c, employeeIds: [...curEmpIds, newId] };
+              }
+            }
+            return c;
+          })
+        );
       }
 
       setUsers((prev) => {
@@ -6056,19 +6117,67 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 (cleanUpdates as any)[key] = updates[key];
               }
             });
+
+            const resolvedCompanyIds =
+              cleanUpdates.companyIds !== undefined
+                ? cleanUpdates.companyIds
+                : cleanUpdates.companyId
+                ? [cleanUpdates.companyId]
+                : u.companyIds || (u.companyId ? [u.companyId] : []);
+
+            const resolvedCompanyId =
+              cleanUpdates.companyId !== undefined
+                ? cleanUpdates.companyId
+                : resolvedCompanyIds[0] || u.companyId;
+
             return {
               ...u,
               ...cleanUpdates,
               id: u.id,
               createdAt: u.createdAt,
+              companyId: resolvedCompanyId,
+              companyIds: resolvedCompanyIds,
               password: cleanUpdates.password !== undefined && cleanUpdates.password !== '' ? cleanUpdates.password : u.password,
               securityPin: cleanUpdates.securityPin !== undefined && cleanUpdates.securityPin !== '' ? cleanUpdates.securityPin : u.securityPin,
               permissions: customRolePerms !== undefined ? { ...u.permissions, ...customRolePerms } : cleanUpdates.permissions !== undefined ? { ...u.permissions, ...cleanUpdates.permissions } : u.permissions,
-              companyIds: cleanUpdates.companyIds !== undefined ? cleanUpdates.companyIds : u.companyIds || (u.companyId ? [u.companyId] : []),
             };
           }
           return u;
         });
+
+        // Bidirectionally update companies state so the assigned company's employeeIds includes this user
+        if (updates.companyId !== undefined || updates.companyIds !== undefined) {
+          const targetCompanyIds = updates.companyIds !== undefined
+            ? updates.companyIds
+            : updates.companyId
+            ? [updates.companyId]
+            : [];
+
+          setCompanies((prevComps) =>
+            prevComps.map((c) => {
+              const curEmpIds = c.employeeIds || [];
+              if (targetCompanyIds.includes(c.id)) {
+                if (!curEmpIds.includes(id)) {
+                  return { ...c, employeeIds: [...curEmpIds, id] };
+                }
+              } else if (curEmpIds.includes(id)) {
+                return { ...c, employeeIds: curEmpIds.filter((empId) => empId !== id) };
+              }
+              return c;
+            })
+          );
+        }
+
+        // If updating the active user session, immediately update currentUserState
+        if (currentUser?.id === id) {
+          const updatedSelf = next.find((u) => u.id === id);
+          if (updatedSelf) {
+            setCurrentUserState((prev) => ({ ...prev, ...updatedSelf }));
+            try {
+              localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(updatedSelf));
+            } catch {}
+          }
+        }
 
         try {
           const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -7910,8 +8019,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           comp.adminId === currentUser?.id ||
           (comp as any).assignedAdminIds?.includes(currentUser?.id) ||
           comp.id === currentUser?.companyId ||
-          Boolean(currentUser?.companyIds && currentUser.companyIds.includes(comp.id));
-        return Boolean(isAssignedStaff);
+          Boolean(currentUser?.companyIds && currentUser.companyIds.includes(comp.id)) ||
+          (clients || []).some(
+            (c) =>
+              c &&
+              c.companyId === comp.id &&
+              ((c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
+                (c as any).assignedEmployeeId === currentUser?.id ||
+                c.assignedAdminId === currentUser?.id)
+          );
+
+        if (!isAssignedStaff) return false;
+
+        if (selectedCompanyId !== 'all') {
+          return comp.id === selectedCompanyId;
+        }
+
+        return true;
       }
 
       if (selectedCompanyId !== 'all') {
@@ -7920,7 +8044,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [companies, isClientRole, isEmployeeRole, currentUser, selectedCompanyId]);
+  }, [companies, isClientRole, isEmployeeRole, currentUser, selectedCompanyId, clients]);
+
+  // Auto-reset selectedCompanyId to 'all' if the employee/client doesn't have permission for the current company view
+  useEffect(() => {
+    if (isEmployeeRole || isClientRole) {
+      if (selectedCompanyId !== 'all' && filteredCompanies.length > 0) {
+        const hasAccess = filteredCompanies.some((c) => c.id === selectedCompanyId);
+        if (!hasAccess) {
+          setSelectedCompanyId('all');
+        }
+      }
+    }
+  }, [isEmployeeRole, isClientRole, selectedCompanyId, filteredCompanies, setSelectedCompanyId]);
 
   const filteredClients = React.useMemo(() => {
     return (clients || []).filter((c) => {

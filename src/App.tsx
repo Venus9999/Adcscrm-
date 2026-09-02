@@ -34,6 +34,7 @@ import { VisaServicesManager } from './components/visa/VisaServicesManager';
 import { AIVisaCountryAdvisor } from './components/visa/AIVisaCountryAdvisor';
 import { AIImageStudio } from './components/ai/AIImageStudio';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { HostedPaymentPage } from './components/payment/HostedPaymentPage';
 import { PWAInstallBanner } from './components/common/PWAInstallBanner';
 import { PWAInstallModal } from './components/common/PWAInstallModal';
 
@@ -46,6 +47,21 @@ const AppContent: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showPWAInstallModal, setShowPWAInstallModal] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Check if current browser URL is a hosted payment link (/pay/..., /checkout/..., ?pay=..., ?paymentId=...)
+  const isHostedPaymentUrl =
+    typeof window !== 'undefined' &&
+    (window.location.pathname.startsWith('/pay/') ||
+      window.location.pathname.startsWith('/checkout/') ||
+      window.location.search.includes('pay=') ||
+      window.location.search.includes('paymentId=') ||
+      activeTab === 'pay' ||
+      activeTab === 'hosted_pay');
+
+  // If opening a payment link, render the dedicated public HostedPaymentPage without requiring prior login
+  if (isHostedPaymentUrl) {
+    return <HostedPaymentPage />;
+  }
 
   // If not authenticated, render the secure Login Screen
   if (!isAuthenticated) {

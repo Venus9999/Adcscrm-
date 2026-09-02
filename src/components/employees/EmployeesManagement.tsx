@@ -228,6 +228,11 @@ export const EmployeesManagement: React.FC = () => {
 
   const handleOpenEdit = (user: User) => {
     setSelectedUser(user);
+    const existingCompIds = user.companyIds && user.companyIds.length > 0
+      ? user.companyIds
+      : user.companyId
+      ? [user.companyId]
+      : [];
     setFormData({
       name: user.name ?? '',
       email: user.email ?? '',
@@ -236,7 +241,8 @@ export const EmployeesManagement: React.FC = () => {
       customRoleId: user.customRoleId,
       department: user.department || (departments[0]?.name || 'PRO Operations'),
       jobTitle: user.jobTitle || 'Staff Member',
-      companyId: user.companyId || '',
+      companyId: user.companyId || existingCompIds[0] || '',
+      companyIds: existingCompIds,
       status: user.status || 'active',
       avatar: user.avatar,
       permissions: user.permissions || {
@@ -354,15 +360,22 @@ export const EmployeesManagement: React.FC = () => {
     e.preventDefault();
     if (!selectedUser || !formData.name || !formData.email) return;
 
+    const targetCompIds = formData.companyIds && formData.companyIds.length > 0
+      ? formData.companyIds
+      : formData.companyId
+      ? [formData.companyId]
+      : [];
+
     updateUser(selectedUser.id, {
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone?.trim(),
       role: formData.role as UserRole,
       customRoleId: formData.customRoleId,
       department: formData.department,
       jobTitle: formData.jobTitle,
-      companyId: formData.companyId,
+      companyId: formData.companyId || targetCompIds[0] || '',
+      companyIds: targetCompIds,
       status: formData.status as 'active' | 'inactive',
       avatar: formData.avatar,
       permissions: formData.permissions as UserPermissions,
@@ -1035,12 +1048,15 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <select
                     value={formData.companyId ?? ''}
-                    onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
+                    onChange={(e) => {
+                      const newCompId = e.target.value;
+                      setFormData({ ...formData, companyId: newCompId, companyIds: [newCompId] });
+                    }}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
                     {companies.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
                       </option>
                     ))}
                   </select>
@@ -1232,12 +1248,19 @@ export const EmployeesManagement: React.FC = () => {
                   </label>
                   <select
                     value={formData.companyId ?? ''}
-                    onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
+                    onChange={(e) => {
+                      const newCompId = e.target.value;
+                      const curCompIds = formData.companyIds || [];
+                      const updatedIds = curCompIds.includes(newCompId)
+                        ? curCompIds
+                        : [...curCompIds.filter((id) => id !== formData.companyId), newCompId];
+                      setFormData({ ...formData, companyId: newCompId, companyIds: updatedIds });
+                    }}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
                     {companies.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.name} {c.branchLocation ? `(${c.branchLocation})` : ''}
                       </option>
                     ))}
                   </select>

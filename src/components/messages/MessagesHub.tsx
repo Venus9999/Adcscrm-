@@ -161,18 +161,37 @@ export const MessagesHub: React.FC = () => {
       return threads;
     }
 
-    // 2. EMPLOYEE ROLE: Strictly assigned clients + branch desk
-    if (currentUser.role === 'employee') {
-      const assignedClients = (clients || []).filter(
-        (c) =>
-          c &&
-          (c.assignedEmployeeId === currentUser.id ||
-            c.assignedEmployeeName === currentUser.name ||
-            (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser.id)))
-      );
+    // 2. EMPLOYEE / SALES ROLE: Assigned clients or company clients + branch desk
+    if (currentUser.role === 'employee' || currentUser.role?.toLowerCase() === 'sales') {
+      const isSalesStaff =
+        currentUser.role?.toLowerCase() === 'sales' ||
+        currentUser.department?.toLowerCase().includes('sales') ||
+        currentUser.jobTitle?.toLowerCase().includes('sales') ||
+        currentUser.customRoleId === 'role-sales';
 
-      const branchComp = companies.find((c) => c.id === currentUser.companyId) || companies[0];
-      const branchThread: ChatThreadItem = {
+      const userCompanyIds = currentUser.companyIds || (currentUser.companyId ? [currentUser.companyId] : []);
+
+      const assignedClients = (clients || []).filter((c) => {
+        if (!c) return false;
+        if (
+          c.assignedEmployeeId === currentUser.id ||
+          c.assignedEmployeeName === currentUser.name ||
+          (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser.id))
+        ) {
+          return true;
+        }
+        if (isSalesStaff || currentUser.permissions?.canViewAllCompanies) {
+          return userCompanyIds.length === 0 || userCompanyIds.includes(c.companyId);
+        }
+        return false;
+      });
+
+      const branchComps = companies.filter((c) =>
+        userCompanyIds.length > 0 ? userCompanyIds.includes(c.id) : c.id === currentUser.companyId
+      );
+      const activeBranchComps = branchComps.length > 0 ? branchComps : [companies[0]];
+
+      const branchThreads: ChatThreadItem[] = activeBranchComps.map((branchComp) => ({
         id: `branch-desk-${branchComp?.id || 'comp-1'}`,
         name: `${branchComp?.name || 'ADCS Group'} - Branch Desk`,
         roleLabel: `${branchComp?.city || 'Dubai'} Branch HQ`,
@@ -186,7 +205,7 @@ export const MessagesHub: React.FC = () => {
         info: `${branchComp?.address || 'Corporate Tower'} • Internal Staff & Branch Communications`,
         isBranch: true,
         status: 'Branch Active',
-      };
+      }));
 
       const clientThreads: ChatThreadItem[] = assignedClients.map((client) => ({
         id: client.id,
@@ -202,7 +221,7 @@ export const MessagesHub: React.FC = () => {
         status: client.status,
       }));
 
-      return [branchThread, ...clientThreads];
+      return [...branchThreads, ...clientThreads];
     }
 
     // 3. MASTER / ADMIN ROLE: All client threads across the firm

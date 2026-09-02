@@ -69,10 +69,20 @@ export async function createNomodPaymentLink(
     console.warn('Server Nomod link creation fallback to client generator:', err);
   }
 
-  // Fallback client link generator
+  // Hosted payment link generator
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const randRef = `NOMOD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
   const paymentId = `nomod_link_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const link = `https://nomod.com/pay/${paymentId}?ref=${randRef}&amount=${payload.amount}&curr=${payload.currency || 'AED'}`;
+  const searchParams = new URLSearchParams({
+    ref: randRef,
+    amount: String(payload.amount),
+    currency: payload.currency || 'AED',
+    title: payload.title || 'ADCS Corporate Visa Processing Payment',
+    customer: payload.customer?.name || '',
+    email: payload.customer?.email || '',
+    phone: payload.customer?.phone || '',
+  });
+  const link = `${origin}/pay/${paymentId}?${searchParams.toString()}`;
 
   return {
     success: true,
