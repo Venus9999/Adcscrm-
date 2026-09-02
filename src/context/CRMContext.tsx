@@ -1249,6 +1249,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [hydrateStateFromSnapshot]);
 
+  // Unified synchronization dispatcher to Cloud Firestore & Server Storage
+  const syncSnapshot = useCallback((snapshot: any) => {
+    if (!snapshot) return;
+    saveCRMDataToCloud(snapshot, true).catch(() => {});
+    fetch('/api/crm/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(snapshot),
+    }).catch(() => {});
+  }, []);
+
   // Synchronize active currentUser session whenever user record or branch assignment changes in state
   useEffect(() => {
     if (!currentUser?.id || !users || users.length === 0) return;
@@ -1397,6 +1408,36 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     });
 
+    // 4b. Server-Sent Events (SSE) stream for instantaneous cross-browser and cross-system sync
+    let eventSource: EventSource | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'EventSource' in window) {
+        eventSource = new EventSource('/api/crm/events');
+        eventSource.onmessage = (event) => {
+          try {
+            const parsedEvent = JSON.parse(event.data);
+            if (parsedEvent?.type === 'CRM_UPDATE' && parsedEvent.data) {
+              const remoteData = parsedEvent.data;
+              if (!isLocalDebounceSavingRef.current && !isHydratingFromRemoteRef.current) {
+                if (isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+                  lastAppliedRemoteIsoRef.current = remoteData.lastUpdated;
+                  hydrateStateFromSnapshot(remoteData);
+                  try {
+                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remoteData));
+                  } catch {}
+                  setLastServerSyncTime(new Date().toLocaleTimeString());
+                  setServerSyncStatus('synced');
+                }
+              }
+            }
+          } catch {}
+        };
+        eventSource.onerror = () => {
+          // Automatic browser reconnection in background
+        };
+      }
+    } catch {}
+
     // 5. Active high-frequency synchronization for multi-device, multi-browser real-time consistency
     const checkRemoteSync = async () => {
       if (isLocalDebounceSavingRef.current || isHydratingFromRemoteRef.current) return;
@@ -1444,8 +1485,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
     };
 
-    // Fast polling every 3.5 seconds ensures all admins and staff see live updates across any browser and device
-    const pollInterval = setInterval(checkRemoteSync, 3500);
+    // Fast polling every 2.5 seconds ensures all admins and staff see live updates across any browser and device
+    const pollInterval = setInterval(checkRemoteSync, 2500);
     const handleFocus = () => {
       checkRemoteSync();
     };
@@ -1459,13 +1500,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       unsubscribeCloud();
+      if (eventSource) {
+        try {
+          eventSource.close();
+        } catch {}
+      }
     };
   }, [hydrateStateFromSnapshot]);
 
   // Save to local storage immediately ON CHANGE, then sync silently to backend Cloud & Server in background
   useEffect(() => {
     if (!dataLoaded || isHydratingFromRemoteRef.current) return;
-    hasUserEditedRef.current = true;
+    if (!hasUserEditedRef.current) return;
 
     const nowIso = new Date().toISOString();
     lastAppliedRemoteIsoRef.current = nowIso;
@@ -3528,7 +3574,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         calls: [],
       };
 
-      setClients((prev) => [newClient, ...prev]);
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      let nextClientsList: Client[] = [];
+      setClients((prev) => {
+        nextClientsList = [newClient, ...prev];
+        return nextClientsList;
+      });
 
       // Update company counts
       setCompanies((prev) =>
@@ -3542,6 +3597,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             : comp
         )
       );
+
+      // Immediate synchronous persistence to localStorage and real-time cloud/server dispatch
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.clients = nextClientsList;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          if (Array.isArray(parsed.deletedClientIds)) {
+            parsed.deletedClientIds = parsed.deletedClientIds.filter((cid: string) => cid !== newId);
+          }
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+          }
+          syncSnapshot(parsed);
+        }
+      } catch {}
 
       recordAuditLog(
         'Client Created',
@@ -3569,17 +3643,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return { success: true, client: newClient, invoice: generatedInvoice };
     },
-    [checkDuplicateClient, serviceCategories, currentUser, users, companies, invoices.length, recordAuditLog]
+    [checkDuplicateClient, serviceCategories, currentUser, users, companies, invoices.length, recordAuditLog, syncSnapshot]
   );
 
   // Update Client (Defensive Deep Update: Preserves all previous nested arrays & data and records changelog)
   const updateClient = useCallback(
     (id: string, updates: Partial<Client>) => {
       hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
       let generatedChangeLog: ChangeLogEntry | null = null;
+      let nextClientsList: Client[] = [];
 
-      setClients((prev) =>
-        prev.map((client) => {
+      setClients((prev) => {
+        nextClientsList = prev.map((client) => {
           if (client.id === id) {
             // Filter out undefined keys to prevent accidental clearing of previous data
             const cleanUpdates: Partial<Client> = {};
@@ -3622,13 +3700,30 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   : client.assignedEmployeeIds || [],
               companyId: cleanUpdates.companyId !== undefined ? cleanUpdates.companyId : client.companyId,
               changelog: nextChangelog,
-              updatedAt: new Date().toISOString(),
+              updatedAt: nowIso,
             };
             return updated;
           }
           return client;
-        })
-      );
+        });
+        return nextClientsList;
+      });
+
+      // Immediate synchronous persistence to localStorage and real-time cloud/server dispatch
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.clients = nextClientsList;
+          parsed.lastUpdated = nowIso;
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+          }
+          syncSnapshot(parsed);
+        }
+      } catch {}
 
       if (generatedChangeLog) {
         recordAuditLog(
@@ -3640,7 +3735,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         recordAuditLog('Client Updated', 'Clients', `Updated details for client ID ${id}`);
       }
     },
-    [currentUser, recordAuditLog]
+    [currentUser, recordAuditLog, syncSnapshot]
   );
 
   // Delete Client - Blocked for Employees
@@ -8520,6 +8615,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (broadcastChannelRef.current) {
             broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
           }
+          syncSnapshot(parsed);
         }
       } catch {}
 
@@ -8529,7 +8625,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Added new destination country ${country.countryName} (${country.countryCode}) to worldwide visa directory.`
       );
     },
-    [recordAuditLog]
+    [recordAuditLog, syncSnapshot]
   );
 
   const updateVisaCountry = useCallback(
@@ -8564,6 +8660,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (broadcastChannelRef.current) {
             broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
           }
+          syncSnapshot(parsed);
         }
       } catch {}
 
@@ -8573,7 +8670,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Updated destination country ${countryCode} details in worldwide visa catalog.`
       );
     },
-    [recordAuditLog]
+    [recordAuditLog, syncSnapshot]
   );
 
   const deleteVisaCountry = useCallback(
@@ -8611,6 +8708,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (broadcastChannelRef.current) {
             broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
           }
+          syncSnapshot(parsed);
         }
       } catch {}
 
@@ -8622,7 +8720,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
     },
-    [visaCountryCatalog, recordAuditLog]
+    [visaCountryCatalog, recordAuditLog, syncSnapshot]
   );
 
   const addVisaCountryService = useCallback(
@@ -8676,6 +8774,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (broadcastChannelRef.current) {
             broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
           }
+          syncSnapshot(parsed);
         }
       } catch {}
 
@@ -8685,7 +8784,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Added/updated visa service "${service.name}" for country ${countryCode}.`
       );
     },
-    [recordAuditLog]
+    [recordAuditLog, syncSnapshot]
   );
 
   const updateVisaCountryService = useCallback(
@@ -8726,6 +8825,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (broadcastChannelRef.current) {
             broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
           }
+          syncSnapshot(parsed);
         }
       } catch {}
 
@@ -8735,7 +8835,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Modified visa service ${serviceId} for country ${countryCode}.`
       );
     },
-    [recordAuditLog]
+    [recordAuditLog, syncSnapshot]
   );
 
   const deleteVisaCountryService = useCallback(
@@ -8788,6 +8888,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (broadcastChannelRef.current) {
             broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
           }
+          syncSnapshot(parsed);
         }
       } catch {}
 
@@ -8797,7 +8898,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Removed visa service ${serviceId} from country ${countryCode}.`
       );
     },
-    [recordAuditLog]
+    [recordAuditLog, syncSnapshot]
   );
 
   const resetVisaCountryCatalog = useCallback(() => {
@@ -8824,6 +8925,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (broadcastChannelRef.current) {
           broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
         }
+        syncSnapshot(parsed);
       }
     } catch {}
 
@@ -8832,7 +8934,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       'Services',
       'Reset worldwide visa country directory to default international consular database.'
     );
-  }, [recordAuditLog]);
+  }, [recordAuditLog, syncSnapshot]);
 
   // Computed Filtered Views (Strict Employee Data Isolation & Branch Filtering)
   const isEmployeeRole =

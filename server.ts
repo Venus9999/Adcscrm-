@@ -410,6 +410,36 @@ async function startServer() {
     }
   });
 
+  // Server-Sent Events clients registry for instant multi-device real-time sync
+  const sseClients = new Set<express.Response>();
+
+  // GET /api/crm/events - Server-Sent Events stream for instant cross-browser and cross-system sync
+  app.get('/api/crm/events', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    res.write(`data: ${JSON.stringify({ type: 'CONNECTED', timestamp: new Date().toISOString() })}\n\n`);
+    sseClients.add(res);
+
+    req.on('close', () => {
+      sseClients.delete(res);
+    });
+  });
+
+  // Keep-alive heartbeat every 15 seconds
+  setInterval(() => {
+    for (const client of sseClients) {
+      try {
+        client.write(':keepalive\n\n');
+      } catch {
+        sseClients.delete(client);
+      }
+    }
+  }, 15000);
+
   // GET /api/crm/data - Retrieve persistent CRM database snapshot
   app.get('/api/crm/data', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -602,41 +632,90 @@ async function startServer() {
         cleanCompanies = initialCompanies.filter((c: any) => c && c.id && !combinedDeletedCompanyIds.includes(c.id));
       }
 
-      // Handle clients: strictly filter out deleted clients
-      const incomingOrExistingClients = Array.isArray(payload.clients) ? payload.clients : (existing.clients || []);
-      const cleanClients = incomingOrExistingClients.filter(
+      // Handle clients: merge non-destructively and strictly filter out deleted clients
+      let mergedClients: any[] = [];
+      if (Array.isArray(payload.clients) && payload.clients.length > 0) {
+        mergedClients = mergeCollection(existing.clients || [], payload.clients);
+      } else if (Array.isArray(existing.clients) && existing.clients.length > 0) {
+        // If incoming clients is empty, check if all clients were explicitly marked for deletion
+        const explicitlyDeleted = (existing.clients || []).filter((c: any) => c && c.id && combinedDeletedClientIds.includes(c.id));
+        if (explicitlyDeleted.length === existing.clients.length && Array.isArray(payload.clients)) {
+          mergedClients = [];
+        } else {
+          mergedClients = existing.clients;
+        }
+      }
+      const cleanClients = mergedClients.filter(
         (c: any) => c && c.id && !combinedDeletedClientIds.includes(c.id)
       );
 
-      // Handle documents: strictly filter out deleted documents or documents belonging to deleted clients
-      const incomingOrExistingDocs = Array.isArray(payload.documents) ? payload.documents : (existing.documents || []);
-      const cleanDocs = incomingOrExistingDocs.filter(
+      // Handle documents: merge non-destructively and strictly filter out deleted documents or documents belonging to deleted clients
+      let mergedDocs: any[] = [];
+      if (Array.isArray(payload.documents) && payload.documents.length > 0) {
+        mergedDocs = mergeCollection(existing.documents || [], payload.documents);
+      } else if (Array.isArray(existing.documents)) {
+        mergedDocs = existing.documents;
+      }
+      const cleanDocs = mergedDocs.filter(
         (d: any) => d && d.id && !combinedDeletedDocumentIds.includes(d.id) && (!d.clientId || !combinedDeletedClientIds.includes(d.clientId))
       );
 
-      // Handle tasks: strictly filter out deleted tasks or tasks belonging to deleted clients
-      const incomingOrExistingTasks = Array.isArray(payload.tasks) ? payload.tasks : (existing.tasks || []);
-      const cleanTasks = incomingOrExistingTasks.filter(
+      // Handle tasks: merge non-destructively and strictly filter out deleted tasks or tasks belonging to deleted clients
+      let mergedTasks: any[] = [];
+      if (Array.isArray(payload.tasks) && payload.tasks.length > 0) {
+        mergedTasks = mergeCollection(existing.tasks || [], payload.tasks);
+      } else if (Array.isArray(existing.tasks)) {
+        mergedTasks = existing.tasks;
+      }
+      const cleanTasks = mergedTasks.filter(
         (t: any) => t && t.id && !combinedDeletedTaskIds.includes(t.id) && (!t.clientId || !combinedDeletedClientIds.includes(t.clientId))
       );
 
-      // Handle invoices: strictly filter out deleted invoices or invoices belonging to deleted clients
-      const incomingOrExistingInvoices = Array.isArray(payload.invoices) ? payload.invoices : (existing.invoices || []);
-      const cleanInvoices = incomingOrExistingInvoices.filter(
+      // Handle invoices: merge non-destructively and strictly filter out deleted invoices or invoices belonging to deleted clients
+      let mergedInvoices: any[] = [];
+      if (Array.isArray(payload.invoices) && payload.invoices.length > 0) {
+        mergedInvoices = mergeCollection(existing.invoices || [], payload.invoices);
+      } else if (Array.isArray(existing.invoices)) {
+        mergedInvoices = existing.invoices;
+      }
+      const cleanInvoices = mergedInvoices.filter(
         (i: any) => i && i.id && !combinedDeletedInvoiceIds.includes(i.id) && (!i.clientId || !combinedDeletedClientIds.includes(i.clientId))
       );
 
-      // Handle leads: strictly filter out deleted leads
-      const incomingOrExistingLeads = Array.isArray(payload.leads) ? payload.leads : (existing.leads || []);
-      const cleanLeads = incomingOrExistingLeads.filter(
+      // Handle leads: merge non-destructively and strictly filter out deleted leads
+      let mergedLeads: any[] = [];
+      if (Array.isArray(payload.leads) && payload.leads.length > 0) {
+        mergedLeads = mergeCollection(existing.leads || [], payload.leads);
+      } else if (Array.isArray(existing.leads)) {
+        mergedLeads = existing.leads;
+      }
+      const cleanLeads = mergedLeads.filter(
         (ld: any) => ld && ld.id && !combinedDeletedLeadIds.includes(ld.id)
       );
 
-      // Handle vendors: strictly filter out deleted vendors
-      const incomingOrExistingVendors = Array.isArray(payload.vendors) ? payload.vendors : (existing.vendors || []);
-      const cleanVendors = incomingOrExistingVendors.filter(
+      // Handle vendors: merge non-destructively and strictly filter out deleted vendors
+      let mergedVendors: any[] = [];
+      if (Array.isArray(payload.vendors) && payload.vendors.length > 0) {
+        mergedVendors = mergeCollection(existing.vendors || [], payload.vendors);
+      } else if (Array.isArray(existing.vendors) && existing.vendors.length > 0) {
+        const explicitlyDeleted = (existing.vendors || []).filter((v: any) => v && v.id && combinedDeletedVendorIds.includes(v.id));
+        if (explicitlyDeleted.length === existing.vendors.length && Array.isArray(payload.vendors)) {
+          mergedVendors = [];
+        } else {
+          mergedVendors = existing.vendors;
+        }
+      }
+      const cleanVendors = mergedVendors.filter(
         (v: any) => v && v.id && !combinedDeletedVendorIds.includes(v.id)
       );
+
+      // Handle worldwide visa country catalog: merge non-destructively
+      let mergedVisaCatalog: any[] = [];
+      if (Array.isArray(payload.visaCountryCatalog) && payload.visaCountryCatalog.length > 0) {
+        mergedVisaCatalog = mergeCollection(existing.visaCountryCatalog || [], payload.visaCountryCatalog);
+      } else if (Array.isArray(existing.visaCountryCatalog) && existing.visaCountryCatalog.length > 0) {
+        mergedVisaCatalog = existing.visaCountryCatalog;
+      }
 
       // Build merged object respecting deletions from client payload snapshot
       const merged = {
@@ -670,7 +749,7 @@ async function startServer() {
         deletedLeadIds: combinedDeletedLeadIds,
         deletedVendorIds: combinedDeletedVendorIds,
         visaApplications: Array.isArray(payload.visaApplications) ? payload.visaApplications : (existing.visaApplications || []),
-        visaCountryCatalog: Array.isArray(payload.visaCountryCatalog) ? payload.visaCountryCatalog : (existing.visaCountryCatalog || []),
+        visaCountryCatalog: mergedVisaCatalog,
         deletedVisaCountryCodes: payload.deletedVisaCountryCodes !== undefined ? payload.deletedVisaCountryCodes : (existing.deletedVisaCountryCodes || []),
         deletedVisaServiceIds: payload.deletedVisaServiceIds !== undefined ? payload.deletedVisaServiceIds : (existing.deletedVisaServiceIds || []),
         deletedVisaAppIds: payload.deletedVisaAppIds !== undefined ? payload.deletedVisaAppIds : (existing.deletedVisaAppIds || []),
@@ -681,6 +760,21 @@ async function startServer() {
       const tempFile = `${STORE_FILE}.tmp.${Date.now()}`;
       fs.writeFileSync(tempFile, JSON.stringify(merged, null, 2), 'utf-8');
       fs.renameSync(tempFile, STORE_FILE);
+
+      // Broadcast update to all connected browsers, tabs, and systems immediately
+      const broadcastMsg = `data: ${JSON.stringify({
+        type: 'CRM_UPDATE',
+        lastUpdated: merged.lastUpdated,
+        data: merged,
+      })}\n\n`;
+
+      for (const client of sseClients) {
+        try {
+          client.write(broadcastMsg);
+        } catch {
+          sseClients.delete(client);
+        }
+      }
 
       return res.json({
         success: true,

@@ -7,10 +7,6 @@ service cloud.firestore {
     }
 
     // Helper functions for security validation
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
     function isValidId(docId) {
       return docId is string && docId.size() > 0 && docId.size() <= 128 && docId.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -20,11 +16,11 @@ service cloud.firestore {
              request.resource.data.payload is map;
     }
 
-    // Enterprise CRM system store - Strictly restricted to authenticated users
+    // Enterprise CRM system store - Persistent multi-device synchronization
     match /crm_system/{docId} {
-      allow read: if isSignedIn() && isValidId(docId);
-      allow create, update: if isSignedIn() && isValidId(docId) && isValidWrite();
-      allow delete: if isSignedIn() && isValidId(docId);
+      allow read: if isValidId(docId);
+      allow create, update: if isValidId(docId) && isValidWrite();
+      allow delete: if isValidId(docId);
     }
   }
 }

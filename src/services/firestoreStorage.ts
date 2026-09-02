@@ -36,16 +36,16 @@ initFirebaseAppCheck();
 const firestoreDbId = (firebaseConfig as Record<string, any>).firestoreDatabaseId || undefined;
 export const db: Firestore = getFirestore(app, firestoreDbId);
 
-// Initialize Firebase Realtime Database (Europe-West1 instance provided by user)
-export const RTDB_URL =
-  (firebaseConfig as Record<string, any>).databaseURL ||
-  'https://gen-lang-client-0989127214-default-rtdb.europe-west1.firebasedatabase.app';
+// Initialize Firebase Realtime Database (only if explicitly configured in firebase config)
+export const RTDB_URL = (firebaseConfig as Record<string, any>).databaseURL || null;
 
 let rtdbInstance: Database | null = null;
-try {
-  rtdbInstance = getDatabase(app, RTDB_URL);
-} catch (e) {
-  console.warn('Firebase RTDB initialization notice:', e);
+if (RTDB_URL) {
+  try {
+    rtdbInstance = getDatabase(app, RTDB_URL);
+  } catch (e) {
+    console.warn('Firebase RTDB initialization notice:', e);
+  }
 }
 export const rtdb: Database | null = rtdbInstance;
 
@@ -246,7 +246,11 @@ export async function loadCRMDataFromCloud(): Promise<{ success: boolean; data: 
         if (val) {
           const payload = val.payload || val;
           if (payload && typeof payload === 'object') {
-            return { success: true, data: payload, hasData: true };
+            // Validate that the payload has substantive CRM data
+            const hasCrmKeys = Array.isArray(payload.clients) || Array.isArray(payload.companies) || Array.isArray(payload.users) || Array.isArray(payload.vendors);
+            if (hasCrmKeys) {
+              return { success: true, data: payload, hasData: true };
+            }
           }
         }
       }

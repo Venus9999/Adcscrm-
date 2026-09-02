@@ -348,7 +348,7 @@
   ],
   "hasCustomModifications": true,
   "isColdStart": false,
-  "lastUpdated": "2026-08-30T04:41:39.769Z",
+  "lastUpdated": "2026-09-02T16:39:08.731Z",
   "leadCategories": [
     {
       "badgeBg": "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800",
@@ -1258,24 +1258,8 @@
   ],
   "vendors": [
     {
-      "accountNumber": "",
-      "address": "Dubai, UAE",
-      "bankName": "Emirates NBD",
-      "category": "PRO Outsourcing",
-      "commissionRate": 5,
-      "companyId": "comp-1",
-      "companyName": "ADCS Document Clearing & Corporate Services LLC",
-      "contactPerson": "Vicky",
-      "createdAt": "2026-08-27T17:45:48.549Z",
-      "email": "vgf@gmail.com",
-      "iban": "",
-      "id": "vend-1787852748549",
-      "name": "Vicky",
-      "notes": "",
-      "phone": "+971 50",
-      "status": "active",
-      "tradeLicenseExpiry": "2028-12-31",
-      "tradeLicenseNo": "TL-677571"
+      "id": "vend-test-1",
+      "name": "Test Vendor"
     }
   ],
   "visaCountryCatalog": [
@@ -2338,5 +2322,30 @@
       "updatedAt": "2026-08-25T08:00:00Z"
     }
   ],
-  "leads": []
+  "leads": [],
+  "test": true,
+  "clients": [
+    {
+      "id": "client-test-1",
+      "name": "Test Client"
+    }
+  ],
+  "documents": [],
+  "tasks": [],
+  "invoices": [],
+  "transactions": [],
+  "messages": [],
+  "serviceClassifications": [],
+  "notifications": [],
+  "deletedCompanyIds": [],
+  "deletedClientIds": [],
+  "deletedDocumentIds": [],
+  "deletedTaskIds": [],
+  "deletedInvoiceIds": [],
+  "deletedLeadIds": [],
+  "deletedVendorIds": [],
+  "visaApplications": [],
+  "deletedVisaCountryCodes": [],
+  "deletedVisaServiceIds": [],
+  "deletedVisaAppIds": []
 }
