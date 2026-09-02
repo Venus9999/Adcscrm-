@@ -366,6 +366,7 @@ const AUTH_STORAGE_KEY = 'adcs_crm_auth_session_v2';
 const CURRENT_USER_STORAGE_KEY = 'adcs_crm_active_user_id_v2';
 const ACTIVE_USER_PROFILE_KEY = 'adcs_crm_active_user_profile_v2';
 const DELETED_USERS_STORAGE_KEY = 'adcs_crm_deleted_user_ids';
+const DELETED_COMPANIES_STORAGE_KEY = 'adcs_crm_deleted_company_ids';
 const DELETED_VENDORS_STORAGE_KEY = 'adcs_crm_deleted_vendor_ids';
 const DELETED_VISA_APPS_STORAGE_KEY = 'adcs_crm_deleted_visa_app_ids';
 const DELETED_VISA_COUNTRIES_STORAGE_KEY = 'adcs_crm_deleted_visa_country_codes';
@@ -409,9 +410,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return initialFallback;
   };
 
-  const [companies, setCompanies] = useState<Company[]>(() =>
-    getInitialStorageList('companies', INITIAL_COMPANIES, true)
-  );
+  const [companies, setCompanies] = useState<Company[]>(() => {
+    try {
+      let deletedCompanyIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY);
+        if (delRaw) deletedCompanyIds = JSON.parse(delRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.companies && Array.isArray(parsed.companies)) {
+          return (parsed.companies as Company[]).filter((c) => c && c.id && !deletedCompanyIds.includes(c.id));
+        }
+      }
+      return (INITIAL_COMPANIES || []).filter((c) => !deletedCompanyIds.includes(c.id));
+    } catch {
+      return INITIAL_COMPANIES || [];
+    }
+  });
   const [departments, setDepartments] = useState<Department[]>(() =>
     getInitialStorageList('departments', INITIAL_DEPARTMENTS, true)
   );
@@ -712,20 +733,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return Array.from(map.values());
     };
 
-    if (parsed.companies && Array.isArray(parsed.companies) && parsed.companies.length > 0) {
-      setCompanies((prev) => mergeEntitiesById(prev, parsed.companies, INITIAL_COMPANIES));
-    }
-    if (parsed.departments && Array.isArray(parsed.departments) && parsed.departments.length > 0) {
-      setDepartments((prev) => mergeEntitiesById(prev, parsed.departments, INITIAL_DEPARTMENTS));
-    } else if (parsed.departments) {
-      setDepartments((prev) => mergeEntitiesById(prev, [], INITIAL_DEPARTMENTS));
-    }
     // Sync and extract tombstones from snapshot
+    let deletedCompanyIds: string[] = [];
     let deletedVendorIds: string[] = [];
     let deletedAppIds: string[] = [];
     let deletedCountryCodes: string[] = [];
     let deletedServiceIds: string[] = [];
     try {
+      const delCompRaw = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY);
+      if (delCompRaw) deletedCompanyIds = JSON.parse(delCompRaw);
       const delVendRaw = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY);
       if (delVendRaw) deletedVendorIds = JSON.parse(delVendRaw);
       const delAppRaw = localStorage.getItem(DELETED_VISA_APPS_STORAGE_KEY);
@@ -735,6 +751,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const delSrvRaw = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY);
       if (delSrvRaw) deletedServiceIds = JSON.parse(delSrvRaw);
 
+      if (Array.isArray(parsed.deletedCompanyIds)) {
+        parsed.deletedCompanyIds.forEach((id: string) => {
+          if (id && !deletedCompanyIds.includes(id)) deletedCompanyIds.push(id);
+        });
+        localStorage.setItem(DELETED_COMPANIES_STORAGE_KEY, JSON.stringify(deletedCompanyIds));
+      }
       if (Array.isArray(parsed.deletedVendorIds)) {
         parsed.deletedVendorIds.forEach((id: string) => {
           if (id && !deletedVendorIds.includes(id)) deletedVendorIds.push(id);
@@ -761,6 +783,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(DELETED_VISA_SERVICES_STORAGE_KEY, JSON.stringify(deletedServiceIds));
       }
     } catch {}
+
+    if (parsed.companies && Array.isArray(parsed.companies)) {
+      const cleanCompanies = (parsed.companies || []).filter(
+        (c: Company) => c && c.id && !deletedCompanyIds.includes(c.id)
+      );
+      setCompanies(cleanCompanies);
+    }
+    if (parsed.departments && Array.isArray(parsed.departments) && parsed.departments.length > 0) {
+      setDepartments((prev) => mergeEntitiesById(prev, parsed.departments, INITIAL_DEPARTMENTS));
+    } else if (parsed.departments) {
+      setDepartments((prev) => mergeEntitiesById(prev, [], INITIAL_DEPARTMENTS));
+    }
 
     if (parsed.vendors && Array.isArray(parsed.vendors)) {
       const cleanVendors = (parsed.vendors || []).filter(
@@ -1297,6 +1331,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       deletedVendorIds: (() => {
         try {
           const raw = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      deletedCompanyIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY);
           return raw ? JSON.parse(raw) : [];
         } catch {
           return [];
@@ -6279,6 +6321,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       hasUserEditedRef.current = true;
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
+
+      let nextDeletedCompanyIds: string[] = [];
+      try {
+        const rawDel = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY);
+        if (rawDel) nextDeletedCompanyIds = JSON.parse(rawDel);
+        if (!nextDeletedCompanyIds.includes(id)) nextDeletedCompanyIds.push(id);
+        localStorage.setItem(DELETED_COMPANIES_STORAGE_KEY, JSON.stringify(nextDeletedCompanyIds));
+      } catch {}
+
       setCompanies((prev) => {
         const next = (prev || []).filter((c) => c && c.id !== id);
         try {
@@ -6286,14 +6337,48 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (saved) {
             const parsed = JSON.parse(saved);
             parsed.companies = next;
+            parsed.deletedCompanyIds = nextDeletedCompanyIds;
             parsed.lastUpdated = nowIso;
             parsed.hasCustomModifications = true;
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({
+                type: 'CRM_TAB_UPDATE',
+                snapshot: parsed,
+              });
+            }
+
             saveCRMDataToCloud(parsed, true).catch(() => {});
+            fetch('/api/crm/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(parsed),
+            }).catch(() => {});
           }
         } catch {}
         return next;
       });
+
+      // Also clean up assigned company on users
+      setUsers((prevUsers) => {
+        const updatedUsers = (prevUsers || []).map((u) => {
+          const curIds = u.companyIds || (u.companyId ? [u.companyId] : []);
+          if (curIds.includes(id) || u.companyId === id) {
+            const remaining = curIds.filter((cid) => cid !== id);
+            return {
+              ...u,
+              companyId: u.companyId === id ? (remaining[0] || '') : u.companyId,
+              companyIds: remaining,
+            };
+          }
+          return u;
+        });
+        return updatedUsers;
+      });
+
+      setSelectedCompanyId((prevSelected) => (prevSelected === id ? 'all' : prevSelected));
+
       recordAuditLog('Company Deleted', 'Companies', `Permanently deleted company / branch ID ${id}`);
     },
     [recordAuditLog]
@@ -6638,6 +6723,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       localStorage.removeItem(DELETED_VISA_APPS_STORAGE_KEY);
       localStorage.removeItem(DELETED_VENDORS_STORAGE_KEY);
       localStorage.removeItem(DELETED_USERS_STORAGE_KEY);
+      localStorage.removeItem(DELETED_COMPANIES_STORAGE_KEY);
     } catch {}
 
     const defaultSnapshot = {
@@ -6665,6 +6751,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       transactions: INITIAL_TRANSACTIONS,
       visaApplications: INITIAL_VISA_APPLICATIONS,
       visaCountryCatalog: WORLD_VISA_COUNTRIES,
+      deletedCompanyIds: [],
       deletedVendorIds: [],
       deletedVisaCountryCodes: [],
       deletedVisaServiceIds: [],
@@ -8070,27 +8157,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return matched.length > 0 ? matched : (companies || []).slice(0, 1);
     }
 
-    // Check staff access privileges
-    const hasCompanyAccessPrivileges =
+    // Check staff access privileges (Only if explicitly allowed to view all companies)
+    const hasViewAllCompaniesPrivilege =
       Boolean(latestUser?.permissions?.canViewAllCompanies) ||
-      Boolean(latestUser?.permissions?.canCreateCompanies) ||
-      Boolean(latestUser?.permissions?.canCreateCompany) ||
-      Boolean(latestUser?.permissions?.canManageCompanies) ||
-      Boolean(latestUser?.permissions?.canCreateBranches) ||
-      Boolean(latestUser?.permissions?.canManageBranches) ||
-      latestUser?.role?.toLowerCase() === 'sales' ||
-      latestUser?.department?.toLowerCase().includes('sales') ||
-      latestUser?.jobTitle?.toLowerCase().includes('sales') ||
-      latestUser?.customRoleId === 'role-sales' ||
-      currentUser?.role?.toLowerCase() === 'sales' ||
-      currentUser?.department?.toLowerCase().includes('sales') ||
-      currentUser?.jobTitle?.toLowerCase().includes('sales') ||
-      currentUser?.customRoleId === 'role-sales';
+      Boolean(currentUser?.permissions?.canViewAllCompanies);
 
-    if (hasCompanyAccessPrivileges) {
+    if (hasViewAllCompaniesPrivilege) {
       return companies || [];
     }
 
+    // For employees, officers, and agents: ONLY return the companies/branches they are specifically assigned to
     const assignedCompanyIds = new Set<string>([
       ...(latestUser?.companyIds || []),
       ...(latestUser?.companyId ? [latestUser.companyId] : []),
@@ -8101,10 +8177,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const accessible = (companies || []).filter((comp) => {
       if (!comp) return false;
 
-      // 1. Directly assigned via user profile
+      // 1. Directly assigned via employee profile (companyId or companyIds)
       if (assignedCompanyIds.has(comp.id)) return true;
 
-      // 2. Assigned via company roster (employeeIds / adminId / assignedAdminIds)
+      // 2. Assigned via company staff roster (employeeIds / adminId / assignedAdminIds)
       if (comp.employeeIds && (comp.employeeIds.includes(latestUser.id) || comp.employeeIds.includes(currentUser.id))) {
         return true;
       }
@@ -8113,34 +8189,20 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return true;
       }
 
-      // 3. Branch / Parent hierarchy: if assigned to parent, access branch, and vice versa
-      if (comp.parentCompanyId && assignedCompanyIds.has(comp.parentCompanyId)) return true;
-      const childBranches = (companies || []).filter((c) => c.parentCompanyId === comp.id);
-      if (childBranches.some((b) => assignedCompanyIds.has(b.id))) return true;
-
-      // 4. Assigned via clients in that company
-      const hasAssignedClientInCompany = (clients || []).some(
-        (c) =>
-          c &&
-          c.companyId === comp.id &&
-          (c.assignedEmployeeId === latestUser.id ||
-            c.assignedEmployeeId === currentUser.id ||
-            (c.assignedEmployeeIds && (c.assignedEmployeeIds.includes(latestUser.id) || c.assignedEmployeeIds.includes(currentUser.id))) ||
-            c.assignedAdminId === latestUser.id ||
-            c.assignedAdminId === currentUser.id)
-      );
-      if (hasAssignedClientInCompany) return true;
-
       return false;
     });
 
-    // Fallback: If no companies matched yet, default to primary company
+    // Fallback if no specific assignment found: match user's direct primary companyId if present
     if (accessible.length === 0 && (companies || []).length > 0) {
-      return (companies || []).slice(0, 1);
+      if (latestUser?.companyId) {
+        const found = (companies || []).filter((c) => c && c.id === latestUser.companyId);
+        if (found.length > 0) return found;
+      }
+      return [(companies || [])[0]];
     }
 
     return accessible;
-  }, [companies, users, currentUser, clients]);
+  }, [companies, users, currentUser]);
 
   const filteredCompanies = React.useMemo(() => {
     return accessibleCompanies.filter((comp) => {

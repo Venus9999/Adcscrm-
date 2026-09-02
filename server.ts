@@ -426,6 +426,10 @@ async function startServer() {
         if (!data.leadCategories || !Array.isArray(data.leadCategories)) data.leadCategories = [];
         if (!data.leadSources || !Array.isArray(data.leadSources)) data.leadSources = [];
         if (!data.leadStages || !Array.isArray(data.leadStages)) data.leadStages = [];
+        if (!data.deletedCompanyIds || !Array.isArray(data.deletedCompanyIds)) data.deletedCompanyIds = [];
+        if (data.companies && Array.isArray(data.companies)) {
+          data.companies = data.companies.filter((c: any) => c && c.id && !data.deletedCompanyIds.includes(c.id));
+        }
         return res.json({ success: true, data, hasData: true });
       }
       return res.json({ success: true, data: null, hasData: false });
@@ -507,10 +511,22 @@ async function startServer() {
         }
       ];
 
-      const mergedCompanies = mergeCollection(
-        existing.companies && existing.companies.length > 0 ? existing.companies : initialCompanies,
-        payload.companies
-      );
+      const combinedDeletedCompanyIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedCompanyIds) ? payload.deletedCompanyIds : []),
+          ...(Array.isArray(existing.deletedCompanyIds) ? existing.deletedCompanyIds : []),
+        ]),
+      ];
+
+      // Handle companies: if payload explicitly sends companies, use payload companies; otherwise merge existing
+      let cleanCompanies: any[] = [];
+      if (Array.isArray(payload.companies)) {
+        cleanCompanies = payload.companies.filter((c: any) => c && c.id && !combinedDeletedCompanyIds.includes(c.id));
+      } else if (Array.isArray(existing.companies) && existing.companies.length > 0) {
+        cleanCompanies = existing.companies.filter((c: any) => c && c.id && !combinedDeletedCompanyIds.includes(c.id));
+      } else {
+        cleanCompanies = initialCompanies.filter((c: any) => c && c.id && !combinedDeletedCompanyIds.includes(c.id));
+      }
 
       // Defensive merge: never wipe submitted data, update existing records and append new ones
       const merged = {
@@ -535,7 +551,8 @@ async function startServer() {
         leadSources: mergeCollection(existing.leadSources, payload.leadSources),
         leadStages: mergeCollection(existing.leadStages, payload.leadStages),
         users: mergeCollection(existing.users, payload.users),
-        companies: mergedCompanies,
+        companies: cleanCompanies,
+        deletedCompanyIds: combinedDeletedCompanyIds,
         visaApplications: mergeCollection(existing.visaApplications, payload.visaApplications),
         visaCountryCatalog: mergeCollection(existing.visaCountryCatalog, payload.visaCountryCatalog),
         deletedVendorIds: payload.deletedVendorIds !== undefined ? payload.deletedVendorIds : (existing.deletedVendorIds || []),
