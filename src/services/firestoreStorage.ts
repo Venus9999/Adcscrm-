@@ -22,6 +22,7 @@ import {
 } from 'firebase/database';
 import { getApps, initializeApp, getApp } from 'firebase/app';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { initFirebaseAppCheck } from './firebaseAppCheck';
 
 // Suppress verbose SDK logs for expected network limits
 try {
@@ -29,6 +30,7 @@ try {
 } catch {}
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+initFirebaseAppCheck();
 const firestoreDbId = (firebaseConfig as Record<string, any>).firestoreDatabaseId || undefined;
 export const db: Firestore = getFirestore(app, firestoreDbId);
 

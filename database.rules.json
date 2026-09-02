@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "crm_enterprise_store": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    ".read": false,
+    ".write": false
+  }
+}

@@ -7,9 +7,11 @@ import {
   User as FirebaseUser,
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { initFirebaseAppCheck } from './firebaseAppCheck';
 
 // Initialize Firebase App instance safely
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+initFirebaseAppCheck();
 export const auth = getAuth(app);
 
 // Configure Google Auth Provider for standard CRM Authentication (Email, Profile)
