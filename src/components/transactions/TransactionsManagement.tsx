@@ -783,7 +783,7 @@ export const TransactionsManagement: React.FC = () => {
                     Company Branch *
                   </label>
                   <select
-                    value={formData.companyId}
+                    value={formData.companyId ?? ''}
                     onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-medium"
                   >
@@ -800,7 +800,7 @@ export const TransactionsManagement: React.FC = () => {
                     Associated Client (Optional)
                   </label>
                   <select
-                    value={formData.clientId}
+                    value={formData.clientId ?? ''}
                     onChange={(e) => {
                       const cl = clients.find((c) => c.id === e.target.value);
                       setFormData({
@@ -828,7 +828,7 @@ export const TransactionsManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.category}
+                    value={formData.category ?? ''}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     placeholder="e.g. ICP Golden Visa Fee"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -840,7 +840,7 @@ export const TransactionsManagement: React.FC = () => {
                   <input
                     type="number"
                     required
-                    value={formData.amount}
+                    value={formData.amount ?? ''}
                     onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
                   />
@@ -852,7 +852,7 @@ export const TransactionsManagement: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Payment Method</label>
                   <select
-                    value={formData.paymentMethod}
+                    value={formData.paymentMethod ?? ''}
                     onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   >
@@ -868,7 +868,7 @@ export const TransactionsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Transaction Date</label>
                   <input
                     type="date"
-                    value={formData.date}
+                    value={formData.date ?? ''}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -881,7 +881,7 @@ export const TransactionsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Reference / Bank / Card Auth #</label>
                   <input
                     type="text"
-                    value={formData.referenceNumber}
+                    value={formData.referenceNumber ?? ''}
                     onChange={(e) => setFormData({ ...formData, referenceNumber: e.target.value })}
                     placeholder="ENBD-TR-998822"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -892,7 +892,7 @@ export const TransactionsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Receipt Number</label>
                   <input
                     type="text"
-                    value={formData.receiptNumber}
+                    value={formData.receiptNumber ?? ''}
                     onChange={(e) => setFormData({ ...formData, receiptNumber: e.target.value })}
                     placeholder="RCP-2026-009"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -905,7 +905,7 @@ export const TransactionsManagement: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Notes & Details</label>
                 <textarea
                   rows={2}
-                  value={formData.notes}
+                  value={formData.notes ?? ''}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   placeholder="Government transaction reference or reason..."
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -953,7 +953,7 @@ export const TransactionsManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.category}
+                    value={formData.category ?? ''}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -964,7 +964,7 @@ export const TransactionsManagement: React.FC = () => {
                   <input
                     type="number"
                     required
-                    value={formData.amount}
+                    value={formData.amount ?? ''}
                     onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
                   />
@@ -975,7 +975,7 @@ export const TransactionsManagement: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Payment Method</label>
                   <select
-                    value={formData.paymentMethod}
+                    value={formData.paymentMethod ?? ''}
                     onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   >
@@ -990,7 +990,7 @@ export const TransactionsManagement: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label>
                   <select
-                    value={formData.status}
+                    value={formData.status ?? ''}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   >
@@ -1006,7 +1006,7 @@ export const TransactionsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Reference Number</label>
                   <input
                     type="text"
-                    value={formData.referenceNumber}
+                    value={formData.referenceNumber ?? ''}
                     onChange={(e) => setFormData({ ...formData, referenceNumber: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1016,7 +1016,7 @@ export const TransactionsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Receipt Number</label>
                   <input
                     type="text"
-                    value={formData.receiptNumber}
+                    value={formData.receiptNumber ?? ''}
                     onChange={(e) => setFormData({ ...formData, receiptNumber: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1027,7 +1027,7 @@ export const TransactionsManagement: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Notes</label>
                 <textarea
                   rows={2}
-                  value={formData.notes}
+                  value={formData.notes ?? ''}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />

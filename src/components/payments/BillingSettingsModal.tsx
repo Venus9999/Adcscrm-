@@ -259,7 +259,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   <input
                     type="text"
                     required
-                    value={formData.companyName}
+                    value={formData.companyName ?? ''}
                     onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-bold"
                   />
@@ -270,7 +270,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.tradingName}
+                    value={formData.tradingName ?? ''}
                     onChange={(e) => setFormData({ ...formData, tradingName: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -285,7 +285,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   <input
                     type="text"
                     required
-                    value={formData.trn}
+                    value={formData.trn ?? ''}
                     onChange={(e) => setFormData({ ...formData, trn: e.target.value })}
                     placeholder="10048291000003"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-blue-600"
@@ -297,7 +297,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.tradeLicenseNo}
+                    value={formData.tradeLicenseNo ?? ''}
                     onChange={(e) => setFormData({ ...formData, tradeLicenseNo: e.target.value })}
                     placeholder="TL-89421"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -311,7 +311,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                 </label>
                 <input
                   type="text"
-                  value={formData.addressLine1}
+                  value={formData.addressLine1 ?? ''}
                   onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
                   placeholder="Business Bay Tower, Floor 14"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -325,7 +325,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.city}
+                    value={formData.city ?? ''}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -336,7 +336,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.poBox}
+                    value={formData.poBox ?? ''}
                     onChange={(e) => setFormData({ ...formData, poBox: e.target.value })}
                     placeholder="89211"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -348,7 +348,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.country}
+                    value={formData.country ?? ''}
                     onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -362,7 +362,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.phone}
+                    value={formData.phone ?? ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+971 4 800 2739"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -374,7 +374,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="email"
-                    value={formData.email}
+                    value={formData.email ?? ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="finance@adcs.ae"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -386,7 +386,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.website}
+                    value={formData.website ?? ''}
                     onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                     placeholder="www.adcs.ae"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -411,7 +411,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   <input
                     type="text"
                     required
-                    value={formData.bankName}
+                    value={formData.bankName ?? ''}
                     onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
                     placeholder="Emirates NBD PJSC"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
@@ -423,7 +423,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.bankBranch}
+                    value={formData.bankBranch ?? ''}
                     onChange={(e) => setFormData({ ...formData, bankBranch: e.target.value })}
                     placeholder="Business Bay Corporate Branch"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -438,7 +438,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                 <input
                   type="text"
                   required
-                  value={formData.accountName}
+                  value={formData.accountName ?? ''}
                   onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
                   placeholder="ADCS Document Clearing LLC"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-bold"
@@ -452,7 +452,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.accountNumber}
+                    value={formData.accountNumber ?? ''}
                     onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
                     placeholder="1019283746501"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -464,7 +464,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.swiftCode}
+                    value={formData.swiftCode ?? ''}
                     onChange={(e) => setFormData({ ...formData, swiftCode: e.target.value })}
                     placeholder="EBILAEADXXX"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -479,7 +479,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                 <input
                   type="text"
                   required
-                  value={formData.iban}
+                  value={formData.iban ?? ''}
                   onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
                   placeholder="AE44 0260 0001 2345 6789 012"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-900 dark:text-white"
@@ -623,7 +623,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   <input
                     type="text"
                     required
-                    value={formData.authorizedSignatoryName}
+                    value={formData.authorizedSignatoryName ?? ''}
                     onChange={(e) => setFormData({ ...formData, authorizedSignatoryName: e.target.value })}
                     placeholder="e.g. Tariq Al Mansoori"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-bold"
@@ -635,7 +635,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.authorizedSignatoryTitle}
+                    value={formData.authorizedSignatoryTitle ?? ''}
                     onChange={(e) => setFormData({ ...formData, authorizedSignatoryTitle: e.target.value })}
                     placeholder="Managing Partner & Authorized Signatory"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -786,7 +786,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="number"
-                    value={formData.vatRate}
+                    value={formData.vatRate ?? ''}
                     onChange={(e) => setFormData({ ...formData, vatRate: Number(e.target.value) })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
                   />
@@ -797,7 +797,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                   </label>
                   <input
                     type="text"
-                    value={formData.currency}
+                    value={formData.currency ?? ''}
                     onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
                   />
@@ -810,7 +810,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                 </label>
                 <textarea
                   rows={3}
-                  value={formData.termsAndConditions}
+                  value={formData.termsAndConditions ?? ''}
                   onChange={(e) => setFormData({ ...formData, termsAndConditions: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />
@@ -822,7 +822,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                 </label>
                 <textarea
                   rows={2}
-                  value={formData.footerNotes}
+                  value={formData.footerNotes ?? ''}
                   onChange={(e) => setFormData({ ...formData, footerNotes: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />

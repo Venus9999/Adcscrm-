@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Globe,
@@ -22,9 +22,11 @@ import {
   Check,
   AlertTriangle,
   RotateCcw,
+  Eye,
+  Trash2,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
-import { VisaApplication, VisaApplicationStatus, VisaTimelineEvent } from '../../types/crm';
+import { VisaApplication, VisaApplicationStatus, VisaTimelineEvent, VisaUploadedDoc } from '../../types/crm';
 import { EditVisaApplicationModal } from './EditVisaApplicationModal';
 
 interface VisaTimelineModalProps {
@@ -43,6 +45,7 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
     updateVisaApplicationStatus,
     addVisaTimelineMilestone,
     uploadVisaDocument,
+    deleteVisaDocument,
     sendVisaStatusEmail,
   } = useCRM();
 
@@ -64,6 +67,13 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
   // New Document Upload state
   const [newDocName, setNewDocName] = useState('');
   const [newDocCategory, setNewDocCategory] = useState<'Passport' | 'Photo' | 'Salary Slip' | 'NOC' | 'Emirates ID' | 'Other'>('Passport');
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string>('');
+  const [isDragging, setIsDragging] = useState(false);
+  const timelineFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Preview Modal
+  const [previewDoc, setPreviewDoc] = useState<VisaUploadedDoc | null>(null);
 
   // Email Notification modal
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -121,17 +131,58 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
     setCustomMilestoneDesc('');
   };
 
+  // Format File Size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  // Handle file select
+  const handleSelectFile = (file: File) => {
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      alert(`File "${file.name}" exceeds the 25MB maximum limit.`);
+      return;
+    }
+    setSelectedUploadFile(file);
+    if (!newDocName) {
+      setNewDocName(file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '));
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFilePreviewUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Handle Upload Doc
   const handleUploadDoc = () => {
     if (!newDocName) return;
-    uploadVisaDocument(application.id, {
-      docName: newDocName,
-      docCategory: newDocCategory,
-      fileName: `${newDocName.replace(/\s+/g, '_')}_Uploaded.pdf`,
-      fileSize: '1.9 MB',
-      fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    });
+
+    if (selectedUploadFile && filePreviewUrl) {
+      uploadVisaDocument(application.id, {
+        docName: newDocName,
+        docCategory: newDocCategory,
+        fileName: selectedUploadFile.name,
+        fileSize: formatFileSize(selectedUploadFile.size),
+        fileUrl: filePreviewUrl,
+      });
+    } else {
+      uploadVisaDocument(application.id, {
+        docName: newDocName,
+        docCategory: newDocCategory,
+        fileName: `${newDocName.replace(/\s+/g, '_')}_Consular_Doc.pdf`,
+        fileSize: '1.8 MB',
+        fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      });
+    }
+
     setNewDocName('');
+    setSelectedUploadFile(null);
+    setFilePreviewUrl('');
   };
 
   // Handle Send Email Notification
@@ -471,34 +522,62 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
 
               {/* Uploaded Documents List */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {(application.uploadedDocuments || []).map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-3 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5" />
+                {(application.uploadedDocuments || []).length === 0 ? (
+                  <div className="col-span-full p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                    No documents uploaded yet for this application dossier.
+                  </div>
+                ) : (
+                  (application.uploadedDocuments || []).map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 flex items-center justify-between"
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{doc.docName}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {doc.docCategory} | {doc.fileSize}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{doc.docName}</p>
-                        <p className="text-[10px] text-slate-400">
-                          {doc.docCategory} | {doc.fileSize}
-                        </p>
+
+                      <div className="flex items-center space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDoc(doc)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                          title="Preview Document"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <a
+                          href={doc.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                          title="Download Document"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to remove document "${doc.docName}"?`)) {
+                              deleteVisaDocument(application.id, doc.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Remove Document"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-
-                    <a
-                      href={doc.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                      title="Download Document"
-                    >
-                      <Download className="w-4 h-4" />
-                    </a>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
 
               {/* Upload New Document Form */}
@@ -507,6 +586,57 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
                   <Upload className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
                   Attach Additional Consular Document
                 </h5>
+
+                {/* Drag and Drop Zone */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                      handleSelectFile(e.dataTransfer.files[0]);
+                    }
+                  }}
+                  onClick={() => timelineFileInputRef.current?.click()}
+                  className={`p-4 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all ${
+                    isDragging
+                      ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40'
+                      : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 hover:border-blue-400'
+                  }`}
+                >
+                  <input
+                    ref={timelineFileInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleSelectFile(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+
+                  {selectedUploadFile ? (
+                    <div className="flex items-center justify-center space-x-2 text-xs text-slate-800 dark:text-slate-200">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <span className="font-bold">{selectedUploadFile.name}</span>
+                      <span className="text-slate-400">({formatFileSize(selectedUploadFile.size)})</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center space-x-2 text-xs text-slate-500">
+                      <Upload className="w-4 h-4 text-slate-400" />
+                      <span>Drag & drop a file here, or click to browse (PDF, JPG, PNG up to 25MB)</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
                     <input
@@ -535,7 +665,7 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
                 <button
                   onClick={handleUploadDoc}
                   disabled={!newDocName}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
                 >
                   Upload & Attach to Dossier
                 </button>
@@ -664,6 +794,86 @@ export const VisaTimelineModal: React.FC<VisaTimelineModalProps> = ({
           onClose={() => setIsEditDossierOpen(false)}
           application={application}
         />
+      )}
+
+      {/* Document Full Preview Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-blue-600" />
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                  {previewDoc.docName}
+                </h4>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                  {previewDoc.docCategory}
+                </span>
+              </div>
+              <button
+                onClick={() => setPreviewDoc(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-950">
+              {previewDoc.fileUrl?.startsWith('data:image') || previewDoc.fileName?.match(/\.(jpg|jpeg|png|webp)$/i) ? (
+                <img
+                  src={previewDoc.fileUrl}
+                  alt={previewDoc.docName}
+                  className="max-h-[60vh] max-w-full rounded-lg shadow-md object-contain"
+                />
+              ) : previewDoc.fileUrl?.startsWith('data:application/pdf') ? (
+                <iframe
+                  src={previewDoc.fileUrl}
+                  title={previewDoc.docName}
+                  className="w-full h-[60vh] rounded-lg border border-slate-200 dark:border-slate-700"
+                />
+              ) : (
+                <div className="text-center py-12 space-y-3">
+                  <FileText className="w-16 h-16 text-blue-500 mx-auto opacity-70" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{previewDoc.fileName}</p>
+                    <p className="text-xs text-slate-500 mt-1">{previewDoc.fileSize} • Consular Verification Ready</p>
+                  </div>
+                  <a
+                    href={previewDoc.fileUrl}
+                    download={previewDoc.fileName}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Dossier File</span>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 bg-white dark:bg-slate-900">
+              <span>Attached: {new Date(previewDoc.uploadedAt).toLocaleDateString()}</span>
+              <div className="flex space-x-2">
+                <a
+                  href={previewDoc.fileUrl}
+                  download={previewDoc.fileName}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 text-slate-700 dark:text-slate-300 font-semibold flex items-center space-x-1"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1" /> Download
+                </a>
+                <button
+                  onClick={() => setPreviewDoc(null)}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

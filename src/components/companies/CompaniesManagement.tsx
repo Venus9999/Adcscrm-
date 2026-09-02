@@ -541,7 +541,7 @@ export const CompaniesManagement: React.FC = () => {
                       type="number"
                       min="0"
                       max={formData.corporateDiscountType === 'percentage' ? 100 : 50000}
-                      value={formData.corporateDiscountValue}
+                      value={formData.corporateDiscountValue ?? ''}
                       onChange={(e) =>
                         setFormData({
                           ...formData,

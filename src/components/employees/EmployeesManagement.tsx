@@ -51,6 +51,7 @@ export const EmployeesManagement: React.FC = () => {
     clients,
     tasks,
     leads,
+    departments,
     addUser,
     updateUser,
     deleteUser,
@@ -97,13 +98,27 @@ export const EmployeesManagement: React.FC = () => {
   // Password visibility
   const [showPassword, setShowPassword] = useState(false);
 
+  // Available departments list
+  const allDepartmentNames = Array.from(
+    new Set([
+      ...(departments || []).map((d) => d.name),
+      'Executive Management',
+      'PRO Operations',
+      'Visa & Immigration',
+      'Corporate Setup & Legal',
+      'Accounting & Finance',
+      'Business Development',
+    ])
+  ).filter(Boolean);
+
   // Form State for User
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
     email: '',
     phone: '',
     role: 'employee',
-    department: 'PRO Operations',
+    customRoleId: undefined,
+    department: departments[0]?.name || 'PRO Operations',
     jobTitle: 'PRO Case Specialist',
     companyId: companies[0]?.id || '',
     password: '',
@@ -163,8 +178,15 @@ export const EmployeesManagement: React.FC = () => {
       (u.jobTitle && u.jobTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (u.phone && u.phone.includes(searchTerm));
 
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-    const matchesDept = departmentFilter === 'all' || u.department === departmentFilter;
+    const matchesRole =
+      roleFilter === 'all' ||
+      u.role === roleFilter ||
+      u.customRoleId === roleFilter;
+
+    const matchesDept =
+      departmentFilter === 'all' ||
+      u.department?.toLowerCase() === departmentFilter.toLowerCase();
+
     const matchesComp =
       companyFilter === 'all' ||
       u.companyId === companyFilter ||
@@ -180,7 +202,8 @@ export const EmployeesManagement: React.FC = () => {
       email: '',
       phone: '',
       role: 'employee',
-      department: 'PRO Operations',
+      customRoleId: undefined,
+      department: departments[0]?.name || 'PRO Operations',
       jobTitle: 'PRO Case Officer',
       companyId: companies[0]?.id || '',
       password: 'Adcs' + Math.floor(1000 + Math.random() * 9000) + '!',
@@ -210,7 +233,8 @@ export const EmployeesManagement: React.FC = () => {
       email: user.email ?? '',
       phone: user.phone ?? '',
       role: user.role || 'employee',
-      department: user.department || 'PRO Operations',
+      customRoleId: user.customRoleId,
+      department: user.department || (departments[0]?.name || 'PRO Operations'),
       jobTitle: user.jobTitle || 'Staff Member',
       companyId: user.companyId || '',
       status: user.status || 'active',
@@ -310,6 +334,7 @@ export const EmployeesManagement: React.FC = () => {
       email: formData.email.trim(),
       phone: formData.phone?.trim() || '+971 50 000 0000',
       role: formData.role as UserRole,
+      customRoleId: formData.customRoleId,
       department: formData.department || 'Operations',
       jobTitle: formData.jobTitle || 'PRO Specialist',
       companyId: formData.companyId || (companies[0]?.id || 'comp-1'),
@@ -334,6 +359,7 @@ export const EmployeesManagement: React.FC = () => {
       email: formData.email,
       phone: formData.phone,
       role: formData.role as UserRole,
+      customRoleId: formData.customRoleId,
       department: formData.department,
       jobTitle: formData.jobTitle,
       companyId: formData.companyId,
@@ -574,11 +600,24 @@ export const EmployeesManagement: React.FC = () => {
                 className="px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
               >
                 <option value="all">All Roles</option>
-                <option value="master">Master Super Admin</option>
-                <option value="admin">Branch Admin</option>
-                <option value="employee">Employee / PRO Specialist</option>
-                <option value="agent">Agent / Referral Partner</option>
-                <option value="client">Client Portal User</option>
+                <optgroup label="System Roles">
+                  <option value="master">Master Super Admin</option>
+                  <option value="admin">Branch Admin</option>
+                  <option value="employee">Employee / PRO Specialist</option>
+                  <option value="agent">Agent / Referral Partner</option>
+                  <option value="client">Client Portal User</option>
+                </optgroup>
+                {roles.filter((r) => !r.isSystem).length > 0 && (
+                  <optgroup label="Custom Roles">
+                    {roles
+                      .filter((r) => !r.isSystem)
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
               </select>
 
               {/* Department Filter */}
@@ -588,12 +627,11 @@ export const EmployeesManagement: React.FC = () => {
                 className="px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
               >
                 <option value="all">All Departments</option>
-                <option value="Executive Management">Executive Management</option>
-                <option value="PRO Operations">PRO Operations</option>
-                <option value="Visa & Immigration">Visa & Immigration</option>
-                <option value="Corporate Setup & Legal">Corporate Setup & Legal</option>
-                <option value="Accounting & Finance">Accounting & Finance</option>
-                <option value="Business Development">Business Development</option>
+                {allDepartmentNames.map((deptName, i) => (
+                  <option key={i} value={deptName}>
+                    {deptName}
+                  </option>
+                ))}
               </select>
 
               {/* Company Branch Filter */}
@@ -623,6 +661,14 @@ export const EmployeesManagement: React.FC = () => {
               );
               const userTasks = (tasks || []).filter((t) => t && t.assignedToUserId === user.id);
               const userBranch = (companies || []).find((c) => c && c.id === user.companyId);
+              const customRoleObj = user.customRoleId
+                ? (roles || []).find((r) => r && r.id === user.customRoleId)
+                : null;
+              const deptObj = user.department
+                ? (departments || []).find(
+                    (d) => d && d.name?.toLowerCase() === user.department?.toLowerCase()
+                  )
+                : null;
 
               return (
                 <div
@@ -654,9 +700,18 @@ export const EmployeesManagement: React.FC = () => {
                         </div>
                       </div>
 
-                      <span className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-full ${getRoleBadge(user.role)}`}>
-                        {user.role}
-                      </span>
+                      {customRoleObj ? (
+                        <span
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-full text-white shadow-xs"
+                          style={{ backgroundColor: customRoleObj.color || '#3B82F6' }}
+                        >
+                          {customRoleObj.name}
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-full ${getRoleBadge(user.role)}`}>
+                          {user.role}
+                        </span>
+                      )}
                     </div>
 
                     {/* Meta Details */}
@@ -675,7 +730,17 @@ export const EmployeesManagement: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>{user.department || 'PRO Operations'}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{user.department || 'PRO Operations'}</span>
+                          {deptObj && (
+                            <span
+                              className="text-[9px] font-mono px-1.5 py-0.2 rounded text-white font-bold"
+                              style={{ backgroundColor: deptObj.color || '#3B82F6' }}
+                            >
+                              {deptObj.code || 'DEP'}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -868,18 +933,48 @@ export const EmployeesManagement: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    System Role *
+                    Assigned Role & Policy *
                   </label>
                   <select
-                    value={formData.role ?? 'employee'}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                    value={formData.customRoleId || formData.role || 'employee'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const customRole = (roles || []).find((r) => r.id === val);
+                      if (customRole) {
+                        setFormData({
+                          ...formData,
+                          customRoleId: customRole.id,
+                          role: customRole.roleType,
+                          permissions: { ...customRole.permissions },
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          customRoleId: undefined,
+                          role: val as UserRole,
+                        });
+                      }
+                    }}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                   >
-                    <option value="employee">Employee / PRO Specialist</option>
-                    <option value="admin">Branch Admin</option>
-                    <option value="master">Master Super Admin</option>
-                    <option value="agent">Agent / Referral Partner</option>
-                    <option value="client">Client Portal User</option>
+                    <optgroup label="System Standard Roles">
+                      <option value="employee">Employee / PRO Specialist</option>
+                      <option value="admin">Branch Admin</option>
+                      <option value="master">Master Super Admin</option>
+                      <option value="agent">Agent / Referral Partner</option>
+                      <option value="client">Client Portal User</option>
+                    </optgroup>
+                    {roles.filter((r) => !r.isSystem).length > 0 && (
+                      <optgroup label="Custom Organizational Roles">
+                        {roles
+                          .filter((r) => !r.isSystem)
+                          .map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name} (Scope: {r.roleType})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
@@ -889,12 +984,17 @@ export const EmployeesManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Department
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.department ?? ''}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                  />
+                  >
+                    {allDepartmentNames.map((deptName, i) => (
+                      <option key={i} value={deptName}>
+                        {deptName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -1016,18 +1116,48 @@ export const EmployeesManagement: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    System Role
+                    Assigned Role & Policy
                   </label>
                   <select
-                    value={formData.role ?? 'employee'}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                    value={formData.customRoleId || formData.role || 'employee'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const customRole = (roles || []).find((r) => r.id === val);
+                      if (customRole) {
+                        setFormData({
+                          ...formData,
+                          customRoleId: customRole.id,
+                          role: customRole.roleType,
+                          permissions: { ...customRole.permissions },
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          customRoleId: undefined,
+                          role: val as UserRole,
+                        });
+                      }
+                    }}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                   >
-                    <option value="employee">Employee / PRO Specialist</option>
-                    <option value="admin">Branch Admin</option>
-                    <option value="master">Master Super Admin</option>
-                    <option value="agent">Agent / Referral Partner</option>
-                    <option value="client">Client Portal User</option>
+                    <optgroup label="System Standard Roles">
+                      <option value="employee">Employee / PRO Specialist</option>
+                      <option value="admin">Branch Admin</option>
+                      <option value="master">Master Super Admin</option>
+                      <option value="agent">Agent / Referral Partner</option>
+                      <option value="client">Client Portal User</option>
+                    </optgroup>
+                    {roles.filter((r) => !r.isSystem).length > 0 && (
+                      <optgroup label="Custom Organizational Roles">
+                        {roles
+                          .filter((r) => !r.isSystem)
+                          .map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name} (Scope: {r.roleType})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
@@ -1037,12 +1167,17 @@ export const EmployeesManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Department
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.department ?? ''}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                  />
+                  >
+                    {allDepartmentNames.map((deptName, i) => (
+                      <option key={i} value={deptName}>
+                        {deptName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

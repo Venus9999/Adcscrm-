@@ -862,7 +862,7 @@ export const ServicesCatalog: React.FC = () => {
                     <input
                       type="text"
                       required
-                      value={classificationForm.name}
+                      value={classificationForm.name ?? ''}
                       onChange={(e) => setClassificationForm({ ...classificationForm, name: e.target.value })}
                       placeholder="e.g. Corporate Tax, Golden Visas, Mainland Licences"
                       className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
@@ -890,7 +890,7 @@ export const ServicesCatalog: React.FC = () => {
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Description (Optional)</label>
                     <input
                       type="text"
-                      value={classificationForm.description}
+                      value={classificationForm.description ?? ''}
                       onChange={(e) => setClassificationForm({ ...classificationForm, description: e.target.value })}
                       placeholder="Brief overview of services grouped under this category"
                       className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700"
@@ -1003,7 +1003,7 @@ export const ServicesCatalog: React.FC = () => {
                 {serviceClassifications
                   .filter((c) => c.id !== deletingClassificationId)
                   .map((c) => (
-                    <option key={c.id} value={c.name}>
+                    <option key={c.id} value={c.name ?? ''}>
                       {c.name}
                     </option>
                   ))}
@@ -1059,7 +1059,7 @@ export const ServicesCatalog: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.name}
+                    value={formData.name ?? ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="e.g. 5-Year Green Residence Visa Clearance"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold"
@@ -1071,7 +1071,7 @@ export const ServicesCatalog: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.code}
+                    value={formData.code ?? ''}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                     placeholder="e.g. GV-5Y-GREEN"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono uppercase"
@@ -1111,17 +1111,17 @@ export const ServicesCatalog: React.FC = () => {
                     </div>
                   ) : (
                     <select
-                      value={formData.category}
+                      value={formData.category ?? ''}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                     >
                       {serviceClassifications.map((cat) => (
-                        <option key={cat.id} value={cat.name}>
+                        <option key={cat.id} value={cat.name ?? ''}>
                           {cat.name}
                         </option>
                       ))}
                       {!serviceClassifications.some((c) => c.name === formData.category) && (
-                        <option value={formData.category}>{formData.category}</option>
+                        <option value={formData.category ?? ''}>{formData.category}</option>
                       )}
                     </select>
                   )}
@@ -1132,7 +1132,7 @@ export const ServicesCatalog: React.FC = () => {
                   <input
                     type="number"
                     min="1"
-                    value={formData.estimatedDays}
+                    value={formData.estimatedDays ?? ''}
                     onChange={(e) => setFormData({ ...formData, estimatedDays: Number(e.target.value) })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1141,7 +1141,7 @@ export const ServicesCatalog: React.FC = () => {
                 <div>
                   <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Target Availability</label>
                   <select
-                    value={formData.pricingTierAvailable}
+                    value={formData.pricingTierAvailable ?? ''}
                     onChange={(e) => setFormData({ ...formData, pricingTierAvailable: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
                   >
@@ -1172,7 +1172,7 @@ export const ServicesCatalog: React.FC = () => {
                       type="number"
                       min="0"
                       required
-                      value={formData.priceB2C}
+                      value={formData.priceB2C ?? ''}
                       onChange={(e) => handleB2CChange(Number(e.target.value))}
                       placeholder="e.g. 3500"
                       className="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 font-mono font-bold text-xs"
@@ -1188,7 +1188,7 @@ export const ServicesCatalog: React.FC = () => {
                     <input
                       type="number"
                       min="0"
-                      value={formData.governmentFees}
+                      value={formData.governmentFees ?? ''}
                       onChange={(e) => setFormData({ ...formData, governmentFees: Number(e.target.value) })}
                       placeholder="e.g. 1800"
                       className="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 font-mono font-bold text-xs"
@@ -1213,7 +1213,7 @@ export const ServicesCatalog: React.FC = () => {
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Service Description</label>
                 <textarea
                   rows={2}
-                  value={formData.description}
+                  value={formData.description ?? ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Detailed description of process, authorities involved, and clearance milestones..."
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"

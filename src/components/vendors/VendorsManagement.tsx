@@ -825,7 +825,7 @@ export const VendorsManagement: React.FC = () => {
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Internal Notes & Special Agreement</label>
                 <textarea
                   rows={2}
-                  value={formData.notes}
+                  value={formData.notes ?? ''}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   placeholder="Special pricing arrangements, SLA turnaround agreements, VIP contacts..."
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"

@@ -492,9 +492,10 @@ export const DepartmentSettings: React.FC = () => {
           const deptEmployees = (users || []).filter(
             (u) =>
               u &&
-              (u.department === dept.name ||
+              (u.department?.toLowerCase() === dept.name?.toLowerCase() ||
                 (dept.assignedStaffIds && dept.assignedStaffIds.includes(u.id)) ||
-                (u.companyId === dept.companyId && u.role === 'employee'))
+                dept.headOfDepartmentId === u.id ||
+                dept.deputyHeadId === u.id)
           );
           const hodUser = (users || []).find(
             (u) => u.id === dept.headOfDepartmentId || u.name === dept.headOfDepartment
@@ -824,7 +825,7 @@ export const DepartmentSettings: React.FC = () => {
                       <input
                         type="text"
                         required
-                        value={formData.name}
+                        value={formData.name ?? ''}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         placeholder="e.g. Visa & Immigration Division"
                         className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
@@ -838,7 +839,7 @@ export const DepartmentSettings: React.FC = () => {
                       <input
                         type="text"
                         required
-                        value={formData.code}
+                        value={formData.code ?? ''}
                         onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                         placeholder="e.g. DEP-VISA"
                         className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
@@ -852,7 +853,7 @@ export const DepartmentSettings: React.FC = () => {
                         Parent Directorate / Division
                       </label>
                       <select
-                        value={formData.parentDivision}
+                        value={formData.parentDivision ?? ''}
                         onChange={(e) => setFormData({ ...formData, parentDivision: e.target.value })}
                         className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-blue-500"
                       >
@@ -869,7 +870,7 @@ export const DepartmentSettings: React.FC = () => {
                         Assigned Legal Entity / Branch
                       </label>
                       <select
-                        value={formData.companyId}
+                        value={formData.companyId ?? ''}
                         onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
                         className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-blue-500"
                       >
@@ -905,7 +906,7 @@ export const DepartmentSettings: React.FC = () => {
                       </div>
                       <input
                         type="color"
-                        value={formData.color}
+                        value={formData.color ?? ''}
                         onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                         className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                       />
@@ -918,7 +919,7 @@ export const DepartmentSettings: React.FC = () => {
                     </label>
                     <textarea
                       rows={3}
-                      value={formData.description}
+                      value={formData.description ?? ''}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder="Describe the department's mandate, core legal responsibilities, and government ministry clearances..."
                       className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500 leading-relaxed"
@@ -932,7 +933,7 @@ export const DepartmentSettings: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData.tagsInput}
+                        value={formData.tagsInput ?? ''}
                         onChange={(e) => setFormData({ ...formData, tagsInput: e.target.value })}
                         placeholder="e.g. ICP, GDRFA, Golden Visa, Ministry"
                         className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
@@ -966,7 +967,7 @@ export const DepartmentSettings: React.FC = () => {
                         Head of Department (HOD)
                       </label>
                       <select
-                        value={formData.headOfDepartmentId}
+                        value={formData.headOfDepartmentId ?? ''}
                         onChange={(e) => {
                           const u = users.find((usr) => usr.id === e.target.value);
                           setFormData({
@@ -991,7 +992,7 @@ export const DepartmentSettings: React.FC = () => {
                         Deputy Head / Team Lead
                       </label>
                       <select
-                        value={formData.deputyHeadId}
+                        value={formData.deputyHeadId ?? ''}
                         onChange={(e) => {
                           const u = users.find((usr) => usr.id === e.target.value);
                           setFormData({
@@ -1078,7 +1079,7 @@ export const DepartmentSettings: React.FC = () => {
                         <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                         <input
                           type="email"
-                          value={formData.email}
+                          value={formData.email ?? ''}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           placeholder="e.g. visa.desk@adcs.ae"
                           className="w-full pl-9 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
@@ -1094,7 +1095,7 @@ export const DepartmentSettings: React.FC = () => {
                         <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                         <input
                           type="text"
-                          value={formData.phone}
+                          value={formData.phone ?? ''}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                           placeholder="e.g. +971 4 228 7002 / Ext 401"
                           className="w-full pl-9 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
@@ -1112,7 +1113,7 @@ export const DepartmentSettings: React.FC = () => {
                         <MapPin className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                         <input
                           type="text"
-                          value={formData.location}
+                          value={formData.location ?? ''}
                           onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                           placeholder="e.g. Level 4, Suite 402, Operations Wing"
                           className="w-full pl-9 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
@@ -1128,7 +1129,7 @@ export const DepartmentSettings: React.FC = () => {
                         <Clock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                         <input
                           type="text"
-                          value={formData.workingHours}
+                          value={formData.workingHours ?? ''}
                           onChange={(e) => setFormData({ ...formData, workingHours: e.target.value })}
                           placeholder="e.g. Mon - Fri 08:30 - 17:30 (UAE GST)"
                           className="w-full pl-9 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
@@ -1184,7 +1185,7 @@ export const DepartmentSettings: React.FC = () => {
                           type="number"
                           min={1}
                           max={90}
-                          value={formData.targetSlaDays}
+                          value={formData.targetSlaDays ?? ''}
                           onChange={(e) => setFormData({ ...formData, targetSlaDays: Number(e.target.value) })}
                           className="w-full pl-9 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-blue-500 font-semibold"
                         />
@@ -1201,7 +1202,7 @@ export const DepartmentSettings: React.FC = () => {
                           type="number"
                           min={5}
                           max={200}
-                          value={formData.maxDossierCapacity}
+                          value={formData.maxDossierCapacity ?? ''}
                           onChange={(e) => setFormData({ ...formData, maxDossierCapacity: Number(e.target.value) })}
                           className="w-full pl-9 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-blue-500 font-semibold"
                         />
@@ -1221,7 +1222,7 @@ export const DepartmentSettings: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData.costCenterCode}
+                        value={formData.costCenterCode ?? ''}
                         onChange={(e) => setFormData({ ...formData, costCenterCode: e.target.value.toUpperCase() })}
                         placeholder="e.g. CC-3000-VISA"
                         className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
@@ -1239,7 +1240,7 @@ export const DepartmentSettings: React.FC = () => {
                         <input
                           type="number"
                           min={0}
-                          value={formData.budget}
+                          value={formData.budget ?? ''}
                           onChange={(e) => setFormData({ ...formData, budget: Number(e.target.value) })}
                           className="w-full pl-12 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-blue-500 font-semibold"
                         />
@@ -1258,7 +1259,7 @@ export const DepartmentSettings: React.FC = () => {
                       <input
                         type="number"
                         min={0}
-                        value={formData.spendingApprovalLimit}
+                        value={formData.spendingApprovalLimit ?? ''}
                         onChange={(e) => setFormData({ ...formData, spendingApprovalLimit: Number(e.target.value) })}
                         placeholder="e.g. 5000"
                         className="w-full pl-12 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-blue-500 font-semibold"
@@ -1280,7 +1281,7 @@ export const DepartmentSettings: React.FC = () => {
                         Task & Lead Auto-Assignment Mode
                       </label>
                       <select
-                        value={formData.autoAssignMode}
+                        value={formData.autoAssignMode ?? ''}
                         onChange={(e) => setFormData({ ...formData, autoAssignMode: e.target.value as any })}
                         className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-blue-500"
                       >
@@ -1295,7 +1296,7 @@ export const DepartmentSettings: React.FC = () => {
                         Data Visibility & Silo Scope
                       </label>
                       <select
-                        value={formData.dataAccessScope}
+                        value={formData.dataAccessScope ?? ''}
                         onChange={(e) => setFormData({ ...formData, dataAccessScope: e.target.value as any })}
                         className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-blue-500"
                       >
@@ -1314,7 +1315,7 @@ export const DepartmentSettings: React.FC = () => {
                       <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                       <input
                         type="email"
-                        value={formData.escalationEmail}
+                        value={formData.escalationEmail ?? ''}
                         onChange={(e) => setFormData({ ...formData, escalationEmail: e.target.value })}
                         placeholder="e.g. director.ops@adcs.ae"
                         className="w-full pl-9 pr-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"

@@ -478,7 +478,7 @@ export const TasksManager: React.FC = () => {
                 <input
                   type="text"
                   required
-                  value={formData.title}
+                  value={formData.title ?? ''}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="e.g. Schedule VIP Medical Fitness Slot"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -491,7 +491,7 @@ export const TasksManager: React.FC = () => {
                 </label>
                 <textarea
                   rows={2}
-                  value={formData.description}
+                  value={formData.description ?? ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Additional details..."
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -504,7 +504,7 @@ export const TasksManager: React.FC = () => {
                     Assignee *
                   </label>
                   <select
-                    value={formData.assignedEmployeeId}
+                    value={formData.assignedEmployeeId ?? ''}
                     onChange={(e) => setFormData({ ...formData, assignedEmployeeId: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -521,7 +521,7 @@ export const TasksManager: React.FC = () => {
                     Linked Client
                   </label>
                   <select
-                    value={formData.clientId}
+                    value={formData.clientId ?? ''}
                     onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -541,7 +541,7 @@ export const TasksManager: React.FC = () => {
                     Priority Level
                   </label>
                   <select
-                    value={formData.priority}
+                    value={formData.priority ?? ''}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -559,7 +559,7 @@ export const TasksManager: React.FC = () => {
                   <input
                     type="date"
                     required
-                    value={formData.dueDate}
+                    value={formData.dueDate ?? ''}
                     onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />

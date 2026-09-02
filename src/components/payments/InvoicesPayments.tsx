@@ -1000,7 +1000,7 @@ export const InvoicesPayments: React.FC = () => {
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
                     >
                       {clients.map((c) => (
-                        <option key={c.id} value={c.id}>
+                        <option key={c.id} value={c.id ?? ''}>
                           {c.fullName} — {c.companyName || c.email || 'Individual'} ({c.passportNo || 'No Passport'})
                         </option>
                       ))}
@@ -1129,7 +1129,7 @@ export const InvoicesPayments: React.FC = () => {
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
                   >
                     {serviceCategories.map((s) => (
-                      <option key={s.id} value={s.id}>
+                      <option key={s.id} value={s.id ?? ''}>
                         {s.name} (Agency: AED {s.defaultPrice.toLocaleString()} + Gov: AED {s.governmentFees.toLocaleString()})
                       </option>
                     ))}
@@ -1672,7 +1672,7 @@ export const InvoicesPayments: React.FC = () => {
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-medium"
                 >
                   {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
+                    <option key={c.id} value={c.id ?? ''}>
                       {c.fullName} - {c.companyName || c.email} ({c.passportNo || 'No Passport'})
                     </option>
                   ))}
@@ -1825,13 +1825,13 @@ export const InvoicesPayments: React.FC = () => {
                   Connected Client Dossier
                 </label>
                 <select
-                  value={editTxData.clientId}
+                  value={editTxData.clientId ?? ''}
                   onChange={(e) => setEditTxData({ ...editTxData, clientId: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 >
                   <option value="">-- Unlinked / Direct Corporate --</option>
                   {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
+                    <option key={c.id} value={c.id ?? ''}>
                       {c.fullName} ({c.passportNo || c.email})
                     </option>
                   ))}
@@ -1844,7 +1844,7 @@ export const InvoicesPayments: React.FC = () => {
                     Transaction Type
                   </label>
                   <select
-                    value={editTxData.type}
+                    value={editTxData.type ?? ''}
                     onChange={(e) => setEditTxData({ ...editTxData, type: e.target.value as TransactionType })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -1867,7 +1867,7 @@ export const InvoicesPayments: React.FC = () => {
                   <input
                     type="number"
                     required
-                    value={editTxData.amount}
+                    value={editTxData.amount ?? ''}
                     onChange={(e) => setEditTxData({ ...editTxData, amount: Number(e.target.value) })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-blue-600"
                   />
@@ -1881,7 +1881,7 @@ export const InvoicesPayments: React.FC = () => {
                 <input
                   type="text"
                   required
-                  value={editTxData.category}
+                  value={editTxData.category ?? ''}
                   onChange={(e) => setEditTxData({ ...editTxData, category: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />
@@ -1893,7 +1893,7 @@ export const InvoicesPayments: React.FC = () => {
                     Payment Method
                   </label>
                   <select
-                    value={editTxData.paymentMethod}
+                    value={editTxData.paymentMethod ?? ''}
                     onChange={(e) => setEditTxData({ ...editTxData, paymentMethod: e.target.value as PaymentMethodType })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -1911,7 +1911,7 @@ export const InvoicesPayments: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={editTxData.referenceNumber}
+                    value={editTxData.referenceNumber ?? ''}
                     onChange={(e) => setEditTxData({ ...editTxData, referenceNumber: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1925,7 +1925,7 @@ export const InvoicesPayments: React.FC = () => {
                   </label>
                   <input
                     type="date"
-                    value={editTxData.date}
+                    value={editTxData.date ?? ''}
                     onChange={(e) => setEditTxData({ ...editTxData, date: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -1936,7 +1936,7 @@ export const InvoicesPayments: React.FC = () => {
                     Status
                   </label>
                   <select
-                    value={editTxData.status}
+                    value={editTxData.status ?? ''}
                     onChange={(e) => setEditTxData({ ...editTxData, status: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   >
@@ -1954,7 +1954,7 @@ export const InvoicesPayments: React.FC = () => {
                 </label>
                 <textarea
                   rows={2}
-                  value={editTxData.notes}
+                  value={editTxData.notes ?? ''}
                   onChange={(e) => setEditTxData({ ...editTxData, notes: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />

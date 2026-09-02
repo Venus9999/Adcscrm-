@@ -284,7 +284,7 @@ export const UserProfileSettings: React.FC = () => {
               <input
                 type="text"
                 required
-                value={profileForm.name}
+                value={profileForm.name ?? ''}
                 onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
               />
@@ -294,7 +294,7 @@ export const UserProfileSettings: React.FC = () => {
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Corporate Job Title</label>
               <input
                 type="text"
-                value={profileForm.title}
+                value={profileForm.title ?? ''}
                 onChange={(e) => setProfileForm({ ...profileForm, title: e.target.value })}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
               />
@@ -305,7 +305,7 @@ export const UserProfileSettings: React.FC = () => {
               <input
                 type="email"
                 required
-                value={profileForm.email}
+                value={profileForm.email ?? ''}
                 onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
               />
@@ -315,7 +315,7 @@ export const UserProfileSettings: React.FC = () => {
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Direct Phone / WhatsApp</label>
               <input
                 type="text"
-                value={profileForm.phone}
+                value={profileForm.phone ?? ''}
                 onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
               />
@@ -325,7 +325,7 @@ export const UserProfileSettings: React.FC = () => {
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Department</label>
               <input
                 type="text"
-                value={profileForm.department}
+                value={profileForm.department ?? ''}
                 onChange={(e) => setProfileForm({ ...profileForm, department: e.target.value })}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
               />
@@ -346,7 +346,7 @@ export const UserProfileSettings: React.FC = () => {
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Professional Bio</label>
             <textarea
               rows={2}
-              value={profileForm.bio}
+              value={profileForm.bio ?? ''}
               onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
             />
@@ -369,7 +369,7 @@ export const UserProfileSettings: React.FC = () => {
                 <input
                   type="password"
                   maxLength={6}
-                  value={profileForm.securityPin}
+                  value={profileForm.securityPin ?? ''}
                   onChange={(e) => setProfileForm({ ...profileForm, securityPin: e.target.value })}
                   placeholder="****"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono text-center tracking-widest text-base"
@@ -385,7 +385,7 @@ export const UserProfileSettings: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={profileForm.signature}
+                  value={profileForm.signature ?? ''}
                   onChange={(e) => setProfileForm({ ...profileForm, signature: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-serif italic"
                 />
@@ -432,7 +432,7 @@ export const UserProfileSettings: React.FC = () => {
                 <div className="relative">
                   <input
                     type={showCurrentPass ? 'text' : 'password'}
-                    value={passwordForm.currentPassword}
+                    value={passwordForm.currentPassword ?? ''}
                     onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -460,7 +460,7 @@ export const UserProfileSettings: React.FC = () => {
                 <div className="relative">
                   <input
                     type={showNewPass ? 'text' : 'password'}
-                    value={passwordForm.newPassword}
+                    value={passwordForm.newPassword ?? ''}
                     onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -487,7 +487,7 @@ export const UserProfileSettings: React.FC = () => {
                 </label>
                 <input
                   type={showNewPass ? 'text' : 'password'}
-                  value={passwordForm.confirmPassword}
+                  value={passwordForm.confirmPassword ?? ''}
                   onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {

@@ -312,7 +312,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
                         (c.services || []).some((s) => s.assignedEmployeeId === u.id)
                     ).length;
                     return (
-                      <option key={u.id} value={u.id}>
+                      <option key={u.id} value={u.id ?? ''}>
                         {u.name} ({empCases} active cases) - {u.role.toUpperCase()}
                       </option>
                     );
@@ -331,7 +331,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
               >
                 <option value="all">All Service Categories ({(serviceCategories || []).length})</option>
                 {(serviceCategories || []).map((s) => (
-                  <option key={s.id} value={s.id}>
+                  <option key={s.id} value={s.id ?? ''}>
                     {s.name}
                   </option>
                 ))}
@@ -944,7 +944,7 @@ export const WorkStagesPipeline: React.FC<WorkStagesPipelineProps> = ({ onOpenCl
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                 >
                   {sortedStages.map((st) => (
-                    <option key={st.id} value={st.id}>
+                    <option key={st.id} value={st.id ?? ''}>
                       {st.stepNumber}. {st.name} ({st.category})
                     </option>
                   ))}

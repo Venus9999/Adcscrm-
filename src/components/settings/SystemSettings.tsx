@@ -854,7 +854,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     type="text"
                     disabled={!isAdminOrMaster}
                     required
-                    value={billingForm.companyName}
+                    value={billingForm.companyName ?? ''}
                     onChange={(e) => setBillingForm({ ...billingForm, companyName: e.target.value })}
                     placeholder="e.g. ADCS Document Clearing LLC"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 disabled:opacity-60"
@@ -883,7 +883,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     type="text"
                     disabled={!isAdminOrMaster}
                     required
-                    value={billingForm.trnNumber}
+                    value={billingForm.trnNumber ?? ''}
                     onChange={(e) => setBillingForm({ ...billingForm, trnNumber: e.target.value })}
                     placeholder="e.g. 10048291000003"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-blue-600 disabled:opacity-60"
@@ -902,7 +902,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                       min={0}
                       max={100}
                       required
-                      value={billingForm.vatPercentage}
+                      value={billingForm.vatPercentage ?? ''}
                       onChange={(e) => setBillingForm({ ...billingForm, vatPercentage: Number(e.target.value) })}
                       className="w-28 p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold disabled:opacity-60"
                     />
@@ -917,7 +917,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <input
                     type="text"
                     disabled={!isAdminOrMaster}
-                    value={billingForm.address}
+                    value={billingForm.address ?? ''}
                     onChange={(e) => setBillingForm({ ...billingForm, address: e.target.value })}
                     placeholder="e.g. Business Bay Tower, Floor 14, P.O. Box 89211, Dubai, UAE"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 disabled:opacity-60"
@@ -931,7 +931,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <input
                     type="email"
                     disabled={!isAdminOrMaster}
-                    value={billingForm.email}
+                    value={billingForm.email ?? ''}
                     onChange={(e) => setBillingForm({ ...billingForm, email: e.target.value })}
                     placeholder="finance@adcs.ae"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 disabled:opacity-60"
@@ -945,7 +945,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <input
                     type="text"
                     disabled={!isAdminOrMaster}
-                    value={billingForm.phone}
+                    value={billingForm.phone ?? ''}
                     onChange={(e) => setBillingForm({ ...billingForm, phone: e.target.value })}
                     placeholder="+971 4 800 2739"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 disabled:opacity-60"
@@ -1741,7 +1741,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     <input
                       type="text"
                       required
-                      value={newCatData.name}
+                      value={newCatData.name ?? ''}
                       onChange={(e) => setNewCatData({ ...newCatData, name: e.target.value })}
                       placeholder="e.g. Job Application / Candidate"
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
@@ -1754,7 +1754,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                         Category Archetype *
                       </label>
                       <select
-                        value={newCatData.type}
+                        value={newCatData.type ?? ''}
                         onChange={(e) => setNewCatData({ ...newCatData, type: e.target.value as any })}
                         className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                       >
@@ -1772,7 +1772,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                       </label>
                       <input
                         type="color"
-                        value={newCatData.color}
+                        value={newCatData.color ?? ''}
                         onChange={(e) => setNewCatData({ ...newCatData, color: e.target.value })}
                         className="w-full h-9 p-1 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer"
                       />
@@ -1785,7 +1785,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     </label>
                     <input
                       type="text"
-                      value={newCatData.description}
+                      value={newCatData.description ?? ''}
                       onChange={(e) => setNewCatData({ ...newCatData, description: e.target.value })}
                       placeholder="e.g. Inquiries from job seekers applying for positions"
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1834,7 +1834,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     <input
                       type="text"
                       required
-                      value={editingCategory.name}
+                      value={editingCategory.name ?? ''}
                       onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                     />
@@ -1846,7 +1846,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                         Category Archetype
                       </label>
                       <select
-                        value={editingCategory.type}
+                        value={editingCategory.type ?? ''}
                         onChange={(e) => setEditingCategory({ ...editingCategory, type: e.target.value as any })}
                         className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                       >
@@ -1925,7 +1925,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     <input
                       type="text"
                       required
-                      value={newSrcData.name}
+                      value={newSrcData.name ?? ''}
                       onChange={(e) => setNewSrcData({ ...newSrcData, name: e.target.value })}
                       placeholder="e.g. WhatsApp Inbound, Job Portal, Exhibition"
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
@@ -1938,7 +1938,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     </label>
                     <input
                       type="text"
-                      value={newSrcData.description}
+                      value={newSrcData.description ?? ''}
                       onChange={(e) => setNewSrcData({ ...newSrcData, description: e.target.value })}
                       placeholder="e.g. Inquiries generated from website chat widget"
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1987,7 +1987,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     <input
                       type="text"
                       required
-                      value={editingSource.name}
+                      value={editingSource.name ?? ''}
                       onChange={(e) => setEditingSource({ ...editingSource, name: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                     />
@@ -2047,7 +2047,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     <input
                       type="text"
                       required
-                      value={newStageData.name}
+                      value={newStageData.name ?? ''}
                       onChange={(e) => setNewStageData({ ...newStageData, name: e.target.value })}
                       placeholder="e.g. Document Verification, Screening"
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
@@ -2061,7 +2061,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                       </label>
                       <input
                         type="number"
-                        value={newStageData.order}
+                        value={newStageData.order ?? ''}
                         onChange={(e) => setNewStageData({ ...newStageData, order: Number(e.target.value) })}
                         className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                       />
@@ -2073,7 +2073,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                       </label>
                       <input
                         type="color"
-                        value={newStageData.color}
+                        value={newStageData.color ?? ''}
                         onChange={(e) => setNewStageData({ ...newStageData, color: e.target.value })}
                         className="w-full h-9 p-1 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer"
                       />
@@ -2122,7 +2122,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     <input
                       type="text"
                       required
-                      value={editingStageItem.name}
+                      value={editingStageItem.name ?? ''}
                       onChange={(e) => setEditingStageItem({ ...editingStageItem, name: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                     />
@@ -2135,7 +2135,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                       </label>
                       <input
                         type="number"
-                        value={editingStageItem.order}
+                        value={editingStageItem.order ?? ''}
                         onChange={(e) => setEditingStageItem({ ...editingStageItem, order: Number(e.target.value) })}
                         className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                       />
@@ -2312,7 +2312,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                 <input
                   type="text"
                   disabled={!isMaster}
-                  value={brandForm.logoUrl}
+                  value={brandForm.logoUrl ?? ''}
                   onChange={(e) => setBrandForm((prev) => ({ ...prev, logoUrl: e.target.value }))}
                   placeholder="https://images.unsplash.com/... or data:image/png;base64,..."
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono disabled:opacity-60 disabled:cursor-not-allowed"
@@ -2330,7 +2330,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   type="text"
                   required
                   disabled={!isMaster}
-                  value={brandForm.name}
+                  value={brandForm.name ?? ''}
                   onChange={(e) => setBrandForm((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="e.g. ADCS Master PRO"
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-bold disabled:opacity-60 disabled:cursor-not-allowed"
@@ -2345,7 +2345,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   type="text"
                   required
                   disabled={!isMaster}
-                  value={brandForm.shortName}
+                  value={brandForm.shortName ?? ''}
                   onChange={(e) => setBrandForm((prev) => ({ ...prev, shortName: e.target.value }))}
                   placeholder="e.g. ADCS"
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-bold disabled:opacity-60 disabled:cursor-not-allowed"
@@ -2360,7 +2360,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
               <input
                 type="text"
                 disabled={!isMaster}
-                value={brandForm.tagline}
+                value={brandForm.tagline ?? ''}
                 onChange={(e) => setBrandForm((prev) => ({ ...prev, tagline: e.target.value }))}
                 placeholder="e.g. UAE Corporate Services & Government Clearance CRM"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
@@ -2380,7 +2380,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <input
                     type="email"
                     disabled={!isMaster}
-                    value={brandForm.supportEmail}
+                    value={brandForm.supportEmail ?? ''}
                     onChange={(e) => setBrandForm((prev) => ({ ...prev, supportEmail: e.target.value }))}
                     placeholder="support@adcs.ae"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white disabled:opacity-60"
@@ -2399,7 +2399,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <input
                     type="text"
                     disabled={!isMaster}
-                    value={brandForm.supportPhone}
+                    value={brandForm.supportPhone ?? ''}
                     onChange={(e) => setBrandForm((prev) => ({ ...prev, supportPhone: e.target.value }))}
                     placeholder="+971 4 398 2200"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white disabled:opacity-60"
@@ -2418,7 +2418,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <input
                     type="text"
                     disabled={!isMaster}
-                    value={brandForm.website}
+                    value={brandForm.website ?? ''}
                     onChange={(e) => setBrandForm((prev) => ({ ...prev, website: e.target.value }))}
                     placeholder="https://adcs.ae"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white disabled:opacity-60"
@@ -2435,7 +2435,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
               <input
                 type="text"
                 disabled={!isMaster}
-                value={brandForm.footerText}
+                value={brandForm.footerText ?? ''}
                 onChange={(e) => setBrandForm((prev) => ({ ...prev, footerText: e.target.value }))}
                 placeholder="ADCS Master PRO • Licensed by UAE Department of Economy and Tourism (DET)"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white disabled:opacity-60"
@@ -2554,7 +2554,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                 <input
                   type="text"
                   required
-                  value={emailForm.subject}
+                  value={emailForm.subject ?? ''}
                   onChange={(e) => setEmailForm((prev) => ({ ...prev, subject: e.target.value }))}
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium"
                 />
@@ -2569,7 +2569,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <input
                     type="text"
                     required
-                    value={emailForm.senderName}
+                    value={emailForm.senderName ?? ''}
                     onChange={(e) => setEmailForm((prev) => ({ ...prev, senderName: e.target.value }))}
                     className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
                   />
@@ -2582,7 +2582,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <input
                     type="email"
                     required
-                    value={emailForm.senderEmail}
+                    value={emailForm.senderEmail ?? ''}
                     onChange={(e) => setEmailForm((prev) => ({ ...prev, senderEmail: e.target.value }))}
                     className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
                   />
@@ -2596,7 +2596,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                 </label>
                 <input
                   type="text"
-                  value={emailForm.headerText}
+                  value={emailForm.headerText ?? ''}
                   onChange={(e) => setEmailForm((prev) => ({ ...prev, headerText: e.target.value }))}
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-semibold"
                 />
@@ -2610,7 +2610,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                 <textarea
                   rows={9}
                   required
-                  value={emailForm.bodyTemplate}
+                  value={emailForm.bodyTemplate ?? ''}
                   onChange={(e) => setEmailForm((prev) => ({ ...prev, bodyTemplate: e.target.value }))}
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono leading-relaxed focus:outline-hidden focus:border-blue-500"
                 />
@@ -2623,7 +2623,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                 </label>
                 <input
                   type="text"
-                  value={emailForm.footerText}
+                  value={emailForm.footerText ?? ''}
                   onChange={(e) => setEmailForm((prev) => ({ ...prev, footerText: e.target.value }))}
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
                 />
@@ -2662,7 +2662,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   className="flex-1 w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
                 >
                   {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
+                    <option key={c.id} value={c.id ?? ''}>
                       {c.fullName} ({c.refNo}) — {c.services?.[0]?.serviceName || c.services?.[0]?.category || 'Residency'} ({c.email})
                     </option>
                   ))}
@@ -2898,7 +2898,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     type="text"
                     required
                     placeholder="e.g. smtp.gmail.com or mail.yourdomain.com"
-                    value={smtpForm.host}
+                    value={smtpForm.host ?? ''}
                     onChange={(e) => setSmtpForm((prev) => ({ ...prev, host: e.target.value }))}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
                   />
@@ -2914,7 +2914,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                       type="number"
                       required
                       placeholder="465 or 587"
-                      value={smtpForm.port}
+                      value={smtpForm.port ?? ''}
                       onChange={(e) => setSmtpForm((prev) => ({ ...prev, port: parseInt(e.target.value) || 465 }))}
                       className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
                     />
@@ -2945,7 +2945,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     type="email"
                     required
                     placeholder="e.g. operations@adcs.ae or yourname@gmail.com"
-                    value={smtpForm.user}
+                    value={smtpForm.user ?? ''}
                     onChange={(e) => setSmtpForm((prev) => ({ ...prev, user: e.target.value, fromEmail: prev.fromEmail || e.target.value }))}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
                   />
@@ -2978,7 +2978,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                       type={showSmtpPassword ? 'text' : 'password'}
                       required
                       placeholder="Enter mailbox password or 16-character App Password"
-                      value={smtpForm.pass}
+                      value={smtpForm.pass ?? ''}
                       onChange={(e) => setSmtpForm((prev) => ({ ...prev, pass: e.target.value }))}
                       className="w-full p-2.5 pr-10 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
                     />
@@ -3192,7 +3192,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                   <div>
                     <input
                       type="text"
-                      value={stage.name}
+                      value={stage.name ?? ''}
                       onChange={(e) => updateStage(stage.id, { name: e.target.value })}
                       className="font-bold text-slate-900 dark:text-white bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-hidden"
                     />

@@ -26,7 +26,10 @@ import {
   Sliders,
   ChevronDown,
   ChevronUp,
+  UserCheck,
+  UserPlus,
 } from 'lucide-react';
+import { useCRM } from '../../context/CRMContext';
 import { RoleDefinition, User, UserPermissions, UserRole } from '../../types/crm';
 import {
   SYSTEM_CAPABILITIES,
@@ -52,8 +55,11 @@ export const RolesAndCapabilitiesView: React.FC<RolesAndCapabilitiesViewProps> =
   onOpenEditRole,
   onOpenDeleteRole,
 }) => {
+  const { updateUser } = useCRM();
   const [subTab, setSubTab] = useState<'profiles' | 'matrix' | 'guide'>('profiles');
   const [selectedRoleForInspection, setSelectedRoleForInspection] = useState<RoleDefinition | null>(null);
+  const [roleToAssignStaff, setRoleToAssignStaff] = useState<RoleDefinition | null>(null);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [capabilitySearch, setCapabilitySearch] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
 
@@ -102,6 +108,34 @@ export const RolesAndCapabilitiesView: React.FC<RolesAndCapabilitiesViewProps> =
         return <FileText className="w-3.5 h-3.5 text-rose-400" />;
       default:
         return <Shield className="w-3.5 h-3.5 text-slate-400" />;
+    }
+  };
+
+  const handleToggleUserRole = (user: User, role: RoleDefinition) => {
+    const isAssigned = role.isSystem
+      ? !user.customRoleId && user.role === role.roleType
+      : user.customRoleId === role.id;
+
+    if (isAssigned) {
+      // Revert to standard employee role
+      updateUser(user.id, {
+        customRoleId: undefined,
+        role: 'employee',
+      });
+    } else {
+      if (role.isSystem) {
+        updateUser(user.id, {
+          customRoleId: undefined,
+          role: role.roleType,
+          permissions: role.permissions,
+        });
+      } else {
+        updateUser(user.id, {
+          customRoleId: role.id,
+          role: role.roleType,
+          permissions: role.permissions,
+        });
+      }
     }
   };
 
@@ -187,7 +221,13 @@ export const RolesAndCapabilitiesView: React.FC<RolesAndCapabilitiesViewProps> =
         <div className="space-y-4 animate-in fade-in">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {(roles || []).map((r) => {
-              const assignedStaff = (users || []).filter((u) => u && u.role === r.roleType);
+              const assignedStaff = (users || []).filter((u) => {
+                if (!u) return false;
+                if (r.isSystem) {
+                  return !u.customRoleId && u.role === r.roleType;
+                }
+                return u.customRoleId === r.id;
+              });
               const grantedCapsCount = Object.values(r.permissions || {}).filter(Boolean).length;
 
               return (
@@ -245,6 +285,35 @@ export const RolesAndCapabilitiesView: React.FC<RolesAndCapabilitiesViewProps> =
                       </div>
                     </div>
 
+                    {/* Assigned Staff Preview */}
+                    {assignedStaff.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                          Assigned Team Members:
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {assignedStaff.slice(0, 4).map((staff) => (
+                            <div
+                              key={staff.id}
+                              className="flex items-center gap-1 bg-slate-800/80 border border-slate-700/60 rounded-lg px-2 py-0.5 text-[10px] text-slate-300"
+                            >
+                              <img
+                                src={staff.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                                alt=""
+                                className="w-3.5 h-3.5 rounded-full object-cover"
+                              />
+                              <span className="font-medium truncate max-w-[80px]">{staff.name.split(' ')[0]}</span>
+                            </div>
+                          ))}
+                          {assignedStaff.length > 4 && (
+                            <span className="text-[10px] text-slate-500 font-semibold px-1.5 py-0.5 bg-slate-800 rounded-md">
+                              +{assignedStaff.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Highlighted Privileges */}
                     <div className="space-y-1.5">
                       <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
@@ -283,21 +352,29 @@ export const RolesAndCapabilitiesView: React.FC<RolesAndCapabilitiesViewProps> =
                   {/* Actions */}
                   <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
                     <button
-                      onClick={() => setSelectedRoleForInspection(r)}
-                      className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-all text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      onClick={() => setRoleToAssignStaff(r)}
+                      className="p-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 transition-all text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      title="Assign or unassign employees to this role"
                     >
-                      <Eye className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Inspect Capabilities</span>
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Assign Staff</span>
                     </button>
 
                     <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setSelectedRoleForInspection(r)}
+                        className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-all text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                        title="Inspect Capabilities"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-blue-400" />
+                      </button>
+
                       <button
                         onClick={() => onOpenEditRole(r)}
                         className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-xs font-semibold flex items-center gap-1 cursor-pointer"
                         title="Edit Role Matrix"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
-                        <span>Edit</span>
                       </button>
 
                       {!r.isSystem && currentUser.role === 'master' && (
@@ -314,6 +391,119 @@ export const RolesAndCapabilitiesView: React.FC<RolesAndCapabilitiesViewProps> =
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Role Staff Assignment Modal */}
+      {roleToAssignStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-xl shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold"
+                  style={{ backgroundColor: roleToAssignStaff.color || '#3B82F6' }}
+                >
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    Assign Staff to Role: {roleToAssignStaff.name}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Check employees to grant them this role and its permission policies.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRoleToAssignStaff(null)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Search staff */}
+            <div className="relative shrink-0">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search staff by name, email, or department..."
+                value={staffSearchQuery}
+                onChange={(e) => setStaffSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
+
+            {/* Staff list */}
+            <div className="overflow-y-auto space-y-2 flex-1 pr-1">
+              {users
+                .filter((u) => {
+                  if (!u) return false;
+                  return (
+                    u.name.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                    u.email.toLowerCase().includes(staffSearchQuery.toLowerCase()) ||
+                    (u.department && u.department.toLowerCase().includes(staffSearchQuery.toLowerCase()))
+                  );
+                })
+                .map((u) => {
+                  const isAssigned = roleToAssignStaff.isSystem
+                    ? !u.customRoleId && u.role === roleToAssignStaff.roleType
+                    : u.customRoleId === roleToAssignStaff.id;
+
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={() => handleToggleUserRole(u, roleToAssignStaff)}
+                      className={`p-3 rounded-2xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                        isAssigned
+                          ? 'bg-blue-600/10 border-blue-500/40 text-white'
+                          : 'bg-slate-850/60 border-slate-800 hover:border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                          alt=""
+                          className="w-8 h-8 rounded-full object-cover shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">{u.name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">
+                            {u.email} • {u.department || 'Operations'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isAssigned ? (
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Assigned</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-medium">
+                            Click to Assign
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-400">
+                Changes take effect and synchronize in real-time.
+              </span>
+              <button
+                onClick={() => setRoleToAssignStaff(null)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

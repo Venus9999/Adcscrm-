@@ -442,32 +442,92 @@ async function startServer() {
         } catch {}
       }
 
-      // Defensive merge: if incoming payload omits critical arrays when existing had data, preserve existing
+      // Non-destructive ID-based merge helper
+      const mergeCollection = (existingList: any[], incomingList: any[]) => {
+        if (!Array.isArray(incomingList)) return Array.isArray(existingList) ? existingList : [];
+        if (!Array.isArray(existingList) || existingList.length === 0) return incomingList;
+        const map = new Map<string, any>();
+        existingList.forEach((item) => {
+          if (item && (item.id || item.countryCode || item.code)) {
+            const key = item.id || item.countryCode || item.code;
+            map.set(key, item);
+          }
+        });
+        incomingList.forEach((item) => {
+          if (item && (item.id || item.countryCode || item.code)) {
+            const key = item.id || item.countryCode || item.code;
+            const current = map.get(key);
+            map.set(key, current ? { ...current, ...item } : item);
+          }
+        });
+        return Array.from(map.values());
+      };
+
+      // Ensure companies always has comp-1 and comp-2 if existing is empty
+      const initialCompanies = [
+        {
+          id: 'comp-1',
+          name: 'ADCS Document Clearing & Corporate Services LLC',
+          tradeLicenseNo: 'CN-8941029',
+          licenseIssueDate: '2024-01-01',
+          licenseExpiryDate: '2027-01-01',
+          trn: '100492817400003',
+          address: 'Suite 2404, Iris Bay Tower, Business Bay, Dubai, UAE',
+          phone: '+971 4 829 1100',
+          email: 'info@adcs.ae',
+          whatsapp: '+971 50 829 1100',
+          currency: 'AED',
+          activeServicesCount: 0,
+          totalClientsCount: 0,
+        },
+        {
+          id: 'comp-2',
+          name: 'Al Etihad Global Business Management LLC',
+          tradeLicenseNo: 'CN-9382104',
+          licenseIssueDate: '2024-03-15',
+          licenseExpiryDate: '2027-03-15',
+          trn: '100829104700003',
+          address: 'Level 18, Al Saada Commercial Tower, DIFC, Dubai, UAE',
+          phone: '+971 4 399 2200',
+          email: 'partners@aletihad.ae',
+          whatsapp: '+971 52 399 2200',
+          currency: 'AED',
+          activeServicesCount: 0,
+          totalClientsCount: 0,
+        }
+      ];
+
+      const mergedCompanies = mergeCollection(
+        existing.companies && existing.companies.length > 0 ? existing.companies : initialCompanies,
+        payload.companies
+      );
+
+      // Defensive merge: never wipe submitted data, update existing records and append new ones
       const merged = {
         ...existing,
         ...payload,
-        clients: payload.clients !== undefined ? (Array.isArray(payload.clients) ? payload.clients : []) : (existing.clients || []),
-        invoices: payload.invoices !== undefined ? (Array.isArray(payload.invoices) ? payload.invoices : []) : (existing.invoices || []),
-        tasks: payload.tasks !== undefined ? (Array.isArray(payload.tasks) ? payload.tasks : []) : (existing.tasks || []),
-        documents: payload.documents !== undefined ? (Array.isArray(payload.documents) ? payload.documents : []) : (existing.documents || []),
-        transactions: payload.transactions !== undefined ? (Array.isArray(payload.transactions) ? payload.transactions : []) : (existing.transactions || []),
-        messages: payload.messages !== undefined ? (Array.isArray(payload.messages) ? payload.messages : []) : (existing.messages || []),
-        stages: payload.stages !== undefined ? (Array.isArray(payload.stages) ? payload.stages : []) : (existing.stages || []),
-        workflows: payload.workflows !== undefined ? (Array.isArray(payload.workflows) ? payload.workflows : []) : (existing.workflows || []),
-        serviceCategories: payload.serviceCategories !== undefined ? (Array.isArray(payload.serviceCategories) ? payload.serviceCategories : []) : (existing.serviceCategories || []),
-        serviceClassifications: payload.serviceClassifications !== undefined ? (Array.isArray(payload.serviceClassifications) ? payload.serviceClassifications : []) : (existing.serviceClassifications || []),
-        auditLogs: payload.auditLogs !== undefined ? (Array.isArray(payload.auditLogs) ? payload.auditLogs : []) : (existing.auditLogs || []),
-        notifications: payload.notifications !== undefined ? (Array.isArray(payload.notifications) ? payload.notifications : []) : (existing.notifications || []),
-        leads: payload.leads !== undefined ? (Array.isArray(payload.leads) ? payload.leads : []) : (existing.leads || []),
-        vendors: payload.vendors !== undefined ? (Array.isArray(payload.vendors) ? payload.vendors : []) : (existing.vendors || []),
-        departments: payload.departments !== undefined ? (Array.isArray(payload.departments) ? payload.departments : []) : (existing.departments || []),
-        leadCategories: payload.leadCategories !== undefined ? (Array.isArray(payload.leadCategories) ? payload.leadCategories : []) : (existing.leadCategories || []),
-        leadSources: payload.leadSources !== undefined ? (Array.isArray(payload.leadSources) ? payload.leadSources : []) : (existing.leadSources || []),
-        leadStages: payload.leadStages !== undefined ? (Array.isArray(payload.leadStages) ? payload.leadStages : []) : (existing.leadStages || []),
-        users: payload.users !== undefined ? (Array.isArray(payload.users) ? payload.users : []) : (existing.users || []),
-        companies: payload.companies !== undefined ? (Array.isArray(payload.companies) ? payload.companies : []) : (existing.companies || []),
-        visaApplications: payload.visaApplications !== undefined ? (Array.isArray(payload.visaApplications) ? payload.visaApplications : []) : (existing.visaApplications || []),
-        visaCountryCatalog: payload.visaCountryCatalog !== undefined ? (Array.isArray(payload.visaCountryCatalog) ? payload.visaCountryCatalog : []) : (existing.visaCountryCatalog || []),
+        clients: mergeCollection(existing.clients, payload.clients),
+        invoices: mergeCollection(existing.invoices, payload.invoices),
+        tasks: mergeCollection(existing.tasks, payload.tasks),
+        documents: mergeCollection(existing.documents, payload.documents),
+        transactions: mergeCollection(existing.transactions, payload.transactions),
+        messages: mergeCollection(existing.messages, payload.messages),
+        stages: mergeCollection(existing.stages, payload.stages),
+        workflows: mergeCollection(existing.workflows, payload.workflows),
+        serviceCategories: mergeCollection(existing.serviceCategories, payload.serviceCategories),
+        serviceClassifications: mergeCollection(existing.serviceClassifications, payload.serviceClassifications),
+        auditLogs: mergeCollection(existing.auditLogs, payload.auditLogs),
+        notifications: mergeCollection(existing.notifications, payload.notifications),
+        leads: mergeCollection(existing.leads, payload.leads),
+        vendors: mergeCollection(existing.vendors, payload.vendors),
+        departments: mergeCollection(existing.departments, payload.departments),
+        leadCategories: mergeCollection(existing.leadCategories, payload.leadCategories),
+        leadSources: mergeCollection(existing.leadSources, payload.leadSources),
+        leadStages: mergeCollection(existing.leadStages, payload.leadStages),
+        users: mergeCollection(existing.users, payload.users),
+        companies: mergedCompanies,
+        visaApplications: mergeCollection(existing.visaApplications, payload.visaApplications),
+        visaCountryCatalog: mergeCollection(existing.visaCountryCatalog, payload.visaCountryCatalog),
         deletedVendorIds: payload.deletedVendorIds !== undefined ? payload.deletedVendorIds : (existing.deletedVendorIds || []),
         deletedVisaCountryCodes: payload.deletedVisaCountryCodes !== undefined ? payload.deletedVisaCountryCodes : (existing.deletedVisaCountryCodes || []),
         deletedVisaServiceIds: payload.deletedVisaServiceIds !== undefined ? payload.deletedVisaServiceIds : (existing.deletedVisaServiceIds || []),

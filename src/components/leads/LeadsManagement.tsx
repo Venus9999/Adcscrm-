@@ -1410,7 +1410,7 @@ export const LeadsManagement: React.FC = () => {
                 </div>
                 <select
                   required
-                  value={formData.leadCategoryId}
+                  value={formData.leadCategoryId ?? ''}
                   onChange={(e) => handleCategorySelectChange(e.target.value)}
                   className="w-full p-2.5 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-300 dark:border-blue-700 font-bold text-slate-900 dark:text-white shadow-2xs"
                 >
@@ -1438,7 +1438,7 @@ export const LeadsManagement: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={formData.country}
+                      value={formData.country ?? ''}
                       onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                       placeholder="e.g. India / UAE / UK"
                       className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1450,7 +1450,7 @@ export const LeadsManagement: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={formData.city}
+                      value={formData.city ?? ''}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                       placeholder="e.g. Dubai / Abu Dhabi"
                       className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1462,7 +1462,7 @@ export const LeadsManagement: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={formData.currentLocation}
+                      value={formData.currentLocation ?? ''}
                       onChange={(e) => setFormData({ ...formData, currentLocation: e.target.value })}
                       placeholder="e.g. Dubai (On Visit Visa)"
                       className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1487,7 +1487,7 @@ export const LeadsManagement: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData.jobType}
+                        value={formData.jobType ?? ''}
                         onChange={(e) => setFormData({ ...formData, jobType: e.target.value })}
                         placeholder="e.g. Full-Time / Remote / Contract"
                         className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-amber-200 dark:border-amber-700"
@@ -1499,7 +1499,7 @@ export const LeadsManagement: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData.jobTitleInterest}
+                        value={formData.jobTitleInterest ?? ''}
                         onChange={(e) => setFormData({ ...formData, jobTitleInterest: e.target.value })}
                         placeholder="e.g. Senior PRO / Legal Assistant"
                         className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-amber-200 dark:border-amber-700"
@@ -1511,7 +1511,7 @@ export const LeadsManagement: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData.jobExperienceYears}
+                        value={formData.jobExperienceYears ?? ''}
                         onChange={(e) => setFormData({ ...formData, jobExperienceYears: e.target.value })}
                         placeholder="e.g. 5 Years in UAE / Valid License"
                         className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-amber-200 dark:border-amber-700"
@@ -1527,7 +1527,7 @@ export const LeadsManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.name}
+                    value={formData.name ?? ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="e.g. Johnathan Hayes"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
@@ -1551,7 +1551,7 @@ export const LeadsManagement: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Company / Entity Name</label>
                 <input
                   type="text"
-                  value={formData.companyName}
+                  value={formData.companyName ?? ''}
                   onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                   placeholder="e.g. Hayes Global FZE (or N/A for individual)"
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1564,7 +1564,7 @@ export const LeadsManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.phone}
+                    value={formData.phone ?? ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value, whatsapp: formData.whatsapp || e.target.value })}
                     placeholder="+971 50 123 4567"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -1574,7 +1574,7 @@ export const LeadsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
                   <input
                     type="email"
-                    value={formData.email}
+                    value={formData.email ?? ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="john@example.com"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1585,7 +1585,7 @@ export const LeadsManagement: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Service Interested In</label>
                 <select
-                  value={formData.serviceCategoryId}
+                  value={formData.serviceCategoryId ?? ''}
                   onChange={(e) => {
                     const cat = serviceCategories.find((s) => s.id === e.target.value);
                     setFormData({
@@ -1610,7 +1610,7 @@ export const LeadsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Estimated Value (AED)</label>
                   <input
                     type="number"
-                    value={formData.estimatedValue}
+                    value={formData.estimatedValue ?? ''}
                     onChange={(e) => setFormData({ ...formData, estimatedValue: Number(e.target.value) })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1618,7 +1618,7 @@ export const LeadsManagement: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Lead Channel / Source</label>
                   <select
-                    value={formData.source}
+                    value={formData.source ?? ''}
                     onChange={(e) => setFormData({ ...formData, source: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   >
@@ -1634,7 +1634,7 @@ export const LeadsManagement: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Assigned Company / Branch</label>
                 <select
-                  value={formData.companyId}
+                  value={formData.companyId ?? ''}
                   onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                 >
@@ -1700,7 +1700,7 @@ export const LeadsManagement: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Priority</label>
                   <select
-                    value={formData.priority}
+                    value={formData.priority ?? ''}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   >
@@ -1714,7 +1714,7 @@ export const LeadsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Follow-Up Date</label>
                   <input
                     type="date"
-                    value={formData.followUpDate}
+                    value={formData.followUpDate ?? ''}
                     onChange={(e) => setFormData({ ...formData, followUpDate: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
@@ -1725,7 +1725,7 @@ export const LeadsManagement: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Inquiry Notes & Details</label>
                 <textarea
                   rows={2}
-                  value={formData.notes}
+                  value={formData.notes ?? ''}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   placeholder="Key background info, visa status, specific candidate qualifications or client requirements..."
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1773,7 +1773,7 @@ export const LeadsManagement: React.FC = () => {
                   Lead Category / Classification
                 </label>
                 <select
-                  value={formData.leadCategoryId}
+                  value={formData.leadCategoryId ?? ''}
                   onChange={(e) => handleCategorySelectChange(e.target.value)}
                   className="w-full p-2.5 bg-white dark:bg-slate-800 rounded-xl text-xs border border-slate-300 dark:border-slate-600 font-bold"
                 >
@@ -1798,7 +1798,7 @@ export const LeadsManagement: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={formData.country}
+                      value={formData.country ?? ''}
                       onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                       placeholder="e.g. India / UAE"
                       className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1810,7 +1810,7 @@ export const LeadsManagement: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={formData.city}
+                      value={formData.city ?? ''}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                       placeholder="e.g. Dubai"
                       className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1822,7 +1822,7 @@ export const LeadsManagement: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={formData.currentLocation}
+                      value={formData.currentLocation ?? ''}
                       onChange={(e) => setFormData({ ...formData, currentLocation: e.target.value })}
                       placeholder="e.g. Dubai, UAE"
                       className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
@@ -1847,7 +1847,7 @@ export const LeadsManagement: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData.jobType}
+                        value={formData.jobType ?? ''}
                         onChange={(e) => setFormData({ ...formData, jobType: e.target.value })}
                         placeholder="e.g. Full-Time"
                         className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-amber-200 dark:border-amber-700"
@@ -1859,7 +1859,7 @@ export const LeadsManagement: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData.jobTitleInterest}
+                        value={formData.jobTitleInterest ?? ''}
                         onChange={(e) => setFormData({ ...formData, jobTitleInterest: e.target.value })}
                         placeholder="e.g. Senior PRO"
                         className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-amber-200 dark:border-amber-700"
@@ -1871,7 +1871,7 @@ export const LeadsManagement: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={formData.jobExperienceYears}
+                        value={formData.jobExperienceYears ?? ''}
                         onChange={(e) => setFormData({ ...formData, jobExperienceYears: e.target.value })}
                         placeholder="e.g. 5 Years in UAE"
                         className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-amber-200 dark:border-amber-700"
@@ -1887,7 +1887,7 @@ export const LeadsManagement: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={formData.name}
+                    value={formData.name ?? ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-bold"
                   />
@@ -1910,7 +1910,7 @@ export const LeadsManagement: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Company Name</label>
                 <input
                   type="text"
-                  value={formData.companyName}
+                  value={formData.companyName ?? ''}
                   onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />
@@ -1921,7 +1921,7 @@ export const LeadsManagement: React.FC = () => {
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Phone</label>
                   <input
                     type="text"
-                    value={formData.phone}
+                    value={formData.phone ?? ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                   />
@@ -1929,7 +1929,7 @@ export const LeadsManagement: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Pipeline Stage</label>
                   <select
-                    value={formData.status}
+                    value={formData.status ?? ''}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold"
                   >
@@ -1946,7 +1946,7 @@ export const LeadsManagement: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Lead Channel / Source</label>
                   <select
-                    value={formData.source}
+                    value={formData.source ?? ''}
                     onChange={(e) => setFormData({ ...formData, source: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   >
@@ -1960,7 +1960,7 @@ export const LeadsManagement: React.FC = () => {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Priority</label>
                   <select
-                    value={formData.priority}
+                    value={formData.priority ?? ''}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   >
@@ -1976,7 +1976,7 @@ export const LeadsManagement: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Estimated Value (AED)</label>
                 <input
                   type="number"
-                  value={formData.estimatedValue}
+                  value={formData.estimatedValue ?? ''}
                   onChange={(e) => setFormData({ ...formData, estimatedValue: Number(e.target.value) })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
                 />
@@ -2036,7 +2036,7 @@ export const LeadsManagement: React.FC = () => {
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Notes</label>
                 <textarea
                   rows={2}
-                  value={formData.notes}
+                  value={formData.notes ?? ''}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />
@@ -2091,7 +2091,7 @@ export const LeadsManagement: React.FC = () => {
                   Primary Service Package
                 </label>
                 <select
-                  value={convertForm.serviceCategoryId}
+                  value={convertForm.serviceCategoryId ?? ''}
                   onChange={(e) => setConvertForm({ ...convertForm, serviceCategoryId: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 >
@@ -2108,7 +2108,7 @@ export const LeadsManagement: React.FC = () => {
                   Assigned Case Officer
                 </label>
                 <select
-                  value={convertForm.assignedEmployeeId}
+                  value={convertForm.assignedEmployeeId ?? ''}
                   onChange={(e) => setConvertForm({ ...convertForm, assignedEmployeeId: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 >
@@ -2126,7 +2126,7 @@ export const LeadsManagement: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={convertForm.advanceAmount}
+                  value={convertForm.advanceAmount ?? ''}
                   onChange={(e) => setConvertForm({ ...convertForm, advanceAmount: Number(e.target.value) })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-emerald-600"
                 />
