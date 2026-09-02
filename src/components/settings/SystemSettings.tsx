@@ -43,6 +43,7 @@ import {
   Database,
   Cloud,
   Download,
+  Copy,
   HardDrive,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
@@ -92,6 +93,8 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
     saveDataToServer,
     loadDataFromServer,
     createDatabaseBackup,
+    exportCRMData,
+    importCRMData,
   } = useCRM();
 
   const {
@@ -121,6 +124,11 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
   // Billing Settings Form State
   const [billingForm, setBillingForm] = useState<InvoiceBillingSettings>(billingSettings);
   const [billingNotice, setBillingNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Cloud & Multi-System Sync State
+  const [syncCodeInput, setSyncCodeInput] = useState('');
+  const [syncNotice, setSyncNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Category CRUD Modal/Inline State
   const [editingCategory, setEditingCategory] = useState<LeadCategory | null>(null);
@@ -3493,39 +3501,137 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
               <div>
                 <h4 className="text-xs font-bold text-slate-900 dark:text-white">Database Management & Actions</h4>
                 <p className="text-[11px] text-slate-500">
-                  {lastServerSyncTime ? `Last synced with cloud: ${lastServerSyncTime}` : 'Continuous synchronization active'}
+                  {lastServerSyncTime ? `Last synced: ${lastServerSyncTime}` : 'Continuous synchronization active'}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={async () => {
                     const ok = await loadDataFromServer();
                     if (ok) {
-                      alert('Latest database snapshot loaded from Cloud Firestore!');
+                      alert('Latest database snapshot loaded from cloud/server/bundled store!');
                     } else {
-                      alert('Cloud database already matches current state.');
+                      alert('Database already matches the latest available remote snapshot.');
                     }
                   }}
                   className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Pull Cloud Data</span>
+                  <span>Pull Latest Data</span>
                 </button>
                 <button
                   type="button"
                   onClick={async () => {
                     const res = await createDatabaseBackup();
                     if (res.success) {
-                      alert(`Server backup archive created: ${res.filename}`);
+                      alert(`Backup download started: ${res.filename}`);
                     } else {
-                      alert(`Backup error: ${res.error}`);
+                      alert(`Backup notice: ${res.error}`);
                     }
                   }}
                   className="px-3.5 py-2 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 hover:bg-blue-100 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download Backup (.json)</span>
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      const content = event.target?.result as string;
+                      if (!content) return;
+                      const ok = importCRMData(content);
+                      if (ok) {
+                        alert('Database backup successfully restored and synchronized!');
+                      } else {
+                        alert('Failed to parse backup JSON file. Please ensure it is a valid CRM database file.');
+                      }
+                    };
+                    reader.readAsText(file);
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 hover:bg-emerald-100 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Restore / Import (.json)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Cross-System Sync (Copy / Paste) */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Copy className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Cross-System Direct Sync (Between Different PCs / Browsers)</span>
+                  </h5>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Transfer all clients, leads, invoices, and settings from one computer to another in one click without needing server setup.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      const json = exportCRMData();
+                      navigator.clipboard.writeText(json);
+                      setSyncNotice({ type: 'success', text: 'Complete CRM data payload copied to clipboard! Paste it into the other system.' });
+                      setTimeout(() => setSyncNotice(null), 5000);
+                    } catch {
+                      setSyncNotice({ type: 'error', text: 'Clipboard access denied. Please use Download Backup (.json) instead.' });
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>Copy Sync Code</span>
+                </button>
+              </div>
+
+              {syncNotice && (
+                <div className={`p-2.5 rounded-xl text-xs font-medium ${syncNotice.type === 'success' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800'}`}>
+                  {syncNotice.text}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <textarea
+                  rows={2}
+                  placeholder="Paste sync code or database JSON here to apply updates from another system..."
+                  value={syncCodeInput}
+                  onChange={(e) => setSyncCodeInput(e.target.value)}
+                  className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono resize-none"
+                />
+                <button
+                  type="button"
+                  disabled={!syncCodeInput.trim()}
+                  onClick={() => {
+                    if (!syncCodeInput.trim()) return;
+                    const ok = importCRMData(syncCodeInput.trim());
+                    if (ok) {
+                      setSyncCodeInput('');
+                      setSyncNotice({ type: 'success', text: 'Sync payload applied successfully! All records updated.' });
+                      setTimeout(() => setSyncNotice(null), 5000);
+                    } else {
+                      setSyncNotice({ type: 'error', text: 'Invalid sync payload. Please verify you copied the full JSON code.' });
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-xs cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Apply Sync</span>
                 </button>
               </div>
             </div>

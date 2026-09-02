@@ -3523,7 +3523,9 @@
       "outstandingAmount": 0,
       "services": [],
       "notes": [],
-      "tags": ["Corporate"],
+      "tags": [
+        "Corporate"
+      ],
       "createdAt": "2026-09-02T12:00:00.000Z",
       "updatedAt": "2026-09-02T12:00:00.000Z"
     }

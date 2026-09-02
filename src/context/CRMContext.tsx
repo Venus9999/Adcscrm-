@@ -1361,18 +1361,31 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (contentType.includes('application/json') || contentType === '') {
                 const staticData = await staticRes.json();
                 if (active && staticData && (staticData.clients || staticData.users || staticData.companies)) {
-                  hydrateStateFromSnapshot(staticData);
-                  lastAppliedRemoteIsoRef.current = staticData.lastUpdated || new Date().toISOString();
+                  const localRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
+                  let localParsed: any = null;
                   try {
-                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(staticData));
+                    if (localRaw) localParsed = JSON.parse(localRaw);
                   } catch {}
-                  setLastServerSyncTime(new Date().toLocaleTimeString());
-                  setServerSyncStatus('synced');
-                  serverLoaded = true;
+
+                  const isStaticNewer = isRemoteStrictlyNewer(staticData.lastUpdated, localParsed?.lastUpdated);
+                  const isLocalEmpty = !localParsed || (!localParsed.clients?.length && !localParsed.leads?.length);
+                  
+                  if (isStaticNewer || isLocalEmpty || !localLoaded) {
+                    hydrateStateFromSnapshot(staticData);
+                    lastAppliedRemoteIsoRef.current = staticData.lastUpdated || new Date().toISOString();
+                    try {
+                      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(staticData));
+                    } catch {}
+                    setLastServerSyncTime(new Date().toLocaleTimeString());
+                    setServerSyncStatus('synced');
+                    serverLoaded = true;
+                  }
                 }
               }
             }
-          } catch {}
+          } catch {
+            // Static json fallback not available
+          }
         }
 
         // 2. Query Cloud Firestore (Direct cross-device cloud source of truth)
@@ -7779,11 +7792,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const importCRMData = useCallback((jsonData: string): boolean => {
     try {
       const parsed = JSON.parse(jsonData);
-      return hydrateStateFromSnapshot(parsed);
+      const success = hydrateStateFromSnapshot(parsed);
+      if (success) {
+        parsed.lastUpdated = new Date().toISOString();
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+        } catch {}
+        syncSnapshot(parsed);
+        setLastServerSyncTime(new Date().toLocaleTimeString());
+        setServerSyncStatus('synced');
+      }
+      return success;
     } catch {
       return false;
     }
-  }, [hydrateStateFromSnapshot]);
+  }, [hydrateStateFromSnapshot, syncSnapshot]);
 
   const saveDataToServer = useCallback(async (): Promise<boolean> => {
     try {
@@ -7878,16 +7901,39 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       // 2. Try Server Disk
-      const res = await fetch('/api/crm/data');
-      const json = await res.json();
-      if (json.success && json.hasData && json.data) {
-        hydrateStateFromSnapshot(json.data);
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(json.data));
-        saveCRMDataToCloud(json.data).catch(() => {});
-        setServerSyncStatus('synced');
-        setLastServerSyncTime(new Date().toLocaleTimeString());
-        return true;
-      }
+      try {
+        const res = await fetch('/api/crm/data');
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const json = await res.json();
+            if (json.success && json.hasData && json.data) {
+              hydrateStateFromSnapshot(json.data);
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(json.data));
+              saveCRMDataToCloud(json.data).catch(() => {});
+              setServerSyncStatus('synced');
+              setLastServerSyncTime(new Date().toLocaleTimeString());
+              return true;
+            }
+          }
+        }
+      } catch {}
+
+      // 3. Try /crm-store.json (static deployment fallback)
+      try {
+        const staticRes = await fetch('/crm-store.json', { cache: 'no-store' });
+        if (staticRes.ok) {
+          const staticJson = await staticRes.json();
+          if (staticJson && (staticJson.clients || staticJson.users || staticJson.companies)) {
+            hydrateStateFromSnapshot(staticJson);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(staticJson));
+            setServerSyncStatus('synced');
+            setLastServerSyncTime(new Date().toLocaleTimeString());
+            return true;
+          }
+        }
+      } catch {}
+
       return false;
     } catch {
       return false;
@@ -7897,8 +7943,30 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const createDatabaseBackup = useCallback(async (): Promise<{ success: boolean; filename?: string; error?: string }> => {
     try {
       const res = await fetch('/api/crm/backup', { method: 'POST' });
-      const json = await res.json();
-      return json;
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.success) return json;
+      }
+    } catch {}
+
+    // Instant browser-side JSON download fallback (works on static hosting & multi-system transfers)
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (raw) {
+        const blob = new Blob([raw], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `crm-backup-${timestamp}.json`;
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return { success: true, filename };
+      }
+      return { success: false, error: 'No cached database found to download' };
     } catch (err: any) {
       return { success: false, error: err.message };
     }

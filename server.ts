@@ -18,6 +18,24 @@ if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 
+// Ensure public directory has the latest CRM store snapshot for static deployment and GitHub sync
+try {
+  const publicDir = path.join(process.cwd(), 'public');
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+  const publicStore = path.join(publicDir, 'crm-store.json');
+  if (fs.existsSync(STORE_FILE)) {
+    fs.copyFileSync(STORE_FILE, publicStore);
+  }
+  const distDir = path.join(process.cwd(), 'dist');
+  if (fs.existsSync(distDir) && fs.existsSync(STORE_FILE)) {
+    fs.copyFileSync(STORE_FILE, path.join(distDir, 'crm-store.json'));
+  }
+} catch (e) {
+  console.warn('Initial store sync notice:', e);
+}
+
 async function startServer() {
   const app = express();
 
@@ -779,17 +797,21 @@ async function startServer() {
       fs.writeFileSync(tempFile, jsonStr, 'utf-8');
       fs.renameSync(tempFile, STORE_FILE);
 
-      // Also mirror to public/crm-store.json for static builds and GitHub deployments
+      // Mirror to public and dist directories for static deployment and GitHub sync
       try {
-        const publicStore = path.join(process.cwd(), 'public', 'crm-store.json');
-        fs.writeFileSync(publicStore, jsonStr, 'utf-8');
-      } catch {}
+        const publicFile = path.join(process.cwd(), 'public', 'crm-store.json');
+        fs.writeFileSync(publicFile, jsonStr, 'utf-8');
+      } catch (e) {
+        console.warn('Mirror public store notice:', e);
+      }
       try {
-        const distStore = path.join(process.cwd(), 'dist', 'crm-store.json');
-        if (fs.existsSync(path.dirname(distStore))) {
-          fs.writeFileSync(distStore, jsonStr, 'utf-8');
+        const distFile = path.join(process.cwd(), 'dist', 'crm-store.json');
+        if (fs.existsSync(path.join(process.cwd(), 'dist'))) {
+          fs.writeFileSync(distFile, jsonStr, 'utf-8');
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Mirror dist store notice:', e);
+      }
 
       // Broadcast update to all connected browsers, tabs, and systems immediately
       const broadcastMsg = `data: ${JSON.stringify({
