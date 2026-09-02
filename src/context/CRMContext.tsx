@@ -1103,6 +1103,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           return {
             ...c,
+            fullName: c.fullName || c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Client',
+            companyId: c.companyId || (companies && companies[0]?.id) || 'comp-1',
+            refNo: c.refNo || `CL-${c.id?.replace('client-', '') || '001'}`,
+            nationality: c.nationality || 'United Arab Emirates',
+            emiratesId: c.emiratesId || '',
+            mobile: c.mobile || c.phone || '',
+            email: c.email || '',
+            passportNo: c.passportNo || c.passportNumber || '',
+            currentStageId: c.currentStageId || 'stage-1',
+            currentStageName: c.currentStageName || 'New Inquiry',
+            paymentStatus: c.paymentStatus || (outstandingAmount === 0 && totalAmount > 0 ? 'paid' : outstandingAmount > 0 && totalAmount > outstandingAmount ? 'partially_paid' : 'unpaid'),
             totalAmount,
             outstandingAmount,
             services,
@@ -1339,6 +1350,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         } catch {
           // Server disk not available on custom static domains (e.g. app.theadcs.com)
+        }
+
+        // 1b. Fallback to /crm-store.json for static builds and GitHub deployments
+        if (!serverLoaded) {
+          try {
+            const staticRes = await fetch('/crm-store.json', { cache: 'no-store' });
+            if (staticRes.ok) {
+              const contentType = staticRes.headers.get('content-type') || '';
+              if (contentType.includes('application/json') || contentType === '') {
+                const staticData = await staticRes.json();
+                if (active && staticData && (staticData.clients || staticData.users || staticData.companies)) {
+                  hydrateStateFromSnapshot(staticData);
+                  lastAppliedRemoteIsoRef.current = staticData.lastUpdated || new Date().toISOString();
+                  try {
+                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(staticData));
+                  } catch {}
+                  setLastServerSyncTime(new Date().toLocaleTimeString());
+                  setServerSyncStatus('synced');
+                  serverLoaded = true;
+                }
+              }
+            }
+          } catch {}
         }
 
         // 2. Query Cloud Firestore (Direct cross-device cloud source of truth)
@@ -9106,8 +9140,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       // Strict company-level isolation for non-global admin
+      const effectiveCompanyId = c.companyId || (companies && companies[0]?.id) || 'comp-1';
       if (!isGlobalAdmin) {
-        const inComp = c.companyId ? accessibleCompanyIdSet.has(c.companyId) : false;
+        const inComp = accessibleCompanyIdSet.has(effectiveCompanyId);
         const isAssigned =
           (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
           (c as any).assignedEmployeeId === currentUser?.id ||
@@ -9115,7 +9150,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!inComp && !isAssigned) return false;
       }
 
-      if (selectedCompanyId !== 'all' && c.companyId && c.companyId !== selectedCompanyId) return false;
+      if (selectedCompanyId !== 'all' && effectiveCompanyId !== selectedCompanyId) return false;
 
       if (isEmployeeRole) {
         const isAssigned =

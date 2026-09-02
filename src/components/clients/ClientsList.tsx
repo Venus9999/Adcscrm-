@@ -93,14 +93,15 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
       const tags = (client.tags || []).join(' ').toLowerCase();
 
       // Search
+      const clientName = client.fullName || (client as any).name || '';
       const matchSearch =
         !q ||
-        (client.fullName && client.fullName.toLowerCase().includes(q)) ||
+        (clientName && clientName.toLowerCase().includes(q)) ||
         (client.refNo && client.refNo.toLowerCase().includes(q)) ||
         (client.passportNo && client.passportNo.toLowerCase().includes(q)) ||
-        client.emiratesId.toLowerCase().includes(q) ||
-        client.mobile.includes(q) ||
-        client.email.toLowerCase().includes(q) ||
+        ((client.emiratesId || '').toLowerCase().includes(q)) ||
+        ((client.mobile || '').includes(q)) ||
+        ((client.email || '').toLowerCase().includes(q)) ||
         compName.includes(q) ||
         assignedNames.includes(q) ||
         adminName.includes(q) ||
@@ -443,20 +444,20 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                             />
                             <div>
                               <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                <span>{client.fullName}</span>
+                                <span>{client.fullName || (client as any).name || 'Client'}</span>
                                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                                  {client.refNo}
+                                  {client.refNo || `CL-${client.id}`}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5">{client.email}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">{client.email || 'No email provided'}</p>
                             </div>
                           </div>
                         </td>
 
                         <td className="py-3.5 px-5">
-                          <div className="font-medium text-slate-800 dark:text-slate-200">{client.nationality}</div>
+                          <div className="font-medium text-slate-800 dark:text-slate-200">{client.nationality || 'United Arab Emirates'}</div>
                           <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                            Pass: {client.passportNo}
+                            Pass: {client.passportNo || 'N/A'}
                           </div>
                         </td>
 
@@ -471,18 +472,18 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
 
                         <td className="py-3.5 px-5">
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                            {client.currentStageName}
+                            {client.currentStageName || 'Inquiry'}
                           </span>
                         </td>
 
                         <td className="py-3.5 px-5">
                           <div className="font-bold text-slate-900 dark:text-white">
-                            AED {client.totalAmount.toLocaleString()}
+                            AED {(client.totalAmount || 0).toLocaleString()}
                           </div>
                           <div className="text-[11px] mt-0.5">
-                            {client.outstandingAmount > 0 ? (
+                            {(client.outstandingAmount || 0) > 0 ? (
                               <span className="text-amber-600 font-bold">
-                                Bal: AED {client.outstandingAmount.toLocaleString()}
+                                Bal: AED {(client.outstandingAmount || 0).toLocaleString()}
                               </span>
                             ) : (
                               <span className="text-emerald-600 font-bold">Paid in Full</span>
@@ -528,10 +529,10 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                     <div className="flex items-center gap-3">
                       <img src={client.avatar} alt="" className="w-11 h-11 rounded-md object-cover shrink-0" />
                       <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">{client.fullName}</h3>
-                        <p className="text-xs text-slate-500">{client.nationality}</p>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">{client.fullName || (client as any).name || 'Client'}</h3>
+                        <p className="text-xs text-slate-500">{client.nationality || 'United Arab Emirates'}</p>
                         <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 mt-1 inline-block">
-                          {client.refNo}
+                          {client.refNo || `CL-${client.id}`}
                         </span>
                       </div>
                     </div>
@@ -547,12 +548,12 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                     <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                       <span>Work Stage:</span>
                       <span className="font-bold text-blue-600 dark:text-blue-400 uppercase text-[10px]">
-                        {client.currentStageName}
+                        {client.currentStageName || 'Inquiry'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                       <span>Passport:</span>
-                      <span className="font-mono text-slate-700 dark:text-slate-300">{client.passportNo}</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-300">{client.passportNo || 'N/A'}</span>
                     </div>
                   </div>
                 </div>
@@ -562,10 +563,10 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                     <span className="text-[10px] text-slate-400 block uppercase font-bold">Outstanding</span>
                     <span
                       className={`font-bold ${
-                        client.outstandingAmount > 0 ? 'text-amber-600' : 'text-emerald-600'
+                        (client.outstandingAmount || 0) > 0 ? 'text-amber-600' : 'text-emerald-600'
                       }`}
                     >
-                      AED {client.outstandingAmount.toLocaleString()}
+                      AED {(client.outstandingAmount || 0).toLocaleString()}
                     </span>
                   </div>
                   <button className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-bold rounded-md hover:bg-blue-100 text-xs flex items-center gap-1 cursor-pointer">

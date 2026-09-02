@@ -469,7 +469,24 @@ async function startServer() {
           data.companies = data.companies.filter((c: any) => c && c.id && !data.deletedCompanyIds.includes(c.id));
         }
         if (data.clients && Array.isArray(data.clients)) {
-          data.clients = data.clients.filter((c: any) => c && c.id && !data.deletedClientIds.includes(c.id));
+          data.clients = data.clients
+            .filter((c: any) => c && c.id && !data.deletedClientIds.includes(c.id))
+            .map((c: any) => ({
+              ...c,
+              fullName: c.fullName || c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Client',
+              companyId: c.companyId || (data.companies?.[0]?.id || 'comp-1'),
+              refNo: c.refNo || `CL-${c.id?.replace('client-', '') || '001'}`,
+              nationality: c.nationality || 'United Arab Emirates',
+              emiratesId: c.emiratesId || '',
+              mobile: c.mobile || c.phone || '',
+              email: c.email || '',
+              currentStageId: c.currentStageId || 'stage-1',
+              currentStageName: c.currentStageName || 'New Inquiry',
+              paymentStatus: c.paymentStatus || 'unpaid',
+              totalAmount: typeof c.totalAmount === 'number' ? c.totalAmount : 0,
+              paidAmount: typeof c.paidAmount === 'number' ? c.paidAmount : 0,
+              outstandingAmount: typeof c.outstandingAmount === 'number' ? c.outstandingAmount : 0,
+            }));
         }
         if (data.documents && Array.isArray(data.documents)) {
           data.documents = data.documents.filter(
@@ -758,8 +775,21 @@ async function startServer() {
 
       // Write to temp file then rename for atomic safe write
       const tempFile = `${STORE_FILE}.tmp.${Date.now()}`;
-      fs.writeFileSync(tempFile, JSON.stringify(merged, null, 2), 'utf-8');
+      const jsonStr = JSON.stringify(merged, null, 2);
+      fs.writeFileSync(tempFile, jsonStr, 'utf-8');
       fs.renameSync(tempFile, STORE_FILE);
+
+      // Also mirror to public/crm-store.json for static builds and GitHub deployments
+      try {
+        const publicStore = path.join(process.cwd(), 'public', 'crm-store.json');
+        fs.writeFileSync(publicStore, jsonStr, 'utf-8');
+      } catch {}
+      try {
+        const distStore = path.join(process.cwd(), 'dist', 'crm-store.json');
+        if (fs.existsSync(path.dirname(distStore))) {
+          fs.writeFileSync(distStore, jsonStr, 'utf-8');
+        }
+      } catch {}
 
       // Broadcast update to all connected browsers, tabs, and systems immediately
       const broadcastMsg = `data: ${JSON.stringify({
