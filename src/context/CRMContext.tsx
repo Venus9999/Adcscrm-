@@ -41,6 +41,7 @@ import {
   VisaApplicationStatus,
   VisaTimelineEvent,
   VisaUploadedDoc,
+  NomodPaymentOutcome,
   Department,
   SmtpSettings,
   DiscountType,
@@ -339,17 +340,23 @@ interface CRMContextType {
   confirmNomodPayment: (
     appId: string,
     result: {
-      paymentId: string;
-      reference: string;
+      paymentId?: string;
+      reference?: string;
       authCode?: string;
       cardBrand?: string;
       last4?: string;
-      amount: number;
+      amount?: number;
       currency?: string;
       paidAt?: string;
       customerName?: string;
+      status?: 'paid' | 'approved' | 'rejected' | 'failed' | 'cancelled' | 'pending';
+      failureReason?: string;
+      invoiceId?: string;
     }
-  ) => { success: boolean; invoice?: Invoice; error?: string };
+  ) => { success: boolean; application?: VisaApplication; invoice?: Invoice; error?: string };
+  processNomodPaymentOutcome: (
+    outcome: NomodPaymentOutcome
+  ) => { success: boolean; application?: VisaApplication; invoice?: Invoice; error?: string };
   assignLeadToStaff: (leadId: string, employeeId: string, notes?: string) => void;
 
   // Conflict Resolution
@@ -673,6 +680,49 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
     getInitialStorageList('transactions', INITIAL_TRANSACTIONS, false)
   );
+
+  // One-time client-side migration: permanently purge legacy demo visa data from local storage
+  (() => {
+    try {
+      const DEMO_PURGE_KEY = 'adcs_demo_visa_purged_v3';
+      if (!localStorage.getItem(DEMO_PURGE_KEY)) {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.visaApplications)) {
+            parsed.visaApplications = parsed.visaApplications.filter(
+              (a: any) => a && a.id && !a.id.startsWith('vsa-app-100')
+            );
+          }
+          const DEMO_SERVICE_IDS = new Set([
+            'ae-tourist-30', 'ae-tourist-60', 'ae-tourist-60-multi', 'ae-golden-investor', 'ae-golden-executive', 'ae-green-residence', 'ae-employment-2yr',
+            'sa-tourist-1yr', 'sa-business-visit', 'sa-umrah-transit',
+            'qa-hayya-tourist', 'qa-business-visa',
+            'fr-schengen-tourist', 'fr-schengen-business',
+            'it-schengen-tourist', 'ch-schengen-tourist',
+            'gb-eta', 'gb-visitor-standard-6m', 'gb-visitor-2yr', 'gb-visitor-5yr',
+            'us-b1-b2', 'us-esta', 'ca-visitor-v1', 'ca-super-visa',
+            'au-subclass-600', 'nz-visitor-visa', 'sg-tourist-evisa', 'jp-tourist-evisa',
+            'cn-tourist-l', 'cn-business-m', 'th-tourist-evisa', 'tr-evisa', 'tr-sticker-visa',
+            'eg-tourist-evisa', 'za-visitor-visa', 'az-asand-evisa', 'ge-evisa-tourist'
+          ]);
+          if (Array.isArray(parsed.visaCountryCatalog)) {
+            parsed.visaCountryCatalog = parsed.visaCountryCatalog
+              .map((c: any) => ({
+                ...c,
+                visaTypes: (Array.isArray(c.visaTypes) ? c.visaTypes : []).filter(
+                  (vt: any) => vt && vt.id && !DEMO_SERVICE_IDS.has(vt.id)
+                ),
+              }))
+              .filter((c: any) => c && c.visaTypes && c.visaTypes.length > 0);
+          }
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+        }
+        localStorage.setItem(DEMO_PURGE_KEY, 'true');
+      }
+    } catch {}
+  })();
+
   const [visaApplications, setVisaApplications] = useState<VisaApplication[]>(() => {
     try {
       let deletedAppIds: string[] = [];
@@ -691,12 +741,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const list = Array.isArray(parsed.visaApplications)
             ? parsed.visaApplications
             : Object.values(parsed.visaApplications);
-          return (list as any[]).filter((a: any) => a && a.id && !deletedAppIds.includes(a.id));
+          return (list as any[]).filter(
+            (a: any) => a && a.id && !deletedAppIds.includes(a.id) && !a.id.startsWith('vsa-app-100')
+          );
         }
       }
-      return INITIAL_VISA_APPLICATIONS.filter((a) => !deletedAppIds.includes(a.id));
+      return [];
     } catch {
-      return INITIAL_VISA_APPLICATIONS;
+      return [];
     }
   });
 
@@ -737,14 +789,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       }
 
-      return WORLD_VISA_COUNTRIES
-        .filter((c) => !deletedCountryCodes.includes(c.countryCode.toLowerCase().trim()))
-        .map((c) => ({
-          ...c,
-          visaTypes: (c.visaTypes || []).filter((vt) => !deletedServiceIds.includes(vt.id)),
-        }));
+      return [];
     } catch {
-      return WORLD_VISA_COUNTRIES;
+      return [];
     }
   });
 
@@ -1275,24 +1322,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ? parsed.visaApplications
         : Object.values(parsed.visaApplications || {});
       const cleanApps = (rawApps || []).filter(
-        (a: any) => a && a.id && !deletedAppIds.includes(a.id)
+        (a: any) => a && a.id && !deletedAppIds.includes(a.id) && !a.id.startsWith('vsa-app-100')
       );
-      setVisaApplications((prev) => {
-        if (parsed.forceReset) return cleanApps;
-        const map = new Map<string, any>();
-        (prev || []).forEach((a) => {
-          if (a && a.id && !deletedAppIds.includes(a.id)) {
-            map.set(a.id, a);
-          }
-        });
-        cleanApps.forEach((a) => {
-          if (a && a.id && !deletedAppIds.includes(a.id)) {
-            const current = map.get(a.id);
-            map.set(a.id, current ? { ...current, ...a } : a);
-          }
-        });
-        return Array.from(map.values());
-      });
+      setVisaApplications(cleanApps);
     }
     if (parsed.visaCountryCatalog !== undefined) {
       const rawCatalog = Array.isArray(parsed.visaCountryCatalog)
@@ -1318,7 +1350,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } else {
       // If snapshot omitted catalog, ensure current catalog is filtered by tombstones
       setVisaCountryCatalog((prev) =>
-        (prev || WORLD_VISA_COUNTRIES)
+        (prev || [])
           .filter(
             (c: any) =>
               c &&
@@ -1645,7 +1677,35 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const mergedVendors = mergeById(localSnap.vendors, remoteSnap.vendors);
           const mergedUsers = mergeById(localSnap.users, remoteSnap.users);
           const mergedCompanies = mergeById(localSnap.companies, remoteSnap.companies);
-          const mergedVisaApps = mergeById(localSnap.visaApplications, remoteSnap.visaApplications);
+          const combinedDelCountryCodes = [
+            ...(localSnap.deletedVisaCountryCodes || []),
+            ...(remoteSnap.deletedVisaCountryCodes || []),
+          ].map((c) => String(c).toLowerCase().trim());
+
+          const combinedDelServiceIds = [
+            ...(localSnap.deletedVisaServiceIds || []),
+            ...(remoteSnap.deletedVisaServiceIds || []),
+          ];
+
+          const combinedDelAppIds = [
+            ...(localSnap.deletedVisaAppIds || []),
+            ...(remoteSnap.deletedVisaAppIds || []),
+          ];
+
+          const mergedVisaApps = mergeById(localSnap.visaApplications, remoteSnap.visaApplications)
+            .filter((a: any) => a && a.id && !combinedDelAppIds.includes(a.id) && !a.id.startsWith('vsa-app-100'));
+
+          const rawCatalog = Array.isArray(localSnap.visaCountryCatalog)
+            ? localSnap.visaCountryCatalog
+            : (Array.isArray(remoteSnap.visaCountryCatalog) ? remoteSnap.visaCountryCatalog : []);
+          const mergedVisaCatalog = (rawCatalog || [])
+            .filter((c: any) => c && c.countryCode && !combinedDelCountryCodes.includes(String(c.countryCode).toLowerCase().trim()))
+            .map((c: any) => ({
+              ...c,
+              visaTypes: (Array.isArray(c.visaTypes) ? c.visaTypes : []).filter(
+                (vt: any) => vt && vt.id && !combinedDelServiceIds.includes(vt.id)
+              ),
+            }));
 
           const updatedIso = new Date().toISOString();
           const mergedSnapshot = {
@@ -1660,6 +1720,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             users: mergedUsers,
             companies: mergedCompanies,
             visaApplications: mergedVisaApps,
+            visaCountryCatalog: mergedVisaCatalog,
+            deletedVisaCountryCodes: combinedDelCountryCodes,
+            deletedVisaServiceIds: combinedDelServiceIds,
+            deletedVisaAppIds: combinedDelAppIds,
             lastUpdated: updatedIso,
             hasCustomModifications: true,
           };
@@ -6962,11 +7026,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         read: false,
       };
 
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
       setMessages((prev) => [...prev, newMsg]);
 
-      // Notification
+      // Notification targeted to the other party (never to the sender itself)
+      const targetUserId = currentUser.role === 'client' ? client?.assignedEmployeeId : (client?.id || realClientId);
       const notif: NotificationItem = {
         id: `notif-${Date.now()}`,
+        userId: targetUserId,
         targetRole: currentUser.role === 'client' ? 'employee' : 'client',
         title: `Message from ${currentUser.name}`,
         message: text.length > 60 ? `${text.substring(0, 60)}...` : text,
@@ -6983,9 +7052,38 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const markMessagesAsRead = useCallback(
     (conversationId: string) => {
-      setMessages((prev) =>
-        prev.map((m) => (m.conversationId === conversationId ? { ...m, read: true } : m))
-      );
+      const realClientId = conversationId.endsWith('-branch') ? conversationId.replace('-branch', '') : conversationId;
+      setMessages((prev) => {
+        const hasUnread = prev.some(
+          (m) => (m.conversationId === conversationId || m.conversationId === realClientId) && !m.read
+        );
+        if (!hasUnread) return prev;
+        hasUserEditedRef.current = true;
+        return prev.map((m) =>
+          (m.conversationId === conversationId || m.conversationId === realClientId) && !m.read
+            ? { ...m, read: true }
+            : m
+        );
+      });
+
+      // Also automatically mark message notifications for this conversation as read
+      setNotifications((prev) => {
+        const hasUnreadNotif = prev.some(
+          (n) =>
+            n.linkTab === 'messages' &&
+            (n.relatedClientId === realClientId || n.relatedClientId === conversationId) &&
+            !n.read
+        );
+        if (!hasUnreadNotif) return prev;
+        hasUserEditedRef.current = true;
+        return prev.map((n) =>
+          n.linkTab === 'messages' &&
+          (n.relatedClientId === realClientId || n.relatedClientId === conversationId) &&
+          !n.read
+            ? { ...n, read: true }
+            : n
+        );
+      });
     },
     []
   );
@@ -8859,6 +8957,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (broadcastChannelRef.current) {
             broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
           }
+          syncSnapshot(parsed);
         }
       } catch {}
 
@@ -8870,116 +8969,109 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
     },
-    [visaApplications, recordAuditLog, checkDeletePermission]
+    [visaApplications, recordAuditLog, checkDeletePermission, syncSnapshot]
   );
 
-  const confirmNomodPayment = useCallback(
-    (
-      appId: string,
-      result: {
-        paymentId: string;
-        reference: string;
-        authCode?: string;
-        cardBrand?: string;
-        last4?: string;
-        amount: number;
-        currency?: string;
-        paidAt?: string;
-        customerName?: string;
-      }
-    ) => {
+  const processNomodPaymentOutcome = useCallback(
+    (outcome: NomodPaymentOutcome) => {
       hasUserEditedRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
-      const timestamp = result.paidAt || new Date().toISOString();
+      const timestamp = outcome.timestamp || new Date().toISOString();
       const year = new Date().getFullYear();
+      const status = outcome.status || 'approved';
+      const isSuccess = status === 'approved' || status === 'paid';
+      const isRejected = status === 'rejected' || status === 'failed';
+      const isCancelled = status === 'cancelled';
 
-      // Find target visa application
-      const targetApp = visaApplications.find((a) => a.id === appId);
-      let generatedInvoice: Invoice | undefined;
+      // 1. Match target visa application
+      const targetApp = visaApplications.find(
+        (a) =>
+          (outcome.applicationId && (a.id === outcome.applicationId || a.applicationNumber === outcome.applicationId)) ||
+          (outcome.invoiceId && a.invoiceId === outcome.invoiceId) ||
+          (outcome.reference && (a.nomodPaymentId === outcome.reference || a.nomodTransactionDetails?.reference === outcome.reference))
+      );
 
-      if (targetApp) {
-        const invId = targetApp.invoiceId || `inv-nomod-${Date.now()}`;
-        const invNumber = `INV-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+      // 2. Match target invoice
+      const targetInvoice = invoices.find(
+        (i) =>
+          (outcome.invoiceId && (i.id === outcome.invoiceId || i.invoiceNumber === outcome.invoiceId)) ||
+          (targetApp && targetApp.invoiceId && i.id === targetApp.invoiceId) ||
+          (outcome.reference && (i.transactionRef === outcome.reference || i.nomodPaymentId === outcome.reference))
+      );
 
-        generatedInvoice = {
-          id: invId,
-          invoiceNumber: invNumber,
-          clientId: targetApp.clientId,
-          clientName: targetApp.clientName,
-          clientEmail: targetApp.clientEmail,
-          clientPhone: targetApp.clientPhone || '+971 50 000 0000',
-          clientAddress: 'Dubai, United Arab Emirates',
-          clientPassport: targetApp.clientPassportNo,
-          companyId: targetApp.companyId || currentUser.companyId || 'comp-1',
-          companyName: 'ADCS Corporate Services LLC',
-          serviceName: `${targetApp.targetCountry} ${targetApp.visaType} (${targetApp.processingSpeed})`,
-          subtotal: targetApp.serviceFee,
-          vatRate: 5,
-          vatAmount: targetApp.vatAmount,
-          governmentFees: targetApp.governmentFee,
-          grandTotal: targetApp.totalAmount,
-          amountPaid: result.amount || targetApp.totalAmount,
-          balanceAmount: Math.max(0, targetApp.totalAmount - (result.amount || targetApp.totalAmount)),
+      const clientName = targetApp?.clientName || targetInvoice?.clientName || outcome.customerName || 'Valued Client';
+      const totalAmt = outcome.amount || targetApp?.totalAmount || targetInvoice?.grandTotal || 0;
+      const ref = outcome.reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`;
+
+      let updatedInvoice: Invoice | undefined = targetInvoice;
+      let updatedApp: VisaApplication | undefined = targetApp;
+
+      if (isSuccess) {
+        // --- APPROVED / PAID ---
+        const invId = targetInvoice?.id || targetApp?.invoiceId || `inv-nomod-${Date.now()}`;
+        const invNumber = targetInvoice?.invoiceNumber || `INV-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        updatedInvoice = {
+          ...(targetInvoice || {
+            id: invId,
+            invoiceNumber: invNumber,
+            clientId: targetApp?.clientId || 'client-1',
+            clientName,
+            clientEmail: targetApp?.clientEmail || '',
+            clientPhone: targetApp?.clientPhone || '+971 50 000 0000',
+            clientAddress: 'Dubai, United Arab Emirates',
+            clientPassport: targetApp?.clientPassportNo || '',
+            companyId: targetApp?.companyId || currentUser.companyId || 'comp-1',
+            companyName: 'ADCS Corporate Services LLC',
+            serviceName: targetApp ? `${targetApp.targetCountry} ${targetApp.visaType} (${targetApp.processingSpeed})` : 'Nomod Online Payment',
+            subtotal: targetApp?.serviceFee || Math.round((totalAmt / 1.05) * 100) / 100,
+            vatRate: 5,
+            vatAmount: targetApp?.vatAmount || Math.round((totalAmt - totalAmt / 1.05) * 100) / 100,
+            governmentFees: targetApp?.governmentFee || 0,
+            grandTotal: totalAmt,
+            items: [],
+            issuedByUserId: currentUser.id,
+            issuedByUserName: 'Nomod Payment Gateway',
+            createdAt: timestamp,
+          }),
           status: 'paid',
-          issueDate: timestamp.split('T')[0],
-          dueDate: timestamp.split('T')[0],
+          amountPaid: totalAmt,
+          balanceAmount: 0,
+          paidDate: timestamp.split('T')[0],
           paymentMethod: 'Online Gateway',
-          nomodPaymentId: result.paymentId,
-          nomodAuthCode: result.authCode,
+          nomodPaymentId: outcome.paymentId,
+          nomodAuthCode: outcome.authCode || `AUTH-${Math.floor(100000 + Math.random() * 900000)}`,
+          nomodPaymentStatus: 'paid',
           nomodTransactionDetails: {
-            reference: result.reference,
-            cardBrand: result.cardBrand,
-            last4: result.last4,
+            reference: ref,
+            cardBrand: outcome.cardBrand || 'Visa / Mastercard (Live)',
+            last4: outcome.last4 || '4242',
+            authCode: outcome.authCode,
             paidAt: timestamp,
           },
-          transactionRef: result.reference,
-          notes: `Settled via Nomod Gateway API. Auth Code: ${result.authCode || 'APPROVED'}. Ref: ${result.reference}`,
-          items: [
-            {
-              id: `item-gov-${Date.now()}`,
-              description: `${targetApp.targetCountry} Official Consular & Government Fee`,
-              quantity: 1,
-              unitPrice: targetApp.governmentFee,
-              total: targetApp.governmentFee,
-              isGovernmentFee: true,
-            },
-            {
-              id: `item-srv-${Date.now()}`,
-              description: `PRO Dossier Processing & Submission Service (${targetApp.processingSpeed})`,
-              quantity: 1,
-              unitPrice: targetApp.serviceFee,
-              total: targetApp.serviceFee,
-              isGovernmentFee: false,
-            },
-          ],
-          issuedByUserId: currentUser.id,
-          issuedByUserName: 'Nomod Payment Gateway',
-          createdAt: timestamp,
+          transactionRef: ref,
+          notes: `Settled via Nomod Gateway API. Auth Code: ${outcome.authCode || 'APPROVED'}. Ref: ${ref}`,
         };
 
-        // Update invoices state
-        setInvoices((prev) => {
-          const filtered = prev.filter((i) => i.id !== invId);
-          return [generatedInvoice!, ...filtered];
-        });
+        setInvoices((prev) => [updatedInvoice!, ...prev.filter((i) => i.id !== invId)]);
 
         // Record Transaction in Ledger
         const tx: Transaction = {
           id: `tx-nomod-${Date.now()}`,
           transactionNumber: `TXN-NOMOD-${year}-${Math.floor(10000 + Math.random() * 90000)}`,
-          clientId: targetApp.clientId,
-          clientName: targetApp.clientName,
-          companyId: targetApp.companyId || 'comp-1',
+          clientId: targetApp?.clientId || targetInvoice?.clientId || 'client-1',
+          clientName,
+          companyId: targetApp?.companyId || targetInvoice?.companyId || 'comp-1',
           companyName: 'ADCS Corporate Services LLC',
           type: 'service_fee',
           category: 'Online Visa Payment',
-          amount: result.amount || targetApp.totalAmount,
+          amount: totalAmt,
           paymentMethod: 'Online Gateway',
-          referenceNumber: result.reference,
+          referenceNumber: ref,
           invoiceId: invId,
           date: timestamp.split('T')[0],
           status: 'completed',
-          notes: `Nomod payment settled for ${targetApp.targetCountry} Visa (${targetApp.applicationNumber}). Card: ${result.cardBrand || 'Card'} (•••• ${result.last4 || '0000'})`,
+          notes: `Nomod payment approved for ${clientName}. Card: ${outcome.cardBrand || 'Card'} (•••• ${outcome.last4 || '4242'}). Auth: ${outcome.authCode || 'APPROVED'}`,
           recordedByUserId: currentUser.id,
           recordedByUserName: 'Nomod Gateway',
           createdAt: timestamp,
@@ -8987,51 +9079,229 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setTransactions((prev) => [tx, ...prev]);
 
         // Update Visa Application
-        const paymentTimelineEvent: VisaTimelineEvent = {
-          id: `vtl-pay-${Date.now()}`,
-          title: 'Online Payment Settled via Nomod',
-          description: `Full payment of AED ${(result.amount || targetApp.totalAmount).toLocaleString()} verified via Nomod Gateway API. Ref: ${result.reference}. Card: ${result.cardBrand || 'Online Card'} (•••• ${result.last4 || '0000'}). Auth: ${result.authCode || 'APPROVED'}.`,
-          stage: 'documents_verification',
-          timestamp,
-          updatedBy: 'Nomod Gateway Provider',
-          status: 'completed',
-        };
+        if (targetApp) {
+          const approvedMilestone: VisaTimelineEvent = {
+            id: `vtl-pay-${Date.now()}`,
+            title: 'Online Payment Settled via Nomod (Approved)',
+            description: `Full payment of AED ${totalAmt.toLocaleString()} approved and verified via Nomod Gateway API. Ref: ${ref}. Card: ${outcome.cardBrand || 'Online Card'} (•••• ${outcome.last4 || '4242'}). Auth: ${outcome.authCode || 'APPROVED'}.`,
+            stage: 'payment_completed',
+            timestamp,
+            updatedBy: 'Nomod Live Gateway',
+            status: 'completed',
+          };
 
-        setVisaApplications((prev) =>
-          prev.map((app) => {
-            if (app.id !== appId) return app;
-            return {
-              ...app,
-              paidAmount: result.amount || app.totalAmount,
-              paymentStatus: 'paid',
-              paymentProvider: 'nomod',
-              nomodPaymentId: result.paymentId,
-              nomodTransactionDetails: {
-                reference: result.reference,
-                cardBrand: result.cardBrand,
-                last4: result.last4,
-                authCode: result.authCode,
-                paidAt: timestamp,
-              },
-              invoiceId: invId,
-              updatedAt: timestamp,
-              timeline: [...app.timeline, paymentTimelineEvent],
-            };
-          })
-        );
+          updatedApp = {
+            ...targetApp,
+            paidAmount: totalAmt,
+            paymentStatus: 'paid',
+            nomodPaymentStatus: 'paid',
+            paymentProvider: 'nomod',
+            nomodPaymentId: outcome.paymentId,
+            nomodTransactionDetails: {
+              reference: ref,
+              cardBrand: outcome.cardBrand || 'Card',
+              last4: outcome.last4 || '4242',
+              authCode: outcome.authCode,
+              paidAt: timestamp,
+              channel: 'card',
+            },
+            invoiceId: invId,
+            updatedAt: timestamp,
+            timeline: [...targetApp.timeline, approvedMilestone],
+          };
+
+          setVisaApplications((prev) => prev.map((a) => (a.id === targetApp.id ? updatedApp! : a)));
+        }
+
+        // Notification
+        const notif: NotificationItem = {
+          id: `notif-nomod-app-${Date.now()}`,
+          title: 'Nomod Payment Approved & Settled',
+          message: `Payment of AED ${totalAmt.toLocaleString()} for ${clientName} was approved by Nomod Gateway. Ref: ${ref}.`,
+          type: 'payment',
+          linkTab: targetApp ? 'visa' : 'payments',
+          relatedClientId: targetApp?.clientId || targetInvoice?.clientId,
+          read: false,
+          timestamp,
+        };
+        setNotifications((prev) => [notif, ...prev]);
 
         recordAuditLog(
-          'Nomod Payment Verified',
+          'Nomod Payment Verified & Settled',
           'Payments',
-          `Nomod online payment of AED ${(result.amount || targetApp.totalAmount).toLocaleString()} approved for ${targetApp.clientName} (#${targetApp.applicationNumber}). Ref: ${result.reference}`
+          `Nomod online payment of AED ${totalAmt.toLocaleString()} approved for ${clientName}. Ref: ${ref}. Status: PAID`
         );
+      } else if (isRejected) {
+        // --- REJECTED / FAILED ---
+        const reason = outcome.failureReason || 'Transaction declined by card issuer / bank (Decline code 05: Do Not Honor)';
 
-        return { success: true, invoice: generatedInvoice };
+        // 1. If invoice exists, record failed attempt in notes
+        if (targetInvoice) {
+          updatedInvoice = {
+            ...targetInvoice,
+            nomodPaymentStatus: 'rejected',
+            notes: `${targetInvoice.notes || ''}\n[Payment Declined ${timestamp.split('T')[0]}]: Nomod transaction ${ref} failed. Reason: ${reason}`.trim(),
+          };
+          setInvoices((prev) => prev.map((i) => (i.id === targetInvoice.id ? updatedInvoice! : i)));
+        }
+
+        // 2. Record failed transaction in ledger
+        const tx: Transaction = {
+          id: `tx-nomod-fail-${Date.now()}`,
+          transactionNumber: `TXN-NOMOD-FAIL-${year}-${Math.floor(10000 + Math.random() * 90000)}`,
+          clientId: targetApp?.clientId || targetInvoice?.clientId || 'client-1',
+          clientName,
+          companyId: targetApp?.companyId || targetInvoice?.companyId || 'comp-1',
+          companyName: 'ADCS Corporate Services LLC',
+          type: 'service_fee',
+          category: 'Declined Online Payment',
+          amount: totalAmt,
+          paymentMethod: 'Online Gateway',
+          referenceNumber: ref,
+          invoiceId: targetInvoice?.id,
+          date: timestamp.split('T')[0],
+          status: 'failed',
+          notes: `Nomod payment declined for ${clientName}. Reason: ${reason}. Ref: ${ref}`,
+          recordedByUserId: currentUser.id,
+          recordedByUserName: 'Nomod Gateway',
+          createdAt: timestamp,
+        };
+        setTransactions((prev) => [tx, ...prev]);
+
+        // 3. Update Visa Application to 'rejected'
+        if (targetApp) {
+          const rejectedMilestone: VisaTimelineEvent = {
+            id: `vtl-pay-fail-${Date.now()}`,
+            title: 'Nomod Payment Rejected / Declined',
+            description: `Payment attempt of AED ${totalAmt.toLocaleString()} was declined by Nomod / card issuer. Reason: ${reason}. Ref: ${ref}.`,
+            stage: targetApp.status,
+            timestamp,
+            updatedBy: 'Nomod Live Gateway',
+            status: 'pending',
+            actionRequired: 'Please retry payment with another card or use Bank Transfer.',
+          };
+
+          updatedApp = {
+            ...targetApp,
+            paymentStatus: 'rejected',
+            nomodPaymentStatus: 'rejected',
+            nomodTransactionDetails: {
+              reference: ref,
+              cardBrand: outcome.cardBrand,
+              last4: outcome.last4,
+              failureReason: reason,
+              paidAt: timestamp,
+            },
+            updatedAt: timestamp,
+            timeline: [...targetApp.timeline, rejectedMilestone],
+          };
+
+          setVisaApplications((prev) => prev.map((a) => (a.id === targetApp.id ? updatedApp! : a)));
+        }
+
+        // 4. In-App Notification (High Priority alert)
+        const notif: NotificationItem = {
+          id: `notif-nomod-rej-${Date.now()}`,
+          title: 'Nomod Payment Rejected / Declined',
+          message: `Payment attempt of AED ${totalAmt.toLocaleString()} for ${clientName} was declined by Nomod / card issuer. Ref: ${ref}.`,
+          type: 'system',
+          linkTab: targetApp ? 'visa' : 'payments',
+          relatedClientId: targetApp?.clientId || targetInvoice?.clientId,
+          read: false,
+          timestamp,
+        };
+        setNotifications((prev) => [notif, ...prev]);
+
+        recordAuditLog(
+          'Nomod Payment Declined',
+          'Payments',
+          `Nomod online payment of AED ${totalAmt.toLocaleString()} declined for ${clientName}. Reason: ${reason}. Ref: ${ref}`
+        );
+      } else if (isCancelled) {
+        // --- CANCELLED ---
+        if (targetApp) {
+          const cancelMilestone: VisaTimelineEvent = {
+            id: `vtl-pay-cnl-${Date.now()}`,
+            title: 'Nomod Payment Cancelled at Checkout',
+            description: `Checkout session was cancelled by user without completing transaction. Ref: ${ref}.`,
+            stage: targetApp.status,
+            timestamp,
+            updatedBy: 'Nomod Live Gateway',
+            status: 'pending',
+          };
+
+          updatedApp = {
+            ...targetApp,
+            nomodPaymentStatus: 'cancelled',
+            updatedAt: timestamp,
+            timeline: [...targetApp.timeline, cancelMilestone],
+          };
+
+          setVisaApplications((prev) => prev.map((a) => (a.id === targetApp.id ? updatedApp! : a)));
+        }
+
+        recordAuditLog(
+          'Nomod Payment Cancelled',
+          'Payments',
+          `Nomod checkout session cancelled for ${clientName}. Ref: ${ref}`
+        );
       }
 
-      return { success: false, error: 'Visa application not found' };
+      return {
+        success: isSuccess,
+        application: updatedApp,
+        invoice: updatedInvoice,
+      };
     },
-    [visaApplications, currentUser, recordAuditLog]
+    [visaApplications, invoices, currentUser, recordAuditLog]
+  );
+
+  const confirmNomodPayment = useCallback(
+    (
+      appId: string,
+      result: {
+        paymentId?: string;
+        reference?: string;
+        authCode?: string;
+        cardBrand?: string;
+        last4?: string;
+        amount?: number;
+        currency?: string;
+        paidAt?: string;
+        customerName?: string;
+        status?: 'paid' | 'approved' | 'rejected' | 'failed' | 'cancelled' | 'pending';
+        failureReason?: string;
+        invoiceId?: string;
+      }
+    ) => {
+      const outcomeStatus =
+        result.status === 'rejected' || result.status === 'failed'
+          ? 'rejected'
+          : result.status === 'cancelled'
+          ? 'cancelled'
+          : result.status === 'pending'
+          ? 'pending'
+          : 'approved';
+
+      const outcome: NomodPaymentOutcome = {
+        status: outcomeStatus,
+        applicationId: appId,
+        invoiceId: result.invoiceId,
+        paymentId: result.paymentId || `nomod_live_${Date.now()}`,
+        reference: result.reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
+        amount: result.amount || 0,
+        currency: result.currency || 'AED',
+        authCode: result.authCode,
+        cardBrand: result.cardBrand,
+        last4: result.last4,
+        customerName: result.customerName,
+        failureReason: result.failureReason,
+        timestamp: result.paidAt || new Date().toISOString(),
+      };
+
+      return processNomodPaymentOutcome(outcome);
+    },
+    [processNomodPaymentOutcome]
   );
 
   const assignLeadToStaff = useCallback(
@@ -9113,7 +9383,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : WORLD_VISA_COUNTRIES;
+          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
           const idx = currentList.findIndex((c: any) => c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode);
           if (idx >= 0) currentList[idx] = country;
           else currentList.unshift(country);
@@ -9160,7 +9430,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : WORLD_VISA_COUNTRIES;
+          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
           parsed.visaCountryCatalog = currentList.map((c: any) =>
             c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode ? { ...c, ...updates } : c
           );
@@ -9268,7 +9538,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : WORLD_VISA_COUNTRIES;
+          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
           parsed.visaCountryCatalog = currentList.map((c: any) => {
             if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
             const exists = (c.visaTypes || []).some((vt: any) => vt && vt.id === service.id);
@@ -9321,7 +9591,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : WORLD_VISA_COUNTRIES;
+          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
           parsed.visaCountryCatalog = currentList.map((c: any) => {
             if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
             const nextTypes = (c.visaTypes || []).map((vt: any) =>
@@ -9383,7 +9653,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : WORLD_VISA_COUNTRIES;
+          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
           parsed.visaCountryCatalog = currentList.map((c: any) => {
             if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
             return {
@@ -9420,13 +9690,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       localStorage.removeItem(DELETED_VISA_COUNTRIES_STORAGE_KEY);
       localStorage.removeItem(DELETED_VISA_SERVICES_STORAGE_KEY);
     } catch {}
-    setVisaCountryCatalog(WORLD_VISA_COUNTRIES);
+    setVisaCountryCatalog([]);
 
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        parsed.visaCountryCatalog = WORLD_VISA_COUNTRIES;
+        parsed.visaCountryCatalog = [];
         parsed.deletedVisaCountryCodes = [];
         parsed.deletedVisaServiceIds = [];
         parsed.lastUpdated = nowIso;
@@ -9442,7 +9712,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     recordAuditLog(
       'Worldwide Visa Catalog Reset',
       'Services',
-      'Reset worldwide visa country directory to default international consular database.'
+      'Reset worldwide visa country directory.'
     );
   }, [recordAuditLog, syncSnapshot]);
 
@@ -10227,6 +10497,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deleteVisaDocument,
         deleteVisaApplication,
         confirmNomodPayment,
+        processNomodPaymentOutcome,
         assignLeadToStaff,
 
         sendMessage,

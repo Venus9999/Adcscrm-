@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Search,
   Bell,
@@ -122,7 +122,38 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadNotifs = notifications.filter((n) => !n.read);
+  const userVisibleNotifications = useMemo(() => {
+    return (notifications || []).filter((n) => {
+      if (!n) return false;
+      // Do not notify user of actions/messages they sent themselves
+      if (n.title?.includes(currentUser.name)) return false;
+
+      // Direct recipient match
+      if (n.userId && n.userId === currentUser.id) return true;
+
+      // Role-specific routing
+      if (currentUser.role === 'client') {
+        if (n.targetRole && n.targetRole !== 'client') return false;
+        if (n.relatedClientId && n.relatedClientId === currentUser.id) return true;
+        return n.targetRole === 'client';
+      }
+
+      if (currentUser.role === 'employee') {
+        if (n.targetRole === 'client') return false;
+        return true;
+      }
+
+      // Master and Admin see all business, client and staff event notifications
+      if (currentUser.role === 'admin' || currentUser.role === 'master') {
+        if (n.targetRole === 'client' && !n.relatedClientId) return false;
+        return true;
+      }
+
+      return true;
+    });
+  }, [notifications, currentUser]);
+
+  const unreadNotifs = userVisibleNotifications.filter((n) => !n.read);
   const urgentExpiriesCount = expiringDocuments.filter((e) => e.isUrgent).length;
   const urgentTasksCount = taskDueReminders.filter((t) => t.isUrgent).length;
   const totalAlertBadge = unreadNotifs.length + urgentExpiriesCount + urgentTasksCount;
@@ -618,7 +649,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         : 'text-slate-500 hover:text-slate-900'
                     }`}
                   >
-                    All ({notifications.length})
+                    All ({userVisibleNotifications.length})
                   </button>
                   <button
                     onClick={() => setNotifFilter('unread')}
@@ -763,10 +794,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       ))
                     )
-                  ) : notifications.length === 0 ? (
+                  ) : userVisibleNotifications.length === 0 ? (
                     <div className="py-6 text-center text-slate-400 text-xs">No notifications right now</div>
                   ) : (
-                    (notifFilter === 'unread' ? unreadNotifs : notifications).map((n) => (
+                    (notifFilter === 'unread' ? unreadNotifs : userVisibleNotifications).map((n) => (
                       <div
                         key={n.id}
                         onClick={() => {

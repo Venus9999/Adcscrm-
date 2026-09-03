@@ -542,7 +542,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                         }}
                         className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
                       >
-                        Use Demo Credentials
+                        Restore Official Live Key
                       </button>
                     )}
                   </div>

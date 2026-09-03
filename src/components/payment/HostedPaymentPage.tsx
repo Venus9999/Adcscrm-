@@ -137,7 +137,7 @@ export const HostedPaymentPage: React.FC = () => {
   }, [invoices, visaApplications, billingSettings]);
 
   // Form State
-  const [selectedMethod, setSelectedMethod] = useState<'card' | 'apple_pay' | 'google_pay' | 'bank_transfer'>('card');
+  const [selectedMethod, setSelectedMethod] = useState<'card' | 'apple_pay' | 'google_pay'>('card');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
@@ -147,7 +147,6 @@ export const HostedPaymentPage: React.FC = () => {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paymentResult, setPaymentResult] = useState<NomodPaymentResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [copiedIban, setCopiedIban] = useState(false);
 
   // Format Card Number (XXXX XXXX XXXX XXXX)
   const handleCardNumberChange = (val: string) => {
@@ -167,15 +166,6 @@ export const HostedPaymentPage: React.FC = () => {
     } else {
       setCardExpiry(clean);
     }
-  };
-
-  // Quick fill test card credentials
-  const handleQuickFillTestCard = () => {
-    setCardNumber('4000 1234 5678 9010');
-    setCardExpiry('12/28');
-    setCardCvc('888');
-    setCardHolder(params.customer || 'Alexander Wright');
-    setErrorMsg(null);
   };
 
   // Detect Card Brand
@@ -454,9 +444,9 @@ export const HostedPaymentPage: React.FC = () => {
                 {/* Method Tabs */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    Select Payment Method
+                    Select Nomod Payment Method
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-3 gap-2.5">
                     <button
                       type="button"
                       onClick={() => setSelectedMethod('card')}
@@ -467,7 +457,7 @@ export const HostedPaymentPage: React.FC = () => {
                       }`}
                     >
                       <CreditCard className="w-5 h-5" />
-                      <span className="text-xs font-bold">Credit/Debit</span>
+                      <span className="text-xs font-bold">Credit/Debit Card</span>
                     </button>
 
                     <button
@@ -495,19 +485,6 @@ export const HostedPaymentPage: React.FC = () => {
                       <Globe className="w-5 h-5" />
                       <span className="text-xs font-bold">Google Pay</span>
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMethod('bank_transfer')}
-                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
-                        selectedMethod === 'bank_transfer'
-                          ? 'bg-blue-600/20 border-blue-500 text-blue-300 ring-2 ring-blue-500/20'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <Building2 className="w-5 h-5" />
-                      <span className="text-xs font-bold">Bank Transfer</span>
-                    </button>
                   </div>
                 </div>
 
@@ -522,15 +499,11 @@ export const HostedPaymentPage: React.FC = () => {
                 {selectedMethod === 'card' && (
                   <form onSubmit={handleProcessPayment} className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-300">Enter Card Details</span>
-                      <button
-                        type="button"
-                        onClick={handleQuickFillTestCard}
-                        className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Quick Fill Test Card</span>
-                      </button>
+                      <span className="text-xs font-semibold text-slate-300">Card Payment Details</span>
+                      <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Nomod Live Gateway</span>
+                      </span>
                     </div>
 
                     {/* Card Number */}
@@ -686,60 +659,6 @@ export const HostedPaymentPage: React.FC = () => {
                           <span>({params.currency} {params.amount.toLocaleString()})</span>
                         </>
                       )}
-                    </button>
-                  </div>
-                )}
-
-                {/* Bank Transfer View */}
-                {selectedMethod === 'bank_transfer' && (
-                  <div className="space-y-4 text-xs">
-                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
-                      <h4 className="font-bold text-white text-sm">ADCS Official Corporate Bank Account</h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Beneficiary:</span>
-                          <span className="font-bold text-slate-200">ADCS CORPORATE SERVICES LLC</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Bank Name:</span>
-                          <span className="font-bold text-slate-200">Emirates NBD Bank PJSC</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400">IBAN:</span>
-                          <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-400">
-                            <span>AE92 0260 0000 1234 5678 901</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText('AE920260000012345678901');
-                                setCopiedIban(true);
-                                setTimeout(() => setCopiedIban(false), 2000);
-                              }}
-                              className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white"
-                            >
-                              {copiedIban ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">SWIFT / BIC:</span>
-                          <span className="font-mono font-bold text-slate-200">EBIBAEAD</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Payment Reference:</span>
-                          <span className="font-mono font-bold text-blue-400">{params.ref}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleProcessPayment()}
-                      disabled={isProcessing}
-                      className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Confirm Bank Wire Initiated ({params.currency} {params.amount.toLocaleString()})</span>
                     </button>
                   </div>
                 )}

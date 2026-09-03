@@ -75,6 +75,7 @@ export const MessagesHub: React.FC = () => {
   const {
     messages,
     sendMessage,
+    markMessagesAsRead,
     clients,
     users,
     companies,
@@ -253,6 +254,18 @@ export const MessagesHub: React.FC = () => {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Switch to selectedClientId thread if passed from notification or client list
+  useEffect(() => {
+    if (selectedClientId && chatThreads.length > 0) {
+      const match = chatThreads.find(
+        (t) => t.id === selectedClientId || t.id.startsWith(selectedClientId)
+      );
+      if (match && match.id !== activeConvId) {
+        setActiveConvId(match.id);
+      }
+    }
+  }, [selectedClientId, chatThreads, activeConvId]);
+
   // Synchronize active conversation with available threads
   useEffect(() => {
     if (chatThreads.length > 0) {
@@ -261,6 +274,25 @@ export const MessagesHub: React.FC = () => {
       }
     }
   }, [chatThreads, activeConvId]);
+
+  // Automatically mark messages in active conversation as read
+  useEffect(() => {
+    if (activeConvId) {
+      markMessagesAsRead(activeConvId);
+    }
+  }, [activeConvId, messages, markMessagesAsRead]);
+
+  // Safe message time formatter
+  const formatMessageTime = (iso?: string) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
 
   // Click outside to close emoji picker
   useEffect(() => {
@@ -445,6 +477,9 @@ export const MessagesHub: React.FC = () => {
               const threadMsgs = (messages || []).filter((m) => m && m.conversationId === thread.id);
               const lastMsg = threadMsgs[threadMsgs.length - 1];
               const isSelected = activeConvId === thread.id;
+              const unreadCount = threadMsgs.filter(
+                (m) => !m.read && m.senderId !== currentUser.id && m.senderRole !== currentUser.role
+              ).length;
 
               return (
                 <div
@@ -476,9 +511,16 @@ export const MessagesHub: React.FC = () => {
                       <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
                         {thread.name}
                       </h4>
-                      <span className="text-[10px] text-slate-400 shrink-0 font-mono">
-                        {lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {unreadCount > 0 && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-blue-600 text-white animate-pulse shadow-xs">
+                            {unreadCount}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {formatMessageTime(lastMsg?.timestamp)}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -600,10 +642,7 @@ export const MessagesHub: React.FC = () => {
                               {msg.senderName || (isMe ? 'You' : activeThreadInfo.name)}
                             </span>
                             <span className="text-[9px] opacity-70 font-mono">
-                              {new Date(msg.timestamp).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
+                              {formatMessageTime(msg.timestamp)}
                             </span>
                           </div>
 

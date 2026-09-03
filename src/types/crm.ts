@@ -691,12 +691,13 @@ export interface Invoice {
   paymentProvider?: string;
   nomodPaymentId?: string;
   nomodAuthCode?: string;
+  nomodPaymentStatus?: 'pending' | 'paid' | 'approved' | 'rejected' | 'failed' | 'cancelled';
   nomodTransactionDetails?: any;
   transactionRef?: string;
   issueDate: string;
   dueDate: string;
   paidDate?: string;
-  status: 'unpaid' | 'partially_paid' | 'paid' | 'overdue' | 'refunded' | 'cancelled';
+  status: 'unpaid' | 'partially_paid' | 'paid' | 'overdue' | 'refunded' | 'cancelled' | 'rejected' | 'payment_failed';
   notes?: string;
   items: InvoiceItem[];
   changelog?: ChangeLogEntry[];
@@ -982,12 +983,12 @@ export interface VisaApplication {
   vatAmount: number;
   totalAmount: number;
   paidAmount: number;
-  paymentStatus: 'unpaid' | 'paid' | 'partially_paid';
+  paymentStatus: 'unpaid' | 'paid' | 'partially_paid' | 'rejected' | 'failed' | 'cancelled' | 'pending';
   paymentMethod?: string;
   paymentProvider?: 'nomod' | 'stripe' | 'manual';
   nomodPaymentId?: string;
   nomodPaymentUrl?: string;
-  nomodPaymentStatus?: 'pending' | 'paid' | 'failed';
+  nomodPaymentStatus?: 'pending' | 'paid' | 'approved' | 'failed' | 'rejected' | 'cancelled';
   nomodTransactionDetails?: {
     reference?: string;
     authCode?: string;
@@ -995,6 +996,7 @@ export interface VisaApplication {
     last4?: string;
     paidAt?: string;
     channel?: string;
+    failureReason?: string;
   };
   invoiceId?: string;
   invoiceNumber?: string;
@@ -1013,4 +1015,21 @@ export interface VisaApplication {
   
   createdAt: string;
   updatedAt: string;
+}
+
+export interface NomodPaymentOutcome {
+  status: 'approved' | 'paid' | 'rejected' | 'failed' | 'cancelled' | 'pending';
+  paymentId?: string;
+  reference?: string;
+  amount?: number;
+  currency?: string;
+  authCode?: string;
+  cardBrand?: string;
+  last4?: string;
+  customerName?: string;
+  applicationId?: string;
+  invoiceId?: string;
+  failureReason?: string;
+  timestamp?: string;
+  rawGatewayResponse?: any;
 }

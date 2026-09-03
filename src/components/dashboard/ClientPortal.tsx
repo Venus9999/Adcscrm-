@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldCheck,
   Clock,
@@ -44,6 +44,7 @@ export const ClientPortal: React.FC = () => {
     uploadDocument,
     messages,
     sendMessage,
+    markMessagesAsRead,
     createInvoice,
     recordPayment,
     visaApplications,
@@ -190,6 +191,13 @@ export const ClientPortal: React.FC = () => {
     sendMessage(currentConvId, chatMessage.trim());
     setChatMessage('');
   };
+
+  // Auto mark messages in current conversation as read when active
+  useEffect(() => {
+    if (activeTab === 'messages' && currentConvId) {
+      markMessagesAsRead(currentConvId);
+    }
+  }, [activeTab, currentConvId, clientMessages.length, markMessagesAsRead]);
 
   const handleFileUpload = (e: React.FormEvent) => {
     e.preventDefault();

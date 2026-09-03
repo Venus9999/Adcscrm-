@@ -1114,7 +1114,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                           }}
                           className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
                         >
-                          Use Demo Credentials
+                          Restore Official Live Key
                         </button>
                       )}
                     </div>

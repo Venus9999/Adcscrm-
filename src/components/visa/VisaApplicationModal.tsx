@@ -20,6 +20,9 @@ import {
   Camera,
   ChevronDown,
   ChevronUp,
+  Lock,
+  Smartphone,
+  ShieldCheck,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { VisaCountryOption } from '../../data/countriesData';
@@ -161,9 +164,9 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
     },
   ]);
 
-  // Payment Options
-  const [paymentOption, setPaymentOption] = useState<'pay_now' | 'pay_later'>('pay_now');
-  const [paymentMethod, setPaymentMethod] = useState<'nomod_online' | 'bank_transfer' | 'cash'>('nomod_online');
+  // Payment Options (Exclusive Nomod Live Gateway)
+  const [paymentOption, setPaymentOption] = useState<'pay_now'>('pay_now');
+  const [paymentMethod, setPaymentMethod] = useState<'nomod_online'>('nomod_online');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [createdAppNumber, setCreatedAppNumber] = useState('');
@@ -1038,64 +1041,54 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Payment Options Selection */}
+                  {/* Exclusive Payment Settlement Method: Nomod Live */}
                   <div className="space-y-3">
-                    <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Payment Settlement Method
-                    </h5>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div
-                        onClick={() => {
-                          setPaymentOption('pay_now');
-                          setPaymentMethod('nomod_online');
-                        }}
-                        className={`cursor-pointer p-3.5 rounded-xl border text-left transition-all ${
-                          paymentOption === 'pay_now' && paymentMethod === 'nomod_online'
-                            ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/20'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center space-x-2">
-                            <Zap className="w-4 h-4 text-blue-600 fill-blue-600" />
-                            <span className="text-xs font-bold text-slate-900 dark:text-white">Nomod Online Gateway</span>
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Exclusive Payment Gateway
+                      </h5>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" />
+                        Nomod Live Gateway
+                      </span>
+                    </div>
+
+                    <div className="p-4 rounded-xl border-2 border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 ring-2 ring-blue-500/20 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/30">
+                            <Zap className="w-5 h-5 fill-white" />
                           </div>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Instant</span>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                Nomod Official Payment Gateway
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                                Live
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              Processed directly through Nomod Merchant Account • UAE & International Cards, Apple Pay, Google Pay
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-[11px] text-slate-500">Cards, Apple Pay, UAE local debit & auto-invoice</p>
+                        <CheckCircle2 className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
                       </div>
 
-                      <div
-                        onClick={() => {
-                          setPaymentOption('pay_now');
-                          setPaymentMethod('bank_transfer');
-                        }}
-                        className={`cursor-pointer p-3.5 rounded-xl border text-left transition-all ${
-                          paymentOption === 'pay_now' && paymentMethod === 'bank_transfer'
-                            ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/20'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2 mb-1">
-                          <CreditCard className="w-4 h-4 text-slate-600" />
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">Bank Wire / Transfer</span>
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-blue-200 dark:border-blue-900/60 text-[11px]">
+                        <div className="flex items-center space-x-1.5 text-slate-600 dark:text-slate-300">
+                          <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Visa / MC / AMEX</span>
                         </div>
-                        <p className="text-[11px] text-slate-500">Manual verification with bank slip upload</p>
-                      </div>
-
-                      <div
-                        onClick={() => setPaymentOption('pay_later')}
-                        className={`cursor-pointer p-3.5 rounded-xl border text-left transition-all ${
-                          paymentOption === 'pay_later'
-                            ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/20'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2 mb-1">
-                          <Building className="w-4 h-4 text-slate-600" />
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">Issue Official Invoice</span>
+                        <div className="flex items-center space-x-1.5 text-slate-600 dark:text-slate-300">
+                          <Smartphone className="w-3.5 h-3.5 text-slate-900 dark:text-white" />
+                          <span>Apple / Google Pay</span>
                         </div>
-                        <p className="text-[11px] text-slate-500">Corporate billing or pay before embassy slot</p>
+                        <div className="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Instant Auto-Invoice</span>
+                        </div>
                       </div>
                     </div>
                   </div>

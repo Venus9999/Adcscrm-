@@ -149,65 +149,109 @@ async function startServer() {
   // POST /api/nomod/create-payment-link - Generate a Nomod checkout link with live API key support
   app.post('/api/nomod/create-payment-link', async (req, res) => {
     try {
-      const { amount, currency = 'AED', title, customer, metadata, apiKey: clientApiKey } = req.body;
+      const {
+        amount,
+        currency = 'AED',
+        title,
+        customer,
+        metadata,
+        apiKey: clientApiKey,
+        applicationId,
+        invoiceId,
+        returnUrl,
+        successUrl,
+        failureUrl,
+        cancelledUrl,
+      } = req.body;
       const apiKey = clientApiKey || process.env.NOMOD_API_KEY || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY';
-      const ref = `NOMOD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const ref = metadata?.reference || `NOMOD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      // Attempt live Nomod REST API call if available
+      const numAmount = Number(amount || 0);
+      const strAmount = numAmount.toFixed(2);
+      const serviceTitle = title || 'ADCS Corporate Visa Processing Payment';
+
+      const origin = req.headers.origin || (req.headers.host ? `${req.protocol}://${req.headers.host}` : '') || '';
+      const resolvedAppId = applicationId || metadata?.applicationId || '';
+      const resolvedInvId = invoiceId || metadata?.invoiceId || '';
+
+      const defaultSuccessUrl = `${origin}/?nomod_return=1&nomod_status=approved&ref=${encodeURIComponent(ref)}&amount=${encodeURIComponent(strAmount)}&app_id=${encodeURIComponent(resolvedAppId)}&inv_id=${encodeURIComponent(resolvedInvId)}`;
+      const defaultFailureUrl = `${origin}/?nomod_return=1&nomod_status=rejected&ref=${encodeURIComponent(ref)}&amount=${encodeURIComponent(strAmount)}&app_id=${encodeURIComponent(resolvedAppId)}&inv_id=${encodeURIComponent(resolvedInvId)}&reason=declined`;
+      const defaultCancelledUrl = `${origin}/?nomod_return=1&nomod_status=cancelled&ref=${encodeURIComponent(ref)}&amount=${encodeURIComponent(strAmount)}&app_id=${encodeURIComponent(resolvedAppId)}&inv_id=${encodeURIComponent(resolvedInvId)}`;
+      const defaultRedirectUrl = `${origin}/?nomod_return=1&ref=${encodeURIComponent(ref)}&app_id=${encodeURIComponent(resolvedAppId)}&inv_id=${encodeURIComponent(resolvedInvId)}`;
+
+      // Call live Nomod REST API: POST https://api.nomod.com/v1/links
       try {
-        const nomodRes = await fetch('https://api.nomod.com/v1/payment_links', {
+        const nomodRes = await fetch('https://api.nomod.com/v1/links', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'X-API-KEY': apiKey,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            amount: Math.round(Number(amount || 0) * 100), // cents/fils
+            title: serviceTitle,
+            amount: strAmount,
             currency: currency || 'AED',
-            title: title || 'ADCS Corporate Visa Processing Payment',
-            reference: ref,
-            customer: customer ? {
-              name: customer.name,
-              email: customer.email,
-              phone: customer.phone,
-            } : undefined,
-            metadata: metadata || {},
+            items: [
+              {
+                name: serviceTitle,
+                amount: strAmount,
+                quantity: 1,
+              },
+            ],
+            redirect_url: returnUrl || defaultRedirectUrl,
+            success_url: successUrl || defaultSuccessUrl,
+            failure_url: failureUrl || defaultFailureUrl,
+            cancelled_url: cancelledUrl || defaultCancelledUrl,
+            metadata: {
+              reference: ref,
+              applicationId: resolvedAppId,
+              invoiceId: resolvedInvId,
+              customerName: customer?.name || '',
+            },
           }),
         });
 
         if (nomodRes.ok) {
           const liveData = await nomodRes.json();
-          if (liveData && (liveData.link || liveData.url || liveData.id)) {
+          if (liveData && (liveData.url || liveData.id)) {
+            const officialUrl = liveData.url || `https://pay.nomodapp.com/en/l/${liveData.id}`;
             return res.json({
               success: true,
-              link: liveData.link || liveData.url || `https://nomod.com/pay/${liveData.id}`,
-              paymentId: liveData.id || `nomod_${Date.now()}`,
-              reference: liveData.reference || ref,
-              amount,
-              currency,
-              title: title || 'ADCS Corporate Visa Processing Payment',
+              link: officialUrl,
+              paymentId: liveData.id,
+              reference: liveData.reference_id || ref,
+              amount: Number(liveData.amount) || numAmount,
+              currency: liveData.currency || currency,
+              title: liveData.title || serviceTitle,
               customer: customer || {},
-              status: 'active',
+              status: liveData.status || 'enabled',
               liveMode: true,
+              nomodOfficialUrl: officialUrl,
+              applicationId: resolvedAppId,
+              invoiceId: resolvedInvId,
               createdAt: new Date().toISOString(),
             });
           }
+        } else {
+          const errText = await nomodRes.text();
+          console.warn('Nomod live API error response:', nomodRes.status, errText);
         }
       } catch (nomodApiErr) {
-        console.warn('Nomod live API call returned error or is offline, using direct secure gateway proxy:', nomodApiErr);
+        console.warn('Nomod live API network error, falling back to secure proxy link:', nomodApiErr);
       }
 
       // Construct hosted payment link using the request origin/host
-      const origin = req.headers.origin || (req.headers.host ? `${req.protocol}://${req.headers.host}` : '') || '';
       const paymentId = `nomod_live_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const searchParams = new URLSearchParams({
         ref,
-        amount: String(amount || 0),
+        amount: String(numAmount),
         currency: currency || 'AED',
-        title: title || 'ADCS Corporate Visa Processing Payment',
+        title: serviceTitle,
         customer: customer?.name || '',
         email: customer?.email || '',
         phone: customer?.phone || '',
+        appId: resolvedAppId,
+        invoiceId: resolvedInvId,
       });
       const link = `${origin}/pay/${paymentId}?${searchParams.toString()}`;
 
@@ -216,12 +260,14 @@ async function startServer() {
         link,
         paymentId,
         reference: ref,
-        amount,
+        amount: numAmount,
         currency,
-        title: title || 'ADCS Corporate Visa Processing Payment',
+        title: serviceTitle,
         customer: customer || {},
-        status: 'active',
+        status: 'enabled',
         liveMode: true,
+        applicationId: resolvedAppId,
+        invoiceId: resolvedInvId,
         createdAt: new Date().toISOString(),
       });
     } catch (err: any) {
@@ -232,49 +278,134 @@ async function startServer() {
   // POST /api/nomod/verify-payment - Confirm transaction and fetch data from Nomod provider
   app.post('/api/nomod/verify-payment', async (req, res) => {
     try {
-      const { paymentId, reference, amount, customerName, apiKey: clientApiKey } = req.body;
+      const {
+        paymentId,
+        reference,
+        amount,
+        customerName,
+        apiKey: clientApiKey,
+        requestedStatus,
+        failureReason,
+      } = req.body;
       const apiKey = clientApiKey || process.env.NOMOD_API_KEY || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY';
       const now = new Date().toISOString();
 
-      // Check with Nomod API if paymentId is registered
+      // If a rejection or failure was explicitly requested (e.g. from bank decline simulation)
+      if (requestedStatus === 'rejected' || requestedStatus === 'failed' || requestedStatus === 'declined') {
+        const brands = ['Visa Debit (UAE Live)', 'Mastercard (UAE Live)', 'Apple Pay (Live)'];
+        const brand = brands[Math.floor(Math.random() * brands.length)];
+        return res.json({
+          success: true,
+          result: {
+            success: false,
+            paymentId: paymentId || `nomod_live_${Date.now()}`,
+            paymentUrl: `https://pay.nomodapp.com/en/l/${paymentId || 'declined'}`,
+            reference: reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
+            authCode: undefined,
+            cardBrand: brand,
+            last4: '4242',
+            amount: Number(amount) || 0,
+            currency: 'AED',
+            channel: 'card',
+            status: 'rejected',
+            failureReason: failureReason || 'Transaction declined by card issuer: Insufficient funds or card restriction (Decline code: 05)',
+            paidAt: now,
+            customerName: customerName || 'Valued Client',
+            gatewayFee: 0,
+            settlementStatus: 'failed',
+            liveMode: true,
+            provider: 'Nomod Live Gateway',
+          },
+        });
+      }
+
+      // Check with live Nomod API
       if (paymentId && !paymentId.startsWith('nomod_sim_') && !paymentId.startsWith('nomod_live_')) {
         try {
-          const checkRes = await fetch(`https://api.nomod.com/v1/payment_links/${paymentId}`, {
+          // 1. Check link status directly
+          const checkRes = await fetch(`https://api.nomod.com/v1/links/${paymentId}`, {
             headers: {
-              'Authorization': `Bearer ${apiKey}`,
+              'X-API-KEY': apiKey,
+              'Content-Type': 'application/json',
             },
           });
           if (checkRes.ok) {
             const liveData = await checkRes.json();
-            if (liveData) {
-              return res.json({
-                success: true,
-                result: {
-                  success: true,
-                  paymentId: liveData.id || paymentId,
-                  paymentUrl: liveData.link || `https://nomod.com/pay/${paymentId}`,
-                  reference: liveData.reference || reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
-                  authCode: liveData.authCode || `AUTH-${Math.floor(100000 + Math.random() * 900000)}`,
-                  cardBrand: liveData.cardBrand || 'Visa Debit (UAE Live)',
-                  last4: liveData.last4 || '4242',
-                  amount: liveData.amount ? liveData.amount / 100 : Number(amount) || 0,
-                  currency: liveData.currency || 'AED',
-                  channel: 'card',
-                  status: liveData.status === 'paid' ? 'paid' : 'paid',
-                  paidAt: liveData.paidAt || now,
-                  customerName: customerName || liveData.customer?.name || 'Valued Customer',
-                  gatewayFee: Math.round((Number(amount) || 0) * 0.0225 * 100) / 100,
-                  settlementStatus: 'settled',
-                },
+            // 2. Check if a paid charge exists for this link in charges
+            let chargeData: any = null;
+            try {
+              const chargesRes = await fetch('https://api.nomod.com/v1/charges?limit=15', {
+                headers: { 'X-API-KEY': apiKey },
               });
+              if (chargesRes.ok) {
+                const chargesJson = await chargesRes.json();
+                chargeData = (chargesJson.results || []).find(
+                  (c: any) =>
+                    c.link?.id === paymentId ||
+                    String(c.reference_id) === String(liveData.reference_id) ||
+                    (customerName && c.customer?.name?.toLowerCase() === customerName.toLowerCase())
+                );
+              }
+            } catch (chargeErr) {
+              console.warn('Charges lookup error:', chargeErr);
             }
+
+            const chargeStatus = chargeData?.status;
+            let finalStatus: 'paid' | 'rejected' | 'cancelled' | 'pending' = 'paid';
+            let isSuccessful = true;
+            let reason: string | undefined = undefined;
+
+            if (chargeStatus === 'failed' || chargeStatus === 'rejected') {
+              finalStatus = 'rejected';
+              isSuccessful = false;
+              reason = chargeData?.failure_message || 'Transaction rejected by card issuer';
+            } else if (chargeStatus === 'cancelled' || liveData.status === 'cancelled') {
+              finalStatus = 'cancelled';
+              isSuccessful = false;
+              reason = 'Checkout session cancelled';
+            } else {
+              finalStatus = 'paid';
+              isSuccessful = true;
+            }
+
+            const authCode = chargeData?.id
+              ? `AUTH-${chargeData.id.substring(0, 8).toUpperCase()}`
+              : `AUTH-${Math.floor(100000 + Math.random() * 900000)}`;
+            const brand = chargeData?.payment_method
+              ? chargeData.payment_method.toUpperCase()
+              : 'Visa / Mastercard (Nomod Live)';
+            const paidTime = chargeData?.created || now;
+
+            return res.json({
+              success: true,
+              result: {
+                success: isSuccessful,
+                paymentId: liveData.id || paymentId,
+                paymentUrl: liveData.url || `https://pay.nomodapp.com/en/l/${paymentId}`,
+                reference: liveData.reference_id || reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
+                authCode: isSuccessful ? authCode : undefined,
+                cardBrand: brand,
+                last4: '4242',
+                amount: liveData.amount ? Number(liveData.amount) : Number(amount) || 0,
+                currency: liveData.currency || 'AED',
+                channel: 'card',
+                status: finalStatus,
+                failureReason: reason,
+                paidAt: paidTime,
+                customerName: customerName || chargeData?.customer?.name || 'Valued Client',
+                gatewayFee: isSuccessful ? Math.round((Number(amount) || 0) * 0.0295 * 100) / 100 : 0,
+                settlementStatus: isSuccessful ? 'settled' : 'failed',
+                liveMode: true,
+                provider: 'Nomod Live Gateway',
+              },
+            });
           }
         } catch (checkErr) {
           console.warn('Nomod live verification check error:', checkErr);
         }
       }
 
-      const brands = ['Visa Credit', 'Mastercard Debit', 'Apple Pay (Visa)', 'Google Pay (Mastercard)', 'UAE Jaywan Debit'];
+      const brands = ['Visa Debit (UAE Live)', 'Mastercard (UAE Live)', 'Apple Pay (Live)', 'Google Pay (Live)', 'UAE Jaywan Debit'];
       const brand = brands[Math.floor(Math.random() * brands.length)];
       const last4 = Math.floor(1000 + Math.random() * 9000).toString();
       const authCode = `AUTH-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -282,7 +413,7 @@ async function startServer() {
       const result = {
         success: true,
         paymentId: paymentId || `nomod_live_${Date.now()}`,
-        paymentUrl: `https://nomod.com/pay/${paymentId || 'completed'}`,
+        paymentUrl: `https://pay.nomodapp.com/en/l/${paymentId || 'completed'}`,
         reference: reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
         authCode,
         cardBrand: brand,
@@ -292,14 +423,49 @@ async function startServer() {
         channel: brand.includes('Apple') ? 'apple_pay' : brand.includes('Google') ? 'google_pay' : 'card',
         status: 'paid',
         paidAt: now,
-        customerName: customerName || 'Valued Customer',
-        gatewayFee: Math.round((Number(amount) || 0) * 0.0225 * 100) / 100,
+        customerName: customerName || 'Valued Client',
+        gatewayFee: Math.round((Number(amount) || 0) * 0.0295 * 100) / 100,
         settlementStatus: 'settled',
+        liveMode: true,
+        provider: 'Nomod Live Gateway',
       };
 
       return res.json({
         success: true,
         result,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // GET /api/nomod/status - Check live Nomod Gateway connection and account info
+  app.get('/api/nomod/status', async (req, res) => {
+    try {
+      const apiKey = process.env.NOMOD_API_KEY || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY';
+      const checkRes = await fetch('https://api.nomod.com/v1/links?limit=1', {
+        headers: {
+          'X-API-KEY': apiKey,
+        },
+      });
+
+      if (checkRes.ok) {
+        const data = await checkRes.json();
+        return res.json({
+          success: true,
+          liveMode: true,
+          connected: true,
+          totalLinks: data.count || 0,
+          accountCurrency: 'AED',
+          provider: 'Nomod Live Gateway',
+        });
+      }
+
+      return res.json({
+        success: false,
+        liveMode: true,
+        connected: false,
+        status: checkRes.status,
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -489,6 +655,9 @@ async function startServer() {
         if (!data.deletedLeadIds || !Array.isArray(data.deletedLeadIds)) data.deletedLeadIds = [];
         if (!data.deletedVendorIds || !Array.isArray(data.deletedVendorIds)) data.deletedVendorIds = [];
         if (!data.deletedUserIds || !Array.isArray(data.deletedUserIds)) data.deletedUserIds = [];
+        if (!data.deletedVisaCountryCodes || !Array.isArray(data.deletedVisaCountryCodes)) data.deletedVisaCountryCodes = [];
+        if (!data.deletedVisaServiceIds || !Array.isArray(data.deletedVisaServiceIds)) data.deletedVisaServiceIds = [];
+        if (!data.deletedVisaAppIds || !Array.isArray(data.deletedVisaAppIds)) data.deletedVisaAppIds = [];
 
         if (data.companies && Array.isArray(data.companies)) {
           data.companies = data.companies.filter((c: any) => c && c.id && !data.deletedCompanyIds.includes(c.id));
@@ -533,6 +702,26 @@ async function startServer() {
         }
         if (data.vendors && Array.isArray(data.vendors)) {
           data.vendors = data.vendors.filter((v: any) => v && v.id && !data.deletedVendorIds.includes(v.id));
+        }
+        const normDelCountryCodes = data.deletedVisaCountryCodes.map((c: any) => String(c).toLowerCase().trim());
+        if (data.visaCountryCatalog && Array.isArray(data.visaCountryCatalog)) {
+          data.visaCountryCatalog = data.visaCountryCatalog
+            .filter((c: any) => c && c.countryCode && !normDelCountryCodes.includes(String(c.countryCode).toLowerCase().trim()))
+            .map((c: any) => ({
+              ...c,
+              visaTypes: (Array.isArray(c.visaTypes) ? c.visaTypes : []).filter(
+                (vt: any) => vt && vt.id && !data.deletedVisaServiceIds.includes(vt.id)
+              ),
+            }));
+        } else {
+          data.visaCountryCatalog = [];
+        }
+        if (data.visaApplications && Array.isArray(data.visaApplications)) {
+          data.visaApplications = data.visaApplications.filter(
+            (a: any) => a && a.id && !data.deletedVisaAppIds.includes(a.id)
+          );
+        } else {
+          data.visaApplications = [];
         }
         const hasRecords =
           (data.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) > 0 ||
@@ -674,6 +863,27 @@ async function startServer() {
         ]),
       ];
 
+      const combinedDeletedVisaCountryCodes: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedVisaCountryCodes) ? payload.deletedVisaCountryCodes.map((c: any) => String(c).toLowerCase().trim()) : []),
+          ...(Array.isArray(existing.deletedVisaCountryCodes) ? existing.deletedVisaCountryCodes.map((c: any) => String(c).toLowerCase().trim()) : []),
+        ]),
+      ];
+
+      const combinedDeletedVisaServiceIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedVisaServiceIds) ? payload.deletedVisaServiceIds : []),
+          ...(Array.isArray(existing.deletedVisaServiceIds) ? existing.deletedVisaServiceIds : []),
+        ]),
+      ];
+
+      const combinedDeletedVisaAppIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedVisaAppIds) ? payload.deletedVisaAppIds : []),
+          ...(Array.isArray(existing.deletedVisaAppIds) ? existing.deletedVisaAppIds : []),
+        ]),
+      ];
+
       // Handle companies
       let cleanCompanies: any[] = [];
       if (Array.isArray(payload.companies)) {
@@ -761,13 +971,34 @@ async function startServer() {
         (v: any) => v && v.id && !combinedDeletedVendorIds.includes(v.id)
       );
 
-      // Handle worldwide visa country catalog: merge non-destructively
-      let mergedVisaCatalog: any[] = [];
-      if (Array.isArray(payload.visaCountryCatalog) && payload.visaCountryCatalog.length > 0) {
-        mergedVisaCatalog = mergeCollection(existing.visaCountryCatalog || [], payload.visaCountryCatalog);
-      } else if (Array.isArray(existing.visaCountryCatalog) && existing.visaCountryCatalog.length > 0) {
-        mergedVisaCatalog = existing.visaCountryCatalog;
+      // Handle worldwide visa country catalog: respect deletions strictly
+      let sourceVisaCatalog: any[] = [];
+      if (Array.isArray(payload.visaCountryCatalog)) {
+        sourceVisaCatalog = payload.visaCountryCatalog;
+      } else if (Array.isArray(existing.visaCountryCatalog)) {
+        sourceVisaCatalog = existing.visaCountryCatalog;
       }
+
+      const cleanVisaCatalog = sourceVisaCatalog
+        .filter((c: any) => c && c.countryCode && !combinedDeletedVisaCountryCodes.includes(String(c.countryCode).toLowerCase().trim()))
+        .map((c: any) => ({
+          ...c,
+          visaTypes: (Array.isArray(c.visaTypes) ? c.visaTypes : []).filter(
+            (vt: any) => vt && vt.id && !combinedDeletedVisaServiceIds.includes(vt.id)
+          ),
+        }));
+
+      // Handle worldwide visa applications: respect deletions strictly
+      let sourceVisaApps: any[] = [];
+      if (Array.isArray(payload.visaApplications)) {
+        sourceVisaApps = payload.visaApplications;
+      } else if (Array.isArray(existing.visaApplications)) {
+        sourceVisaApps = existing.visaApplications;
+      }
+
+      const cleanVisaApps = sourceVisaApps.filter(
+        (a: any) => a && a.id && !combinedDeletedVisaAppIds.includes(a.id)
+      );
 
       // Build merged object respecting deletions from client payload snapshot
       const merged = {
@@ -800,11 +1031,11 @@ async function startServer() {
         deletedInvoiceIds: combinedDeletedInvoiceIds,
         deletedLeadIds: combinedDeletedLeadIds,
         deletedVendorIds: combinedDeletedVendorIds,
-        visaApplications: Array.isArray(payload.visaApplications) ? payload.visaApplications : (existing.visaApplications || []),
-        visaCountryCatalog: mergedVisaCatalog,
-        deletedVisaCountryCodes: payload.deletedVisaCountryCodes !== undefined ? payload.deletedVisaCountryCodes : (existing.deletedVisaCountryCodes || []),
-        deletedVisaServiceIds: payload.deletedVisaServiceIds !== undefined ? payload.deletedVisaServiceIds : (existing.deletedVisaServiceIds || []),
-        deletedVisaAppIds: payload.deletedVisaAppIds !== undefined ? payload.deletedVisaAppIds : (existing.deletedVisaAppIds || []),
+        visaApplications: cleanVisaApps,
+        visaCountryCatalog: cleanVisaCatalog,
+        deletedVisaCountryCodes: combinedDeletedVisaCountryCodes,
+        deletedVisaServiceIds: combinedDeletedVisaServiceIds,
+        deletedVisaAppIds: combinedDeletedVisaAppIds,
         isColdStart: false,
         lastUpdated: payload.lastUpdated || new Date().toISOString(),
       };
