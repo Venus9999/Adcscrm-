@@ -27,10 +27,11 @@ import {
   Percent,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
-import { Invoice, InvoiceLineItem, Transaction, TransactionType, PaymentMethodType } from '../../types/crm';
+import { Invoice, InvoiceLineItem, Transaction, TransactionType, PaymentMethodType, ServiceCategory } from '../../types/crm';
 import { InvoicePrintModal } from './InvoicePrintModal';
 import { BillingSettingsModal } from './BillingSettingsModal';
 import { NomodCheckoutModal } from '../payment/NomodCheckoutModal';
+import { QuickCreateServiceModal } from '../services/QuickCreateServiceModal';
 
 export const InvoicesPayments: React.FC = () => {
   const {
@@ -48,15 +49,19 @@ export const InvoicesPayments: React.FC = () => {
     updateTransaction,
     deleteTransaction,
     currentUser,
+    users,
     crmBranding,
     billingSettings,
     updateBillingSettings,
+    processNomodPaymentOutcome,
   } = useCRM();
 
   const [activeTab, setActiveTab] = useState<'invoices' | 'transactions'>('invoices');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [txTypeFilter, setTxTypeFilter] = useState('all');
+  const [companyFilter, setCompanyFilter] = useState('all');
+  const [employeeFilter, setEmployeeFilter] = useState('all');
 
   // Modal States
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -70,6 +75,90 @@ export const InvoicesPayments: React.FC = () => {
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [showNomodModal, setShowNomodModal] = useState(false);
   const [nomodCheckoutInvoice, setNomodCheckoutInvoice] = useState<Invoice | null>(null);
+  const [showQuickCreateService, setShowQuickCreateService] = useState(false);
+
+  const [invoiceServiceLines, setInvoiceServiceLines] = useState<
+    Array<{
+      id: string;
+      serviceCatId?: string;
+      name: string;
+      serviceFee: number;
+      govFee: number;
+    }>
+  >([]);
+
+  const handleServiceCreated = (newService: ServiceCategory) => {
+    setInvServiceMode('catalog');
+    setInvServiceCatId(newService.id);
+    setServiceFee(newService.defaultPrice);
+    setGovFee(newService.governmentFees);
+    setShowQuickCreateService(false);
+    setInvoiceServiceLines((prev) => {
+      if (prev.length <= 1) {
+        return [
+          {
+            id: `line-${Date.now()}`,
+            serviceCatId: newService.id,
+            name: newService.name,
+            serviceFee: newService.defaultPrice,
+            govFee: newService.governmentFees,
+          },
+        ];
+      }
+      return [
+        ...prev,
+        {
+          id: `line-${Date.now()}`,
+          serviceCatId: newService.id,
+          name: newService.name,
+          serviceFee: newService.defaultPrice,
+          govFee: newService.governmentFees,
+        },
+      ];
+    });
+  };
+
+  const handleAddServiceLine = (presetService?: ServiceCategory) => {
+    const s = presetService || serviceCategories[0];
+    setInvoiceServiceLines((prev) => [
+      ...prev,
+      {
+        id: `line-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+        serviceCatId: s?.id,
+        name: s?.name || 'Additional Corporate Service',
+        serviceFee: s?.defaultPrice || 1500,
+        govFee: s?.governmentFees || 0,
+      },
+    ]);
+  };
+
+  const handleUpdateServiceLine = (
+    id: string,
+    field: 'name' | 'serviceFee' | 'govFee' | 'serviceCatId',
+    value: any
+  ) => {
+    setInvoiceServiceLines((prev) =>
+      prev.map((l) => {
+        if (l.id !== id) return l;
+        if (field === 'serviceCatId') {
+          const cat = serviceCategories.find((c) => c.id === value);
+          return {
+            ...l,
+            serviceCatId: value,
+            name: cat ? cat.name : l.name,
+            serviceFee: cat ? cat.defaultPrice : l.serviceFee,
+            govFee: cat ? cat.governmentFees : l.govFee,
+          };
+        }
+        return { ...l, [field]: value };
+      })
+    );
+  };
+
+  const handleRemoveServiceLine = (id: string) => {
+    if (invoiceServiceLines.length <= 1) return;
+    setInvoiceServiceLines((prev) => prev.filter((l) => l.id !== id));
+  };
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null);
   const [activeTx, setActiveTx] = useState<Transaction | null>(null);
@@ -172,7 +261,21 @@ export const InvoicesPayments: React.FC = () => {
       (inv.clientName && inv.clientName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (inv.serviceName && inv.serviceName.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchStatus = statusFilter === 'all' || inv.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchCompany = companyFilter === 'all' || inv.companyId === companyFilter;
+    const matchEmployee =
+      employeeFilter === 'all' ||
+      inv.issuedByUserId === employeeFilter ||
+      (() => {
+        const cl = (clients || []).find((c) => c && c.id === inv.clientId);
+        return Boolean(
+          cl &&
+            ((cl.assignedEmployeeIds && cl.assignedEmployeeIds.includes(employeeFilter)) ||
+              (cl as any).assignedEmployeeId === employeeFilter ||
+              cl.assignedAdminId === employeeFilter ||
+              (cl.services && cl.services.some((s) => s.assignedEmployeeId === employeeFilter)))
+        );
+      })();
+    return matchSearch && matchStatus && matchCompany && matchEmployee;
   });
 
   const displayTransactions = (filteredTransactions || []).filter((tx) => {
@@ -186,7 +289,20 @@ export const InvoicesPayments: React.FC = () => {
       (tx.receiptNumber && tx.receiptNumber.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchType = txTypeFilter === 'all' || tx.type === txTypeFilter;
-    return matchSearch && matchType;
+    const matchCompany = companyFilter === 'all' || tx.companyId === companyFilter;
+    const matchEmployee =
+      employeeFilter === 'all' ||
+      tx.recordedByUserId === employeeFilter ||
+      (() => {
+        const cl = (clients || []).find((c) => c && c.id === tx.clientId);
+        return Boolean(
+          cl &&
+            ((cl.assignedEmployeeIds && cl.assignedEmployeeIds.includes(employeeFilter)) ||
+              (cl as any).assignedEmployeeId === employeeFilter ||
+              cl.assignedAdminId === employeeFilter)
+        );
+      })();
+    return matchSearch && matchType && matchCompany && matchEmployee;
   });
 
   const handleOpenEditTx = (tx: Transaction) => {
@@ -280,6 +396,24 @@ export const InvoicesPayments: React.FC = () => {
       setInvServiceCatId(cat.id);
       setServiceFee(cat.defaultPrice || 3500);
       setGovFee(cat.governmentFees || 2200);
+      setInvoiceServiceLines([
+        {
+          id: `line-${Date.now()}-1`,
+          serviceCatId: cat.id,
+          name: cat.name,
+          serviceFee: cat.defaultPrice || 3500,
+          govFee: cat.governmentFees || 2200,
+        },
+      ]);
+    } else {
+      setInvoiceServiceLines([
+        {
+          id: `line-${Date.now()}-1`,
+          name: 'Corporate PRO & Legal Clearance',
+          serviceFee: 3500,
+          govFee: 2200,
+        },
+      ]);
     }
 
     const d = new Date();
@@ -330,44 +464,65 @@ export const InvoicesPayments: React.FC = () => {
       billedCompanyName = invCustomCompanyName.trim() || billingSettings?.companyName || 'ADCS Clearing LLC';
     }
 
-    let finalServiceName = '';
-    let finalServiceId: string | undefined = undefined;
-
-    if (invServiceMode === 'catalog') {
-      const cat = serviceCategories.find((s) => s.id === invServiceCatId) || serviceCategories[0];
-      finalServiceName = cat?.name || 'Corporate PRO & Visa Clearance Service';
-      finalServiceId = cat?.id;
-    } else {
-      finalServiceName = invCustomServiceName.trim() || 'Corporate PRO & Legal Document Clearance';
-    }
-
-    const actualVatRate = vatRate ?? billingSettings?.vatRate ?? 5;
-    const vatAmount = (serviceFee * actualVatRate) / 100;
-    const subtotal = serviceFee;
-    const grandTotal = subtotal + govFee + vatAmount;
-
-    const items: InvoiceLineItem[] = [
-      {
-        id: `item-${Date.now()}-1`,
-        description: `${finalServiceName} - Professional Agency & PRO Processing Fee`,
-        quantity: 1,
-        unitPrice: serviceFee,
-        isGovernmentFee: false,
-        total: serviceFee,
-      },
-      ...(govFee > 0
+    // Determine effective service lines
+    const effectiveLines =
+      invServiceMode === 'custom' && invCustomServiceName.trim()
         ? [
             {
-              id: `item-${Date.now()}-2`,
-              description: 'Government Official Pass-through Authority Fee (ICP / GDRFA / MoHRE / DET)',
-              quantity: 1,
-              unitPrice: govFee,
-              isGovernmentFee: true,
-              total: govFee,
+              id: `line-custom-${Date.now()}`,
+              name: invCustomServiceName.trim(),
+              serviceFee: serviceFee,
+              govFee: govFee,
             },
           ]
-        : []),
-    ];
+        : invoiceServiceLines.length > 0
+        ? invoiceServiceLines
+        : [
+            {
+              id: `line-default-${Date.now()}`,
+              name: 'Corporate PRO & Legal Clearance Service',
+              serviceFee: serviceFee,
+              govFee: govFee,
+            },
+          ];
+
+    const totalServiceFee = effectiveLines.reduce((acc, l) => acc + (Number(l.serviceFee) || 0), 0);
+    const totalGovFee = effectiveLines.reduce((acc, l) => acc + (Number(l.govFee) || 0), 0);
+    const actualVatRate = vatRate !== undefined && !isNaN(Number(vatRate)) ? Math.max(0, Number(vatRate)) : 0;
+    const vatAmount = actualVatRate > 0 ? (totalServiceFee * actualVatRate) / 100 : 0;
+    const subtotal = totalServiceFee;
+    const grandTotal = subtotal + totalGovFee + vatAmount;
+
+    const items: InvoiceLineItem[] = [];
+    effectiveLines.forEach((line, idx) => {
+      const sFee = Number(line.serviceFee) || 0;
+      const gFee = Number(line.govFee) || 0;
+      if (sFee > 0 || gFee === 0) {
+        items.push({
+          id: `item-${Date.now()}-${idx * 2 + 1}`,
+          description: `${line.name} - Agency Processing & Professional Fee`,
+          quantity: 1,
+          unitPrice: sFee,
+          isGovernmentFee: false,
+          total: sFee,
+        });
+      }
+      if (gFee > 0) {
+        items.push({
+          id: `item-${Date.now()}-${idx * 2 + 2}`,
+          description: `${line.name} - Government Official Pass-through Authority Fee`,
+          quantity: 1,
+          unitPrice: gFee,
+          isGovernmentFee: true,
+          total: gFee,
+        });
+      }
+    });
+
+    const finalServiceName =
+      effectiveLines.map((l) => l.name).filter(Boolean).join(' + ') ||
+      'Corporate PRO & Visa Clearance Service';
+    const finalServiceId = effectiveLines[0]?.serviceCatId;
 
     const generated = createInvoice({
       clientId: billedClientId,
@@ -383,7 +538,7 @@ export const InvoicesPayments: React.FC = () => {
       subtotal,
       vatRate: actualVatRate,
       vatAmount,
-      governmentFees: govFee,
+      governmentFees: totalGovFee,
       grandTotal,
       amountPaid: 0,
       balanceAmount: grandTotal,
@@ -647,6 +802,36 @@ export const InvoicesPayments: React.FC = () => {
               className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs"
             />
           </div>
+
+          {/* Branch / Company Filter */}
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold"
+          >
+            <option value="all">All Branches</option>
+            {(companies || []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Employee Filter */}
+          {(currentUser.role === 'master' || currentUser.role === 'admin') && (
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+              className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold max-w-[150px]"
+            >
+              <option value="all">All Officers</option>
+              {(users || []).map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          )}
 
           {activeTab === 'invoices' ? (
             <select
@@ -1083,113 +1268,293 @@ export const InvoicesPayments: React.FC = () => {
                 )}
               </div>
 
-              {/* Service Selection Mode */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Service Dossier / Package *
-                  </label>
-                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px]">
+              {/* Services & Line Items Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-900 dark:text-white">
+                      Services & Line Items *
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Select from catalog, add popular services, or create new services on the fly
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setInvServiceMode('catalog')}
-                      className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                        invServiceMode === 'catalog'
-                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
-                          : 'text-slate-500'
-                      }`}
+                      onClick={() => setShowQuickCreateService(true)}
+                      className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                     >
-                      Service Catalog
+                      <Plus className="w-3 h-3" />
+                      <span>Create New Service</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setInvServiceMode('custom')}
-                      className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                        invServiceMode === 'custom'
-                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
-                          : 'text-slate-500'
-                      }`}
-                    >
-                      Custom Description
-                    </button>
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setInvServiceMode('catalog')}
+                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                          invServiceMode === 'catalog'
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        Catalog
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInvServiceMode('custom')}
+                        className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                          invServiceMode === 'custom'
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        Custom
+                      </button>
+                    </div>
                   </div>
                 </div>
 
+                {/* Popular Services Quick-Add Chips */}
+                {serviceCategories.length > 0 && (
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                      Quick Add Popular Services:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {serviceCategories.slice(0, 6).map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => {
+                            setInvServiceMode('catalog');
+                            handleAddServiceLine(cat);
+                          }}
+                          className="px-2 py-1 bg-slate-100 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-2.5 h-2.5 text-blue-500" />
+                          <span>{cat.name}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">AED {cat.defaultPrice}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {invServiceMode === 'catalog' ? (
-                  <select
-                    value={invServiceCatId || serviceCategories[0]?.id}
-                    onChange={(e) => {
-                      const cat = serviceCategories.find((s) => s.id === e.target.value);
-                      setInvServiceCatId(e.target.value);
-                      if (cat) {
-                        setServiceFee(cat.defaultPrice);
-                        setGovFee(cat.governmentFees);
-                      }
-                    }}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
-                  >
-                    {serviceCategories.map((s) => (
-                      <option key={s.id} value={s.id ?? ''}>
-                        {s.name} (Agency: AED {s.defaultPrice.toLocaleString()} + Gov: AED {s.governmentFees.toLocaleString()})
-                      </option>
+                  <div className="space-y-2.5">
+                    {invoiceServiceLines.map((line, index) => (
+                      <div
+                        key={line.id}
+                        className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                            <span className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] flex items-center justify-center font-bold">
+                              {index + 1}
+                            </span>
+                            Service Item #{index + 1}
+                          </span>
+                          {invoiceServiceLines.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveServiceLine(line.id)}
+                              className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors"
+                              title="Remove service line"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                            Choose Service from Catalog
+                          </label>
+                          <select
+                            value={line.serviceCatId || ''}
+                            onChange={(e) => {
+                              if (e.target.value === '__create_new__') {
+                                setShowQuickCreateService(true);
+                                return;
+                              }
+                              handleUpdateServiceLine(line.id, 'serviceCatId', e.target.value);
+                            }}
+                            className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="" disabled>-- Select a Service --</option>
+                            {serviceCategories.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} (Agency: AED {s.defaultPrice.toLocaleString()} + Gov: AED {s.governmentFees.toLocaleString()})
+                              </option>
+                            ))}
+                            <option value="__create_new__" className="font-bold text-blue-600">
+                              + Create New Service in Catalog...
+                            </option>
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                              Agency Service Fee (AED) *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              required
+                              value={line.serviceFee}
+                              onChange={(e) =>
+                                handleUpdateServiceLine(line.id, 'serviceFee', Math.max(0, Number(e.target.value)))
+                              }
+                              className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                              Pass-through Gov Fees (AED)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={line.govFee}
+                              onChange={(e) =>
+                                handleUpdateServiceLine(line.id, 'govFee', Math.max(0, Number(e.target.value)))
+                              }
+                              className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </select>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleAddServiceLine()}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Add Another Service to Invoice</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickCreateService(true)}
+                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>Can't find a service? Create & Add to Catalog</span>
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Express Golden Visa PRO Processing & Embassy Attestation"
-                    value={invCustomServiceName}
-                    onChange={(e) => setInvCustomServiceName(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                  />
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Custom Service Dossier Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Expedited PRO Submission & Legal Visa Stamping Dossier"
+                        value={invCustomServiceName}
+                        onChange={(e) => setInvCustomServiceName(e.target.value)}
+                        className="w-full p-2.5 bg-white dark:bg-slate-900 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Professional Agency Fee (AED) *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          required
+                          value={serviceFee}
+                          onChange={(e) => setServiceFee(Math.max(0, Number(e.target.value)))}
+                          className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Pass-through Gov Fees (AED)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={govFee}
+                          onChange={(e) => setGovFee(Math.max(0, Number(e.target.value)))}
+                          className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Price breakdown */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Professional Agency Fee (AED) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={serviceFee}
-                    onChange={(e) => setServiceFee(Math.max(0, Number(e.target.value)))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
-                  />
+              {/* VAT Setting Section (Optional - Allows 0% or Custom) */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-900 dark:text-white">
+                      UAE VAT Option (Non-Mandatory / Optional)
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Select 0% for tax-exempt, zero-rated, or freezone services; or apply 5% standard VAT
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                      vatRate === 0
+                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
+                    }`}
+                  >
+                    {vatRate === 0 ? '0% VAT Exempt' : `${vatRate}% Taxable`}
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Pass-through Gov Authority Fees (AED)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={govFee}
-                    onChange={(e) => setGovFee(Math.max(0, Number(e.target.value)))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
-                  />
-                  <span className="text-[10px] text-slate-400">0% VAT Exempt Authority Fee</span>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVatRate(0)}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer text-center ${
+                      vatRate === 0
+                        ? 'bg-emerald-500 text-white border-emerald-500 shadow-xs'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    0% VAT (Exempt)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVatRate(5)}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer text-center ${
+                      vatRate === 5
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    5% Standard UAE VAT
+                  </button>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Custom %"
+                      value={vatRate}
+                      onChange={(e) => setVatRate(e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
+                      className="w-full py-2 px-3 pr-7 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700 font-mono text-center font-bold"
+                    />
+                    <span className="absolute right-2.5 top-2 text-xs text-slate-400 font-bold">%</span>
+                  </div>
                 </div>
               </div>
 
+              {/* Payment Due Date & Remarks */}
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Standard UAE VAT Rate (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={vatRate}
-                    onChange={(e) => setVatRate(Math.max(0, Number(e.target.value)))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
-                  />
-                </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Payment Due Date
@@ -1201,40 +1566,59 @@ export const InvoicesPayments: React.FC = () => {
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Internal Invoice Remarks / Particulars
-                </label>
-                <input
-                  type="text"
-                  value={invNotes}
-                  onChange={(e) => setInvNotes(e.target.value)}
-                  placeholder="e.g. 50% advance retainer on contract signing"
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
-                />
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Internal Remarks / Reference
+                  </label>
+                  <input
+                    type="text"
+                    value={invNotes}
+                    onChange={(e) => setInvNotes(e.target.value)}
+                    placeholder="e.g. Retainer milestone 1"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                  />
+                </div>
               </div>
 
               {/* Total Calculation Preview */}
-              <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 space-y-1 text-xs">
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>Taxable Agency Subtotal:</span>
-                  <span className="font-mono font-semibold">AED {serviceFee.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>Pass-Through Gov Official Fees:</span>
-                  <span className="font-mono font-semibold">AED {govFee.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>VAT ({vatRate}% on Agency):</span>
-                  <span className="font-mono font-semibold">AED {((serviceFee * vatRate) / 100).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between font-bold text-sm text-blue-900 dark:text-blue-200 pt-1 border-t border-blue-200 dark:border-blue-800">
-                  <span>Grand Total Payable:</span>
-                  <span className="font-mono">AED {(serviceFee + govFee + (serviceFee * vatRate) / 100).toLocaleString()}</span>
-                </div>
-              </div>
+              {(() => {
+                const effectiveLines =
+                  invServiceMode === 'custom' && invCustomServiceName.trim()
+                    ? [{ name: invCustomServiceName, serviceFee, govFee }]
+                    : invoiceServiceLines.length > 0
+                    ? invoiceServiceLines
+                    : [{ name: 'Service', serviceFee, govFee }];
+                const totServiceFee: number = (effectiveLines as any[]).reduce((acc: number, l: any) => acc + (Number(l.serviceFee) || 0), 0);
+                const totGovFee: number = (effectiveLines as any[]).reduce((acc: number, l: any) => acc + (Number(l.govFee) || 0), 0);
+                const actualRate: number = vatRate !== undefined && !isNaN(Number(vatRate)) ? Math.max(0, Number(vatRate)) : 0;
+                const totVat: number = actualRate > 0 ? (totServiceFee * actualRate) / 100 : 0;
+                const totGrand: number = totServiceFee + totGovFee + totVat;
+
+                return (
+                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Taxable Agency Subtotal ({effectiveLines.length} service{effectiveLines.length > 1 ? 's' : ''}):</span>
+                      <span className="font-mono font-semibold">AED {totServiceFee.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Pass-Through Gov Official Fees:</span>
+                      <span className="font-mono font-semibold">AED {totGovFee.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>
+                        VAT ({actualRate}% on Agency Fees){actualRate === 0 ? ' (VAT Exempt)' : ''}:
+                      </span>
+                      <span className={`font-mono font-semibold ${actualRate === 0 ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+                        AED {totVat.toLocaleString()} {actualRate === 0 ? '(0% Exempt)' : ''}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-bold text-sm text-blue-900 dark:text-blue-200 pt-1.5 border-t border-blue-200 dark:border-blue-800">
+                      <span>Grand Total Payable:</span>
+                      <span className="font-mono">AED {totGrand.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <button
@@ -1398,14 +1782,42 @@ export const InvoicesPayments: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    VAT Rate (%)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      VAT Rate (%)
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditVatRate(0)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          editVatRate === 0
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        0%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditVatRate(5)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          editVatRate === 5
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        5%
+                      </button>
+                    </div>
+                  </div>
                   <input
                     type="number"
+                    min="0"
+                    max="100"
                     value={editVatRate}
-                    onChange={(e) => setEditVatRate(Number(e.target.value))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                    onChange={(e) => setEditVatRate(Math.max(0, Number(e.target.value)))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
                   />
                 </div>
 
@@ -2160,6 +2572,31 @@ export const InvoicesPayments: React.FC = () => {
             setShowNomodModal(false);
             setNomodCheckoutInvoice(null);
           }}
+          onPaymentOutcome={(result) => {
+            processNomodPaymentOutcome({
+              status: result.status === 'rejected' ? 'rejected' : result.status === 'failed' ? 'failed' : 'approved',
+              invoiceId: nomodCheckoutInvoice.id,
+              paymentId: result.paymentId,
+              reference: result.reference,
+              amount: result.amount,
+              currency: result.currency || 'AED',
+              authCode: result.authCode,
+              cardBrand: result.cardBrand,
+              last4: result.last4,
+              customerName: result.customerName,
+              failureReason: result.failureReason,
+              timestamp: result.paidAt,
+            });
+          }}
+        />
+      )}
+
+      {/* Quick Create Service Modal */}
+      {showQuickCreateService && (
+        <QuickCreateServiceModal
+          isOpen={showQuickCreateService}
+          onClose={() => setShowQuickCreateService(false)}
+          onCreated={handleServiceCreated}
         />
       )}
     </div>

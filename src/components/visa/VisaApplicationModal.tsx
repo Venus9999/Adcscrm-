@@ -390,6 +390,12 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
     setSubmitSuccess(true);
   };
 
+  const handleNomodOutcome = (paymentResult: any) => {
+    if (createdAppId) {
+      confirmNomodPayment(createdAppId, paymentResult);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -1166,6 +1172,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
           customerPhone={applicantPhone}
           applicationId={createdAppId}
           onPaymentSuccess={handleNomodSuccess}
+          onPaymentOutcome={handleNomodOutcome}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   UserPlus,
   Search,
@@ -35,10 +35,13 @@ import {
   CheckSquare,
   FileText,
   Eye,
+  Paperclip,
+  Upload,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
-import { Lead, LeadCategory, LeadSource, LeadStage } from '../../types/crm';
+import { Lead, LeadCategory, LeadSource, LeadStage, ServiceCategory } from '../../types/crm';
 import { LeadDetailModal } from './LeadDetailModal';
+import { QuickCreateServiceModal } from '../services/QuickCreateServiceModal';
 
 export const LeadsManagement: React.FC = () => {
   const {
@@ -160,6 +163,77 @@ export const LeadsManagement: React.FC = () => {
     assignedEmployeeId: '',
     advanceAmount: 3000,
   });
+
+  // Quick Create Service Modal State
+  const [showQuickCreateService, setShowQuickCreateService] = useState(false);
+
+  // Initial Documents for Add Lead Modal
+  interface InitialLeadDoc {
+    id: string;
+    name: string;
+    category: string;
+    fileName: string;
+    fileType: string;
+    fileSize: string;
+    fileUrl: string;
+    notes?: string;
+  }
+  const [initialDocs, setInitialDocs] = useState<InitialLeadDoc[]>([]);
+  const initialDocInputRef = useRef<HTMLInputElement>(null);
+
+  const handleInitialDocSelect = (file: File) => {
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      alert('File exceeds 25MB limit.');
+      return;
+    }
+    const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+    const n = file.name.toLowerCase();
+    let cat = 'Other';
+    if (n.includes('passport')) cat = 'Passport';
+    else if (n.includes('emirates') || n.includes('eid')) cat = 'Emirates ID';
+    else if (n.includes('cv') || n.includes('resume')) cat = 'CV / Resume';
+    else if (n.includes('license') || n.includes('trade')) cat = 'Trade License';
+    else if (n.includes('visa')) cat = 'Visa / Entry Permit';
+    else if (n.includes('ejari') || n.includes('tenancy')) cat = 'Tenancy / Ejari';
+    else if (n.includes('salary')) cat = 'Salary Certificate';
+    else if (n.includes('bank')) cat = 'Bank Statement';
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const fileUrl = reader.result as string;
+      const formatBytes = (bytes: number): string => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      };
+
+      setInitialDocs((prev) => [
+        ...prev,
+        {
+          id: `init-doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          name: cleanName,
+          category: cat,
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          fileSize: formatBytes(file.size),
+          fileUrl,
+        },
+      ]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleServiceCreated = (newService: ServiceCategory) => {
+    setFormData((prev) => ({
+      ...prev,
+      serviceCategoryId: newService.id,
+      serviceInterested: newService.name,
+      estimatedValue: newService.defaultPrice,
+    }));
+  };
 
   const activeEmployees = useMemo(() => {
     return (users || []).filter((u) => u && (u.role === 'employee' || u.role === 'admin' || u.role === 'master'));
@@ -283,7 +357,9 @@ export const LeadsManagement: React.FC = () => {
 
       const matchEmployee =
         employeeFilter === 'all' ||
-        lead.assignedEmployeeId === employeeFilter;
+        lead.assignedEmployeeId === employeeFilter ||
+        Boolean(lead.assignedEmployeeIds && lead.assignedEmployeeIds.includes(employeeFilter)) ||
+        lead.createdByUserId === employeeFilter;
 
       return Boolean(
         matchSearch &&
@@ -385,6 +461,7 @@ export const LeadsManagement: React.FC = () => {
       notes: '',
       followUpDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
     });
+    setInitialDocs([]);
     setShowAddModal(true);
   };
 
@@ -487,7 +564,16 @@ export const LeadsManagement: React.FC = () => {
       assignedEmployeeAvatar: assignedUser?.avatar,
       notes: formData.notes,
       followUpDate: formData.followUpDate,
+      documents: initialDocs.map((d) => ({
+        ...d,
+        leadId: '',
+        status: 'verified',
+        uploadedByUserId: currentUser.id,
+        uploadedByName: currentUser.name,
+        uploadedAt: new Date().toISOString(),
+      })),
     });
+    setInitialDocs([]);
     setShowAddModal(false);
   };
 
@@ -536,6 +622,7 @@ export const LeadsManagement: React.FC = () => {
   };
 
   const handleOpenConvert = (lead: Lead) => {
+    setDetailLead(null);
     setSelectedLead(lead);
     setConvertForm({
       serviceCategoryId: lead.serviceCategoryId || serviceCategories[0]?.id || 'srv-golden-visa',
@@ -1063,7 +1150,7 @@ export const LeadsManagement: React.FC = () => {
                           </div>
 
                           {/* Tasks & Notes Counts Pill */}
-                          <div className="mt-2 flex items-center gap-1.5">
+                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                             <button
                               type="button"
                               onClick={() => setDetailLead(lead)}
@@ -1080,6 +1167,16 @@ export const LeadsManagement: React.FC = () => {
                               <FileText className="w-2.5 h-2.5" />
                               <span>{leadNoteCount} Notes</span>
                             </button>
+                            {(lead.documents || []).length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setDetailLead(lead)}
+                                className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1 transition-colors"
+                              >
+                                <Paperclip className="w-2.5 h-2.5" />
+                                <span>{(lead.documents || []).length} Docs</span>
+                              </button>
+                            )}
                           </div>
 
                           {/* Estimated Value & Source */}
@@ -1300,6 +1397,12 @@ export const LeadsManagement: React.FC = () => {
                             <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 text-[10px] font-bold">
                               {noteCount} Notes
                             </span>
+                            {(lead.documents || []).length > 0 && (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-0.5">
+                                <Paperclip className="w-2.5 h-2.5" />
+                                <span>{(lead.documents || []).length} Docs</span>
+                              </span>
+                            )}
                           </button>
                         </td>
                         <td className="p-3.5">
@@ -1583,10 +1686,26 @@ export const LeadsManagement: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Service Interested In</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Service Interested In <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCreateService(true)}
+                    className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Not in catalog? Create New</span>
+                  </button>
+                </div>
                 <select
                   value={formData.serviceCategoryId ?? ''}
                   onChange={(e) => {
+                    if (e.target.value === '__create_new__') {
+                      setShowQuickCreateService(true);
+                      return;
+                    }
                     const cat = serviceCategories.find((s) => s.id === e.target.value);
                     setFormData({
                       ...formData,
@@ -1597,11 +1716,15 @@ export const LeadsManagement: React.FC = () => {
                   }}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                 >
+                  <option value="" disabled>-- Select Catalog Service --</option>
                   {serviceCategories.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} (AED {s.defaultPrice.toLocaleString()})
                     </option>
                   ))}
+                  <option value="__create_new__" className="font-bold text-blue-600">
+                    + Not found? Create New Service in Catalog...
+                  </option>
                 </select>
               </div>
 
@@ -1730,6 +1853,76 @@ export const LeadsManagement: React.FC = () => {
                   placeholder="Key background info, visa status, specific candidate qualifications or client requirements..."
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 />
+              </div>
+
+              {/* Initial Document Upload Section */}
+              <div className="p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-200/80 dark:border-blue-900/50 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <Paperclip className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Attach Prospect Documents (Optional)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {initialDocs.length} files staged
+                  </span>
+                </div>
+
+                <input
+                  ref={initialDocInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      Array.from(e.target.files).forEach(handleInitialDocSelect);
+                    }
+                  }}
+                />
+
+                <div
+                  onClick={() => initialDocInputRef.current?.click()}
+                  className="p-3 border-2 border-dashed border-blue-300 dark:border-blue-800/80 rounded-xl text-center bg-white/70 dark:bg-slate-900/60 hover:bg-blue-50 dark:hover:bg-blue-950/50 cursor-pointer transition-all"
+                >
+                  <Upload className="w-5 h-5 mx-auto text-blue-500 mb-1" />
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Click to attach Passport, CV, or Trade License
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Documents are automatically saved with this lead and carried over upon client conversion.
+                  </p>
+                </div>
+
+                {initialDocs.length > 0 && (
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto pt-1">
+                    {initialDocs.map((doc, idx) => (
+                      <div
+                        key={doc.id}
+                        className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[160px]">
+                            {doc.name}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 shrink-0">
+                            {doc.category}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                            {doc.fileSize}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setInitialDocs(initialDocs.filter((_, i) => i !== idx))}
+                          className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
@@ -1973,6 +2166,49 @@ export const LeadsManagement: React.FC = () => {
               </div>
 
               <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Service Interested In
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCreateService(true)}
+                    className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Not in catalog? Create New</span>
+                  </button>
+                </div>
+                <select
+                  value={formData.serviceCategoryId ?? ''}
+                  onChange={(e) => {
+                    if (e.target.value === '__create_new__') {
+                      setShowQuickCreateService(true);
+                      return;
+                    }
+                    const cat = serviceCategories.find((s) => s.id === e.target.value);
+                    setFormData({
+                      ...formData,
+                      serviceCategoryId: e.target.value,
+                      serviceInterested: cat?.name || formData.serviceInterested,
+                      estimatedValue: cat?.defaultPrice || formData.estimatedValue,
+                    });
+                  }}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                >
+                  <option value="" disabled>-- Select Catalog Service --</option>
+                  {serviceCategories.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} (AED {s.defaultPrice.toLocaleString()})
+                    </option>
+                  ))}
+                  <option value="__create_new__" className="font-bold text-blue-600">
+                    + Not found? Create New Service in Catalog...
+                  </option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Estimated Value (AED)</label>
                 <input
                   type="number"
@@ -2087,12 +2323,28 @@ export const LeadsManagement: React.FC = () => {
 
             <form onSubmit={handleExecuteConvert} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Primary Service Package
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Primary Service Package
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCreateService(true)}
+                    className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Not in catalog? Create New</span>
+                  </button>
+                </div>
                 <select
                   value={convertForm.serviceCategoryId ?? ''}
-                  onChange={(e) => setConvertForm({ ...convertForm, serviceCategoryId: e.target.value })}
+                  onChange={(e) => {
+                    if (e.target.value === '__create_new__') {
+                      setShowQuickCreateService(true);
+                      return;
+                    }
+                    setConvertForm({ ...convertForm, serviceCategoryId: e.target.value });
+                  }}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
                 >
                   {serviceCategories.map((s) => (
@@ -2100,6 +2352,9 @@ export const LeadsManagement: React.FC = () => {
                       {s.name} (AED {s.defaultPrice.toLocaleString()})
                     </option>
                   ))}
+                  <option value="__create_new__" className="font-bold text-blue-600">
+                    + Not found? Create New Service in Catalog...
+                  </option>
                 </select>
               </div>
 
@@ -2614,7 +2869,21 @@ export const LeadsManagement: React.FC = () => {
 
       {/* Lead Tasks, Notes, and Dossier Modal */}
       {detailLead && (
-        <LeadDetailModal lead={detailLead} onClose={() => setDetailLead(null)} />
+        <LeadDetailModal
+          lead={leads.find((l) => l.id === detailLead.id) || detailLead}
+          onClose={() => setDetailLead(null)}
+          onOpenEdit={handleOpenEdit}
+          onOpenConvert={handleOpenConvert}
+        />
+      )}
+
+      {/* Quick Create Service Modal */}
+      {showQuickCreateService && (
+        <QuickCreateServiceModal
+          isOpen={showQuickCreateService}
+          onClose={() => setShowQuickCreateService(false)}
+          onCreated={handleServiceCreated}
+        />
       )}
     </div>
   );

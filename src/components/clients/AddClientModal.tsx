@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, AlertTriangle, CheckCircle2, ShieldAlert, Building2, Handshake, Users, Sparkles } from 'lucide-react';
+import { X, UserPlus, AlertTriangle, CheckCircle2, ShieldAlert, Building2, Handshake, Users, Sparkles, Plus } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
-import { Client } from '../../types/crm';
+import { Client, ServiceCategory } from '../../types/crm';
+import { QuickCreateServiceModal } from '../services/QuickCreateServiceModal';
 
 interface AddClientModalProps {
   isOpen: boolean;
@@ -62,6 +63,15 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
 
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway'>('Bank Transfer');
+
+  const [showQuickCreateService, setShowQuickCreateService] = useState(false);
+
+  const handleServiceCreated = (newService: ServiceCategory) => {
+    setFormData((prev) => ({
+      ...prev,
+      initialServiceId: newService.id,
+    }));
+  };
 
   const [duplicateWarning, setDuplicateWarning] = useState<{ isDuplicate: boolean; fields: string[]; existingName?: string }>({
     isDuplicate: false,
@@ -517,10 +527,28 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Select Service Category</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Select Service Category
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickCreateService(true)}
+                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Not found? Create New Service</span>
+                </button>
+              </div>
               <select
                 value={formData.initialServiceId}
-                onChange={(e) => setFormData({ ...formData, initialServiceId: e.target.value })}
+                onChange={(e) => {
+                  if (e.target.value === '__create_new__') {
+                    setShowQuickCreateService(true);
+                    return;
+                  }
+                  setFormData({ ...formData, initialServiceId: e.target.value });
+                }}
                 className="w-full p-2.5 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-200 dark:border-blue-800 font-medium"
               >
                 <option value="">-- No Service (Register Client Profile Only) --</option>
@@ -533,6 +561,9 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                     </option>
                   );
                 })}
+                <option value="__create_new__" className="font-bold text-blue-600">
+                  + Not found? Create New Service in Catalog...
+                </option>
               </select>
             </div>
 
@@ -684,6 +715,14 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
           </div>
         </form>
       </div>
+
+      {showQuickCreateService && (
+        <QuickCreateServiceModal
+          isOpen={showQuickCreateService}
+          onClose={() => setShowQuickCreateService(false)}
+          onCreated={handleServiceCreated}
+        />
+      )}
     </div>
   );
 };

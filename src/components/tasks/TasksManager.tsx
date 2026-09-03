@@ -103,7 +103,11 @@ export const TasksManager: React.FC = () => {
 
       const matchStatus = statusFilter === 'all' || t.status === statusFilter;
       const matchPriority = priorityFilter === 'all' || t.priority === priorityFilter;
-      const matchEmployee = employeeFilter === 'all' || t.assignedEmployeeId === employeeFilter;
+      const matchEmployee =
+        employeeFilter === 'all' ||
+        t.assignedEmployeeId === employeeFilter ||
+        Boolean((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(employeeFilter)) ||
+        (t as any).createdByUserId === employeeFilter;
       const matchCompany = companyFilter === 'all' || t.companyId === companyFilter;
 
       let matchDue = true;

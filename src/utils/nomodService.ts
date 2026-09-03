@@ -5,6 +5,8 @@
 
 import { NomodPaymentOutcome } from '../types/crm';
 
+export type { NomodPaymentOutcome };
+
 export interface NomodPaymentLinkRequest {
   amount: number; // in AED
   currency?: string; // default AED

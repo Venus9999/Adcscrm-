@@ -687,7 +687,7 @@ export interface Invoice {
   grandTotal: number;
   amountPaid: number;
   balanceAmount: number;
-  paymentMethod: 'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway';
+  paymentMethod: 'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway' | 'Nomod';
   paymentProvider?: string;
   nomodPaymentId?: string;
   nomodAuthCode?: string;
@@ -748,6 +748,38 @@ export interface LeadStage {
   isDefault?: boolean;
 }
 
+export interface LeadDocument {
+  id: string;
+  leadId: string;
+  name: string;
+  category:
+    | 'Passport'
+    | 'Emirates ID'
+    | 'Trade License'
+    | 'CV / Resume'
+    | 'Salary Certificate'
+    | 'Bank Statement'
+    | 'Tenancy / Ejari'
+    | 'Application Form'
+    | 'Contract / Proposal'
+    | 'Visa / Entry Permit'
+    | 'Attested Degree'
+    | 'Photo'
+    | 'Other'
+    | string;
+  fileName: string;
+  fileType: string;
+  fileSize: string;
+  fileUrl: string;
+  issueDate?: string;
+  expiryDate?: string;
+  notes?: string;
+  status?: 'pending' | 'verified' | 'rejected';
+  uploadedByUserId: string;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
 export interface Lead {
   id: string;
   refNo: string;
@@ -786,6 +818,7 @@ export interface Lead {
   notesList?: InternalNote[];
   notesLog?: any[];
   tasks?: any[];
+  documents?: LeadDocument[];
   tags?: string[];
   followUpDate?: string;
   convertedClientId?: string;
@@ -810,6 +843,7 @@ export type TransactionType =
   | 'withdrawal';
 
 export type PaymentMethodType =
+  | 'Nomod'
   | 'Cash'
   | 'Bank Transfer'
   | 'Credit Card'

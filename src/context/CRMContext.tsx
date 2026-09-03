@@ -36,6 +36,7 @@ import {
   LeadCategory,
   LeadSource,
   LeadStage,
+  LeadDocument,
   TaskDueReminder,
   VisaApplication,
   VisaApplicationStatus,
@@ -248,6 +249,9 @@ interface CRMContextType {
   addLeadTask: (leadId: string, task: Omit<TaskItem, 'id' | 'createdAt' | 'comments'>) => void;
   addLeadNote: (leadId: string, noteText: string, noteType?: InternalNote['type'], sentVia?: InternalNote['sentVia'], taggedUserIds?: string[]) => void;
   deleteLeadNote: (leadId: string, noteId: string) => void;
+  uploadLeadDocument: (leadId: string, doc: Omit<LeadDocument, 'id' | 'uploadedAt' | 'uploadedByUserId' | 'uploadedByName'>) => LeadDocument;
+  deleteLeadDocument: (leadId: string, docId: string) => void;
+  updateLeadDocumentStatus: (leadId: string, docId: string, status: 'pending' | 'verified' | 'rejected', notes?: string) => void;
   bulkAssignLeads: (leadIds: string[], employeeIds: string[]) => void;
   convertLeadToClient: (leadId: string, options?: { serviceCategoryId?: string; assignedEmployeeId?: string; advanceAmount?: number }) => { client: Client };
   addLeadCategory: (category: Omit<LeadCategory, 'id' | 'createdAt'>) => LeadCategory;
@@ -291,7 +295,7 @@ interface CRMContextType {
   serverSyncStatus: 'synced' | 'saving' | 'error' | 'offline';
   lastServerSyncTime: string | null;
   saveDataToServer: () => Promise<boolean>;
-  loadDataFromServer: () => Promise<boolean>;
+  loadDataFromServer: (options?: { forceReset?: boolean }) => Promise<boolean>;
   createDatabaseBackup: () => Promise<{ success: boolean; filename?: string; error?: string }>;
 
   // System Utility
@@ -5815,8 +5819,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addServiceCategory = useCallback(
     (srvData: Omit<ServiceCategory, 'id'>): ServiceCategory => {
-      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
-        console.warn('Permission denied: Only Admin and Master can create service categories');
+      if (currentUser.role === 'client') {
+        console.warn('Permission denied: Clients cannot create service categories');
         return {} as ServiceCategory;
       }
       const newService: ServiceCategory = {
@@ -6484,6 +6488,108 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [recordAuditLog, checkDeletePermission]
   );
 
+  // Upload Document on Lead
+  const uploadLeadDocument = useCallback(
+    (
+      leadId: string,
+      doc: Omit<LeadDocument, 'id' | 'uploadedAt' | 'uploadedByUserId' | 'uploadedByName'>
+    ): LeadDocument => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const timestamp = new Date().toISOString();
+
+      const newDoc: LeadDocument = {
+        ...doc,
+        id: `ldoc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        status: doc.status || 'verified',
+        uploadedByUserId: currentUser.id,
+        uploadedByName: currentUser.name,
+        uploadedAt: timestamp,
+      };
+
+      setLeads((prev) =>
+        prev.map((ld) => {
+          if (ld.id !== leadId) return ld;
+          return {
+            ...ld,
+            documents: [...(ld.documents || []), newDoc],
+            updatedAt: timestamp,
+          };
+        })
+      );
+
+      recordAuditLog(
+        'Lead Document Uploaded',
+        'Leads',
+        `Uploaded document "${newDoc.name}" (${newDoc.category}) for lead ID ${leadId}`
+      );
+
+      return newDoc;
+    },
+    [currentUser.id, currentUser.name, recordAuditLog]
+  );
+
+  // Delete Document from Lead
+  const deleteLeadDocument = useCallback(
+    (leadId: string, docId: string) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const timestamp = new Date().toISOString();
+
+      setLeads((prev) =>
+        prev.map((ld) => {
+          if (ld.id !== leadId) return ld;
+          return {
+            ...ld,
+            documents: (ld.documents || []).filter((d) => d.id !== docId),
+            updatedAt: timestamp,
+          };
+        })
+      );
+
+      recordAuditLog(
+        'Lead Document Deleted',
+        'Leads',
+        `Deleted document ID ${docId} from lead ID ${leadId}`
+      );
+    },
+    [recordAuditLog]
+  );
+
+  // Update Lead Document Status (verified, rejected, pending)
+  const updateLeadDocumentStatus = useCallback(
+    (leadId: string, docId: string, status: 'pending' | 'verified' | 'rejected', notes?: string) => {
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+      const timestamp = new Date().toISOString();
+
+      setLeads((prev) =>
+        prev.map((ld) => {
+          if (ld.id !== leadId) return ld;
+          return {
+            ...ld,
+            documents: (ld.documents || []).map((d) => {
+              if (d.id !== docId) return d;
+              return {
+                ...d,
+                status,
+                ...(notes !== undefined ? { notes } : {}),
+              };
+            }),
+            updatedAt: timestamp,
+          };
+        })
+      );
+
+      recordAuditLog(
+        'Lead Document Status Updated',
+        'Leads',
+        `Updated document ${docId} status to "${status}" on lead ${leadId}`
+      );
+    },
+    [recordAuditLog]
+  );
+
   // Reassign all work of an employee (Clients, Leads, Tasks)
   const reassignEmployeeWork = useCallback(
     (fromUserId: string, toUserId: string) => {
@@ -6801,6 +6907,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           createdAt: new Date().toISOString(),
         };
         setTransactions((prev) => [newTx, ...prev]);
+      }
+
+      // Automatically migrate any uploaded lead documents into the client's Document Vault
+      if (lead.documents && lead.documents.length > 0) {
+        const migratedDocs: DocumentItem[] = lead.documents.map((ld, idx) => ({
+          id: `doc-migrated-${Date.now()}-${idx}`,
+          clientId,
+          clientName: newClient.fullName,
+          serviceId: srvInstanceId,
+          serviceName: initialService.serviceName,
+          name: ld.name,
+          category: (ld.category as any) || 'Other',
+          fileUrl: ld.fileUrl,
+          fileType: ld.fileType || 'application/pdf',
+          fileSize: ld.fileSize || '1.2 MB',
+          issueDate: ld.issueDate,
+          expiryDate: ld.expiryDate,
+          status: ld.status === 'verified' ? 'approved' : 'pending',
+          remarks: `Carried over from Lead inquiry #${lead.refNo}${ld.notes ? ' - ' + ld.notes : ''}`,
+          uploadedByUserId: ld.uploadedByUserId || currentUser.id,
+          uploadedByName: ld.uploadedByName || currentUser.name,
+          uploadedByRole: currentUser.role,
+          uploadedAt: ld.uploadedAt || new Date().toISOString(),
+          version: 1,
+        }));
+        setDocuments((prev) => [...migratedDocs, ...prev]);
       }
 
       recordAuditLog(
@@ -8394,27 +8526,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     billingSettings,
   ]);
 
-  const loadDataFromServer = useCallback(async (): Promise<boolean> => {
+  const loadDataFromServer = useCallback(async (options?: { forceReset?: boolean }): Promise<boolean> => {
     try {
-      // 1. Try Cloud Firestore
-      const cloudRes = await loadCRMDataFromCloud();
-      if (cloudRes.success && cloudRes.hasData && cloudRes.data) {
-        hydrateStateFromSnapshot(cloudRes.data);
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudRes.data));
-        setServerSyncStatus('synced');
-        setLastServerSyncTime(new Date().toLocaleTimeString());
-        return true;
-      }
+      const forceReset = options?.forceReset ?? true;
 
-      // 2. Try Server Disk
+      // 1. Try Server Disk first (Authoritative Express container persistence with cache-busting)
       try {
-        const res = await fetch('/api/crm/data');
+        const res = await fetch(`/api/crm/data?_t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
           const contentType = res.headers.get('content-type') || '';
           if (contentType.includes('application/json')) {
             const json = await res.json();
             if (json.success && json.hasData && json.data) {
-              hydrateStateFromSnapshot(json.data);
+              hydrateStateFromSnapshot({ ...json.data, forceReset });
               localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(json.data));
               saveCRMDataToCloud(json.data).catch(() => {});
               setServerSyncStatus('synced');
@@ -8425,13 +8549,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch {}
 
+      // 2. Try Cloud Firestore / RTDB
+      try {
+        const cloudRes = await loadCRMDataFromCloud();
+        if (cloudRes.success && cloudRes.hasData && cloudRes.data) {
+          hydrateStateFromSnapshot({ ...cloudRes.data, forceReset });
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudRes.data));
+          setServerSyncStatus('synced');
+          setLastServerSyncTime(new Date().toLocaleTimeString());
+          return true;
+        }
+      } catch {}
+
       // 3. Try /crm-store.json (static deployment fallback)
       try {
-        const staticRes = await fetch('/crm-store.json', { cache: 'no-store' });
+        const staticRes = await fetch(`/crm-store.json?_t=${Date.now()}`, { cache: 'no-store' });
         if (staticRes.ok) {
           const staticJson = await staticRes.json();
           if (staticJson && (staticJson.clients || staticJson.users || staticJson.companies)) {
-            hydrateStateFromSnapshot(staticJson);
+            hydrateStateFromSnapshot({ ...staticJson, forceReset });
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(staticJson));
             setServerSyncStatus('synced');
             setLastServerSyncTime(new Date().toLocaleTimeString());
@@ -9032,6 +9168,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             items: [],
             issuedByUserId: currentUser.id,
             issuedByUserName: 'Nomod Payment Gateway',
+            issueDate: timestamp.split('T')[0],
+            dueDate: timestamp.split('T')[0],
             createdAt: timestamp,
           }),
           status: 'paid',
@@ -9118,7 +9256,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           id: `notif-nomod-app-${Date.now()}`,
           title: 'Nomod Payment Approved & Settled',
           message: `Payment of AED ${totalAmt.toLocaleString()} for ${clientName} was approved by Nomod Gateway. Ref: ${ref}.`,
-          type: 'payment',
+          type: 'payment_due',
           linkTab: targetApp ? 'visa' : 'payments',
           relatedClientId: targetApp?.clientId || targetInvoice?.clientId,
           read: false,
@@ -10468,6 +10606,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addLeadTask,
         addLeadNote,
         deleteLeadNote,
+        uploadLeadDocument,
+        deleteLeadDocument,
+        updateLeadDocumentStatus,
         bulkAssignLeads,
         convertLeadToClient,
         addLeadCategory,

@@ -175,7 +175,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                       )}
                     </td>
                     <td className="py-3 px-3 text-center font-mono">
-                      {it.isGovernmentFee ? '0%' : `${invoice.vatRate ?? billingSettings.vatRate ?? 5}%`}
+                      {it.isGovernmentFee ? '0%' : `${invoice.vatRate !== undefined ? invoice.vatRate : (billingSettings.vatRate ?? 0)}%`}
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
                       {(it.total || it.amount || 0).toLocaleString()}
@@ -188,9 +188,11 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                     <td className="py-3 px-3 font-mono text-slate-400">1</td>
                     <td className="py-3 px-3">
                       <div className="font-bold text-slate-800">{invoice.serviceName} - Professional Agency Service Fee</div>
-                      <span className="text-[10px] text-slate-500">Standard Rated Corporate PRO & Legal Clearance Services</span>
+                      <span className="text-[10px] text-slate-500">
+                        {invoice.vatRate === 0 ? 'Zero-Rated / Exempt Professional PRO & Legal Clearance' : 'Standard Rated Corporate PRO & Legal Clearance Services'}
+                      </span>
                     </td>
-                    <td className="py-3 px-3 text-center font-mono">{invoice.vatRate || 5}%</td>
+                    <td className="py-3 px-3 text-center font-mono">{invoice.vatRate ?? 0}%</td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
                       {invoice.subtotal.toLocaleString()}
                     </td>
@@ -263,8 +265,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 </div>
               )}
               <div className="flex justify-between text-slate-600">
-                <span>VAT ({invoice.vatRate || billingSettings.vatRate || 5}% on taxable agency services):</span>
-                <span className="font-mono font-semibold">{billingSettings.currency || 'AED'} {invoice.vatAmount.toLocaleString()}</span>
+                <span>
+                  {invoice.vatRate === 0
+                    ? 'VAT (0% / Exempt):'
+                    : `VAT (${invoice.vatRate ?? 0}% on taxable agency services):`}
+                </span>
+                <span className="font-mono font-semibold">{billingSettings.currency || 'AED'} {(invoice.vatAmount || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between font-bold text-base text-slate-900 pt-2 border-t-2 border-slate-200">
                 <span>Grand Total:</span>

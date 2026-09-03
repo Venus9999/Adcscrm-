@@ -28,10 +28,13 @@ import {
   ExternalLink,
   History,
   Lock,
+  Paperclip,
+  Upload,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { Lead, TaskItem, InternalNote } from '../../types/crm';
 import { ChangeLogView } from '../common/ChangeLogView';
+import { LeadDocumentsManager } from './LeadDocumentsManager';
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -59,9 +62,12 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     currentUser,
     companies,
     assignLeadToStaff,
+    uploadLeadDocument,
+    deleteLeadDocument,
+    updateLeadDocumentStatus,
   } = useCRM();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'notes' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'notes' | 'documents' | 'history'>('overview');
   const [assignmentFeedback, setAssignmentFeedback] = useState('');
 
   const isAdminOrMaster = currentUser.role === 'master' || currentUser.role === 'admin';
@@ -327,7 +333,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {lead.status !== 'converted' && (
+            {lead.status !== 'converted' && onOpenConvert && (
               <button
                 onClick={() => onOpenConvert(lead)}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
@@ -337,13 +343,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 <span>Convert to Client</span>
               </button>
             )}
-            <button
-              onClick={() => onOpenEdit(lead)}
-              className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
-              title="Edit Lead Details"
-            >
-              <Edit2 className="w-4 h-4" />
-            </button>
+            {onOpenEdit && (
+              <button
+                onClick={() => onOpenEdit(lead)}
+                className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                title="Edit Lead Details"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
@@ -446,6 +454,24 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             </span>
           </button>
           <button
+            onClick={() => setActiveTab('documents')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'documents'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+            <span>Documents & Files</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              (lead.documents || []).length > 0
+                ? 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+            }`}>
+              {(lead.documents || []).length}
+            </span>
+          </button>
+          <button
             onClick={() => setActiveTab('history')}
             className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
               activeTab === 'history'
@@ -535,6 +561,37 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Attached Documents Quick Summary */}
+              <div className="p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                    <Paperclip className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>Attached Documents & Dossier</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-bold">
+                        {(lead.documents || []).length} files
+                      </span>
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {(lead.documents || []).length > 0
+                        ? (lead.documents || []).map((d) => d.category).slice(0, 4).join(', ') +
+                          ((lead.documents || []).length > 4 ? ` +${(lead.documents || []).length - 4} more` : '')
+                        : 'No documents uploaded yet. Add passports, CVs, or licenses.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('documents')}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                >
+                  <Upload className="w-3 h-3" />
+                  <span>{(lead.documents || []).length > 0 ? 'Manage Files' : 'Upload Files'}</span>
+                </button>
               </div>
 
               {/* Service & Operational Assignment Card */}
@@ -1110,6 +1167,16 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 )}
               </div>
             </div>
+          )}
+
+          {/* TAB: DOCUMENTS & FILES */}
+          {activeTab === 'documents' && (
+            <LeadDocumentsManager
+              lead={lead}
+              onUploadDocument={(doc) => uploadLeadDocument(lead.id, doc)}
+              onDeleteDocument={(docId) => deleteLeadDocument(lead.id, docId)}
+              onUpdateStatus={(docId, status, notes) => updateLeadDocumentStatus(lead.id, docId, status, notes)}
+            />
           )}
 
           {/* TAB 4: CHANGE LOG & AUDIT */}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CRMProvider, useCRM } from './context/CRMContext';
 import { GmailProvider } from './context/GmailContext';
 import { GmailConfirmDialog } from './components/gmail/GmailConfirmDialog';
@@ -35,6 +35,8 @@ import { AIVisaCountryAdvisor } from './components/visa/AIVisaCountryAdvisor';
 import { AIImageStudio } from './components/ai/AIImageStudio';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { HostedPaymentPage } from './components/payment/HostedPaymentPage';
+import { NomodReturnOutcomeModal } from './components/payment/NomodReturnOutcomeModal';
+import { NomodPaymentOutcome, parseNomodReturnParams } from './utils/nomodService';
 import { PWAInstallBanner } from './components/common/PWAInstallBanner';
 import { PWAInstallModal } from './components/common/PWAInstallModal';
 import { ConflictResolutionModal } from './components/common/ConflictResolutionModal';
@@ -42,15 +44,54 @@ import { ConflictResolutionModal } from './components/common/ConflictResolutionM
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const AppContent: React.FC = () => {
-  const { currentUser, activeTab, selectedClientId, setSelectedClientId, setActiveTab, isAuthenticated } = useCRM();
+  const {
+    currentUser,
+    activeTab,
+    selectedClientId,
+    setSelectedClientId,
+    setActiveTab,
+    isAuthenticated,
+    processNomodPaymentOutcome,
+  } = useCRM();
 
   const [showAddClientModal, setShowAddClientModal] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showPWAInstallModal, setShowPWAInstallModal] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [nomodReturnOutcome, setNomodReturnOutcome] = useState<NomodPaymentOutcome | null>(null);
+
+  // Parse Nomod return parameters upon returning from hosted payment link or Nomod checkout
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const returnData = parseNomodReturnParams();
+    if (returnData.hasReturn && returnData.outcome) {
+      const outcome = returnData.outcome;
+
+      // 1. Process outcome in CRM (updates visa applications, invoices, ledger, audit log, notifications)
+      processNomodPaymentOutcome(outcome);
+      setNomodReturnOutcome(outcome);
+
+      // 2. Route user to appropriate tab to see their updated status
+      if (outcome.applicationId) {
+        setActiveTab('visa');
+      } else if (outcome.invoiceId) {
+        setActiveTab('payments');
+      }
+
+      // 3. Clean up the URL query params without reloading the page
+      try {
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      } catch {}
+    }
+  }, [processNomodPaymentOutcome, setActiveTab]);
+
+  const isReturnFromNomod = typeof window !== 'undefined' && window.location.search.includes('nomod_return=');
 
   // Check if current browser URL is a hosted payment link (/pay/..., /checkout/..., ?pay=..., ?paymentId=...)
   const isHostedPaymentUrl =
+    !isReturnFromNomod &&
     typeof window !== 'undefined' &&
     (window.location.pathname.startsWith('/pay/') ||
       window.location.pathname.startsWith('/checkout/') ||
@@ -64,9 +105,22 @@ const AppContent: React.FC = () => {
     return <HostedPaymentPage />;
   }
 
-  // If not authenticated, render the secure Login Screen
+  // If not authenticated, render the secure Login Screen along with any incoming payment outcome
   if (!isAuthenticated) {
-    return <LoginScreen />;
+    return (
+      <>
+        <LoginScreen />
+        {nomodReturnOutcome && (
+          <NomodReturnOutcomeModal
+            isOpen={!!nomodReturnOutcome}
+            outcome={nomodReturnOutcome}
+            onClose={() => setNomodReturnOutcome(null)}
+            onViewApplication={() => setNomodReturnOutcome(null)}
+            onViewInvoice={() => setNomodReturnOutcome(null)}
+          />
+        )}
+      </>
+    );
   }
 
   // Render main screen based on active tab and current user role
@@ -287,6 +341,31 @@ const AppContent: React.FC = () => {
         isOpen={showPWAInstallModal}
         onClose={() => setShowPWAInstallModal(false)}
       />
+
+      {/* Nomod Return Payment Outcome Modal */}
+      {nomodReturnOutcome && (
+        <NomodReturnOutcomeModal
+          isOpen={!!nomodReturnOutcome}
+          outcome={nomodReturnOutcome}
+          onClose={() => setNomodReturnOutcome(null)}
+          onViewApplication={() => {
+            setNomodReturnOutcome(null);
+            setActiveTab('visa');
+          }}
+          onViewInvoice={() => {
+            setNomodReturnOutcome(null);
+            setActiveTab('payments');
+          }}
+          onRetryPayment={() => {
+            setNomodReturnOutcome(null);
+            if (nomodReturnOutcome.applicationId) {
+              setActiveTab('visa');
+            } else {
+              setActiveTab('payments');
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

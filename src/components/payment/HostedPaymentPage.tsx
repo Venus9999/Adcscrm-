@@ -19,6 +19,9 @@ import {
   BadgeCheck,
   Globe,
   ChevronRight,
+  XCircle,
+  X,
+  RotateCcw,
 } from 'lucide-react';
 import { NomodPaymentResult, verifyNomodPayment } from '../../utils/nomodService';
 import { useCRM } from '../../context/CRMContext';
@@ -145,8 +148,65 @@ export const HostedPaymentPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processStep, setProcessStep] = useState<string>('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentDeclined, setPaymentDeclined] = useState(false);
   const [paymentResult, setPaymentResult] = useState<NomodPaymentResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Helper to construct return URL back to the main app with payment outcome parameters
+  const buildReturnUrl = (
+    status: 'approved' | 'rejected' | 'cancelled',
+    result?: NomodPaymentResult | null,
+    failureReason?: string
+  ) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const searchParams = new URLSearchParams({
+      nomod_return: '1',
+      nomod_status: status,
+      ref: result?.reference || params.ref || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
+      amount: String(result?.amount || params.amount || 0),
+      app_id: params.appId || '',
+      inv_id: params.invoiceId || '',
+      customer: result?.customerName || params.customer || '',
+    });
+
+    if (result?.authCode) searchParams.set('auth_code', result.authCode);
+    if (result?.cardBrand) searchParams.set('brand', result.cardBrand);
+    if (result?.last4) searchParams.set('last4', result.last4);
+    if (failureReason) searchParams.set('reason', failureReason);
+
+    return `${origin}/?${searchParams.toString()}`;
+  };
+
+  const handleSimulateDecline = async () => {
+    setErrorMsg(null);
+    setIsProcessing(true);
+    setProcessStep('Establishing encrypted link with issuing bank...');
+
+    try {
+      await new Promise((r) => setTimeout(r, 600));
+      setProcessStep('Verifying card authorization with 3D Secure...');
+      await new Promise((r) => setTimeout(r, 700));
+      setProcessStep('Card issuer declined authorization (Decline Code: 05)...');
+      await new Promise((r) => setTimeout(r, 500));
+
+      const declinedRes = await verifyNomodPayment(
+        params.paymentId || `nomod_dec_${Date.now()}`,
+        params.ref || `NOMOD-DEC-${Date.now().toString(36).toUpperCase()}`,
+        params.amount,
+        cardHolder || params.customer || 'Valued Client',
+        undefined,
+        'rejected',
+        'Transaction declined by issuing bank: Insufficient funds or international card usage restriction (Decline code 05)'
+      );
+
+      setPaymentResult(declinedRes);
+      setPaymentDeclined(true);
+      setIsProcessing(false);
+    } catch (err: any) {
+      setIsProcessing(false);
+      setErrorMsg(err.message || 'Decline simulation encountered an unexpected error.');
+    }
+  };
 
   // Format Card Number (XXXX XXXX XXXX XXXX)
   const handleCardNumberChange = (val: string) => {
@@ -278,6 +338,17 @@ export const HostedPaymentPage: React.FC = () => {
             <div className="px-2.5 py-1 rounded-full bg-indigo-950/80 border border-indigo-500/30 text-[10px] font-bold text-indigo-300">
               NOMOD PAY
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = buildReturnUrl('cancelled');
+              }}
+              className="px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
+              title="Cancel checkout session and return to CRM"
+            >
+              <X className="w-3.5 h-3.5 text-slate-400" />
+              <span>Cancel & Return</span>
+            </button>
           </div>
         </div>
       </header>
@@ -350,11 +421,78 @@ export const HostedPaymentPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = window.location.origin;
+                  window.location.href = buildReturnUrl('approved', paymentResult);
                 }}
-                className="flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
               >
-                <span>Return to Portal</span>
+                <span>Return to App (Confirmed Paid)</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : paymentDeclined && paymentResult ? (
+          /* Payment Declined View */
+          <div className="bg-slate-900/90 border border-rose-500/40 rounded-3xl p-6 md:p-10 shadow-2xl shadow-rose-950/30 backdrop-blur-xl animate-in zoom-in-95 duration-300 max-w-2xl mx-auto">
+            <div className="text-center space-y-3">
+              <div className="w-16 h-16 rounded-full bg-rose-500/20 border-2 border-rose-400 flex items-center justify-center mx-auto shadow-lg shadow-rose-500/20">
+                <XCircle className="w-9 h-9 text-rose-400" />
+              </div>
+              <span className="inline-block px-3 py-1 rounded-full bg-rose-950 text-rose-300 text-xs font-bold border border-rose-800">
+                Transaction Declined (Code 05)
+              </span>
+              <h2 className="text-2xl font-bold text-white tracking-tight">Payment Declined by Card Issuer</h2>
+              <p className="text-xs text-rose-300/90 max-w-md mx-auto">
+                {paymentResult.failureReason || 'Your card issuer or bank declined authorization for this transaction.'}
+              </p>
+            </div>
+
+            {/* Declined Details Card */}
+            <div className="mt-8 p-5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3 text-xs">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-800/80">
+                <span className="text-slate-400">Attempted Amount:</span>
+                <span className="font-bold text-base text-white">
+                  {params.currency} {params.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Nomod Gateway Ref:</span>
+                <span className="font-mono font-bold text-slate-300">{paymentResult.reference}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Cardholder:</span>
+                <span className="text-slate-300">{cardHolder || params.customer}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Status Registered:</span>
+                <span className="font-bold text-rose-400 uppercase">REJECTED / DECLINED</span>
+              </div>
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
+                Returning to the application will sync this status and notify your immigration specialist.
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentDeclined(false);
+                  setPaymentResult(null);
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-2 border border-slate-700 transition-all cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4 text-slate-300" />
+                <span>Try Another Card</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = buildReturnUrl('rejected', paymentResult, paymentResult.failureReason);
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 transition-all cursor-pointer"
+              >
+                <span>Return to App (Declined Status)</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -441,227 +579,93 @@ export const HostedPaymentPage: React.FC = () => {
             {/* Right Column: Interactive Payment Methods & Gateway Form */}
             <div className="lg:col-span-7 space-y-6">
               <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-2xl space-y-6">
-                {/* Method Tabs */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    Select Nomod Payment Method
-                  </label>
-                  <div className="grid grid-cols-3 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMethod('card')}
-                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
-                        selectedMethod === 'card'
-                          ? 'bg-blue-600/20 border-blue-500 text-blue-300 ring-2 ring-blue-500/20'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <CreditCard className="w-5 h-5" />
-                      <span className="text-xs font-bold">Credit/Debit Card</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMethod('apple_pay')}
-                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
-                        selectedMethod === 'apple_pay'
-                          ? 'bg-blue-600/20 border-blue-500 text-blue-300 ring-2 ring-blue-500/20'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <Smartphone className="w-5 h-5" />
-                      <span className="text-xs font-bold">Apple Pay</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMethod('google_pay')}
-                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
-                        selectedMethod === 'google_pay'
-                          ? 'bg-blue-600/20 border-blue-500 text-blue-300 ring-2 ring-blue-500/20'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <Globe className="w-5 h-5" />
-                      <span className="text-xs font-bold">Google Pay</span>
-                    </button>
+                {/* Official Nomod Live Gateway Section */}
+                <div className="space-y-6">
+                  <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-800/60 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-black tracking-wide text-white">NOMOD</span>
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          Official Gateway
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                        256-Bit SSL Encrypted Direct Checkout
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono px-3 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
+                      sk_live Active
+                    </span>
                   </div>
-                </div>
 
-                {errorMsg && (
-                  <div className="p-3.5 rounded-2xl bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2.5">
-                    <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
+                  {errorMsg && (
+                    <div className="p-3.5 rounded-2xl bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2.5">
+                      <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
+                      <span>{errorMsg}</span>
+                    </div>
+                  )}
 
-                {/* Card Payment Form */}
-                {selectedMethod === 'card' && (
-                  <form onSubmit={handleProcessPayment} className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-300">Card Payment Details</span>
-                      <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                        <Lock className="w-3.5 h-3.5" />
-                        <span>Nomod Live Gateway</span>
+                  {/* Nomod Gateway Settlement Card */}
+                  <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400">Nomod Merchant Account:</span>
+                      <span className="font-semibold text-slate-200">Gurpreet Singh Kataria (ADCS Nomod Live)</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400">Nomod Reference:</span>
+                      <span className="font-mono font-semibold text-blue-400">{params.ref}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400">Client / Payer:</span>
+                      <span className="font-semibold text-slate-200">{params.customer}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400">Target Service:</span>
+                      <span className="font-semibold text-slate-200 truncate max-w-[240px] text-right">{params.title}</span>
+                    </div>
+                    <div className="border-t border-slate-800 pt-3 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Settlement Amount:</span>
+                      <span className="text-xl font-bold font-mono text-emerald-400">
+                        {params.currency} {params.amount.toLocaleString()}
                       </span>
                     </div>
+                  </div>
 
-                    {/* Card Number */}
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-medium text-slate-300">Card Number</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          required
-                          placeholder="4000 1234 5678 9010"
-                          value={cardNumber}
-                          onChange={(e) => handleCardNumberChange(e.target.value)}
-                          className="w-full pl-10 pr-24 py-3 bg-slate-950 border border-slate-700/80 rounded-2xl text-sm font-mono tracking-widest text-white focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        />
-                        <CreditCard className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
-                        <div className="absolute right-3 top-2.5">
-                          <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
-                            {detectCardBrand()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Cardholder Name */}
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-medium text-slate-300">Cardholder Full Name</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="As shown on card"
-                        value={cardHolder}
-                        onChange={(e) => setCardHolder(e.target.value)}
-                        className="w-full px-3.5 py-3 bg-slate-950 border border-slate-700/80 rounded-2xl text-sm text-white focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                      />
-                    </div>
-
-                    {/* Expiry & CVC */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-medium text-slate-300">Expiry Date (MM/YY)</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="MM/YY"
-                          maxLength={5}
-                          value={cardExpiry}
-                          onChange={(e) => handleExpiryChange(e.target.value)}
-                          className="w-full px-3.5 py-3 bg-slate-950 border border-slate-700/80 rounded-2xl text-sm font-mono text-center text-white focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-medium text-slate-300 flex items-center justify-between">
-                          <span>Security Code (CVC)</span>
-                          <Lock className="w-3 h-3 text-slate-400" />
-                        </label>
-                        <input
-                          type="password"
-                          required
-                          placeholder="•••"
-                          maxLength={4}
-                          value={cardCvc}
-                          onChange={(e) => setCardCvc(e.target.value.replace(/\D/g, ''))}
-                          className="w-full px-3.5 py-3 bg-slate-950 border border-slate-700/80 rounded-2xl text-sm font-mono text-center text-white tracking-widest focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Submit Button */}
-                    <button
-                      type="submit"
-                      disabled={isProcessing}
-                      className="w-full mt-4 py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60"
-                    >
-                      {isProcessing ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span>{processStep || 'Processing Nomod Live Payment...'}</span>
-                        </div>
-                      ) : (
-                        <>
-                          <Lock className="w-4 h-4" />
-                          <span>
-                            Pay {params.currency} {params.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} via Nomod
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  </form>
-                )}
-
-                {/* Apple Pay View */}
-                {selectedMethod === 'apple_pay' && (
-                  <div className="space-y-5 py-4 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-black border border-slate-700 flex items-center justify-center mx-auto text-white">
-                      <Smartphone className="w-7 h-7" />
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="text-base font-bold text-white">Instant Apple Pay 1-Tap Checkout</h4>
-                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                        Authenticate securely with Face ID or Touch ID on your Apple device.
-                      </p>
-                    </div>
-
+                  {/* Primary Nomod Payment CTA */}
+                  <div className="space-y-3">
                     <button
                       type="button"
                       onClick={() => handleProcessPayment()}
                       disabled={isProcessing}
-                      className="w-full py-4 rounded-2xl bg-black hover:bg-slate-950 text-white border border-slate-700 font-bold text-sm shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-base shadow-xl shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 transition-all"
                     >
                       {isProcessing ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span>{processStep || 'Authenticating Apple Pay...'}</span>
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>{processStep || 'Verifying Nomod Settlement...'}</span>
                         </div>
                       ) : (
                         <>
-                          <span className="font-semibold"> Pay with Apple Pay</span>
-                          <span>({params.currency} {params.amount.toLocaleString()})</span>
+                          <ShieldCheck className="w-5 h-5 text-emerald-300" />
+                          <span>Pay {params.currency} {params.amount.toLocaleString()} via Nomod</span>
                         </>
                       )}
                     </button>
-                  </div>
-                )}
 
-                {/* Google Pay View */}
-                {selectedMethod === 'google_pay' && (
-                  <div className="space-y-5 py-4 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-950 border border-slate-700 flex items-center justify-center mx-auto text-white">
-                      <Globe className="w-7 h-7 text-blue-400" />
+                    <div className="pt-2 px-1 flex items-center justify-between text-xs text-slate-400">
+                      <span className="text-[11px]">Testing Nomod response handling:</span>
+                      <button
+                        type="button"
+                        onClick={handleSimulateDecline}
+                        disabled={isProcessing}
+                        className="text-rose-400 hover:text-rose-300 font-semibold underline text-[11px] cursor-pointer disabled:opacity-50 transition-colors"
+                      >
+                        Simulate Card Issuer Decline (Code 05)
+                      </button>
                     </div>
-                    <div className="space-y-1">
-                      <h4 className="text-base font-bold text-white">Instant Google Pay Checkout</h4>
-                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                        Pay with your saved cards in your Google Account.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleProcessPayment()}
-                      disabled={isProcessing}
-                      className="w-full py-4 rounded-2xl bg-slate-950 hover:bg-black text-white border border-slate-700 font-bold text-sm shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                    >
-                      {isProcessing ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span>{processStep || 'Authenticating Google Pay...'}</span>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="font-semibold">Pay with Google Pay</span>
-                          <span>({params.currency} {params.amount.toLocaleString()})</span>
-                        </>
-                      )}
-                    </button>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </div>

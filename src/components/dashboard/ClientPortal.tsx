@@ -50,6 +50,7 @@ export const ClientPortal: React.FC = () => {
     visaApplications,
     selectedClientId,
     billingSettings,
+    processNomodPaymentOutcome,
   } = useCRM();
 
   // Pick client profile corresponding strictly to current logged-in user or selected client
@@ -1149,6 +1150,22 @@ export const ClientPortal: React.FC = () => {
             );
             setShowNomodModal(false);
             setNomodCheckoutInvoice(null);
+          }}
+          onPaymentOutcome={(result) => {
+            processNomodPaymentOutcome({
+              status: result.status === 'rejected' ? 'rejected' : result.status === 'failed' ? 'failed' : 'approved',
+              invoiceId: nomodCheckoutInvoice.id,
+              paymentId: result.paymentId,
+              reference: result.reference,
+              amount: result.amount,
+              currency: result.currency || 'AED',
+              authCode: result.authCode,
+              cardBrand: result.cardBrand,
+              last4: result.last4,
+              customerName: result.customerName,
+              failureReason: result.failureReason,
+              timestamp: result.paidAt,
+            });
           }}
         />
       )}
