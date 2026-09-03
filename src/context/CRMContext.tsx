@@ -1617,6 +1617,113 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [isRemoteStrictlyNewer]
   );
 
+  // Helper to merge local and remote snapshots non-destructively
+  const mergeSnapshots = useCallback(
+    (localSnap: any, remoteSnap: any) => {
+      const mergeById = (listA: any[] = [], listB: any[] = []) => {
+        const map = new Map<string, any>();
+        (listB || []).forEach((item) => {
+          if (item && item.id) map.set(item.id, item);
+        });
+        (listA || []).forEach((item) => {
+          if (item && item.id) {
+            const existing = map.get(item.id);
+            map.set(item.id, existing ? { ...existing, ...item } : item);
+          }
+        });
+        return Array.from(map.values());
+      };
+
+      const mergedClients = mergeById(localSnap?.clients, remoteSnap?.clients);
+      const mergedLeads = mergeById(localSnap?.leads, remoteSnap?.leads);
+      const mergedTasks = mergeById(localSnap?.tasks, remoteSnap?.tasks);
+      const mergedInvoices = mergeById(localSnap?.invoices, remoteSnap?.invoices);
+      const mergedDocs = mergeById(localSnap?.documents, remoteSnap?.documents);
+      const mergedVendors = mergeById(localSnap?.vendors, remoteSnap?.vendors);
+      const mergedUsers = mergeById(localSnap?.users, remoteSnap?.users);
+      const mergedCompanies = mergeById(localSnap?.companies, remoteSnap?.companies);
+      const mergedDepartments = mergeById(localSnap?.departments, remoteSnap?.departments);
+      const mergedCategories = mergeById(localSnap?.serviceCategories, remoteSnap?.serviceCategories);
+      const mergedClassifications = mergeById(localSnap?.serviceClassifications, remoteSnap?.serviceClassifications);
+      const mergedTransactions = mergeById(localSnap?.transactions, remoteSnap?.transactions);
+      const mergedMessages = mergeById(localSnap?.messages, remoteSnap?.messages);
+      const mergedNotifications = mergeById(localSnap?.notifications, remoteSnap?.notifications);
+      const mergedAuditLogs = mergeById(localSnap?.auditLogs, remoteSnap?.auditLogs);
+
+      const combinedDelCountryCodes = [
+        ...(localSnap?.deletedVisaCountryCodes || []),
+        ...(remoteSnap?.deletedVisaCountryCodes || []),
+      ].map((c) => String(c).toLowerCase().trim());
+
+      const combinedDelServiceIds = [
+        ...(localSnap?.deletedVisaServiceIds || []),
+        ...(remoteSnap?.deletedVisaServiceIds || []),
+      ];
+
+      const combinedDelAppIds = [
+        ...(localSnap?.deletedVisaAppIds || []),
+        ...(remoteSnap?.deletedVisaAppIds || []),
+      ];
+
+      const mergedVisaApps = mergeById(localSnap?.visaApplications, remoteSnap?.visaApplications)
+        .filter((a: any) => a && a.id && !combinedDelAppIds.includes(a.id) && !a.id.startsWith('vsa-app-100'));
+
+      const rawCatalog = Array.isArray(localSnap?.visaCountryCatalog)
+        ? localSnap.visaCountryCatalog
+        : (Array.isArray(remoteSnap?.visaCountryCatalog) ? remoteSnap.visaCountryCatalog : []);
+      const mergedVisaCatalog = (rawCatalog || [])
+        .filter((c: any) => c && c.countryCode && !combinedDelCountryCodes.includes(String(c.countryCode).toLowerCase().trim()))
+        .map((c: any) => ({
+          ...c,
+          visaTypes: (Array.isArray(c.visaTypes) ? c.visaTypes : []).filter(
+            (vt: any) => vt && vt.id && !combinedDelServiceIds.includes(vt.id)
+          ),
+        }));
+
+      const updatedIso = new Date().toISOString();
+      const mergedSnapshot = {
+        ...(remoteSnap || {}),
+        ...(localSnap || {}),
+        clients: mergedClients,
+        leads: mergedLeads,
+        tasks: mergedTasks,
+        invoices: mergedInvoices,
+        documents: mergedDocs,
+        vendors: mergedVendors,
+        users: mergedUsers,
+        companies: mergedCompanies,
+        departments: mergedDepartments,
+        serviceCategories: mergedCategories,
+        serviceClassifications: mergedClassifications,
+        transactions: mergedTransactions,
+        messages: mergedMessages,
+        notifications: mergedNotifications,
+        auditLogs: mergedAuditLogs,
+        visaApplications: mergedVisaApps,
+        visaCountryCatalog: mergedVisaCatalog,
+        deletedVisaCountryCodes: combinedDelCountryCodes,
+        deletedVisaServiceIds: combinedDelServiceIds,
+        deletedVisaAppIds: combinedDelAppIds,
+        lastUpdated: updatedIso,
+        hasCustomModifications: true,
+      };
+
+      hydrateStateFromSnapshot(mergedSnapshot);
+      lastAppliedRemoteIsoRef.current = updatedIso;
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedSnapshot));
+      } catch {}
+
+      syncSnapshot(mergedSnapshot);
+      hasUserEditedRef.current = false;
+      setConflictInfo(null);
+      setServerSyncStatus('synced');
+      setLastServerSyncTime(new Date().toLocaleTimeString());
+      return mergedSnapshot;
+    },
+    [hydrateStateFromSnapshot, syncSnapshot]
+  );
+
   // Conflict Resolution Action Handler
   const resolveConflict = useCallback(
     async (resolution: 'keep_local' | 'pull_remote' | 'merge') => {
@@ -1658,97 +1765,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } else if (resolution === 'merge') {
           const localSnap = conflictInfo.localSnapshot || getCurrentLocalSnapshot();
           const remoteSnap = conflictInfo.remoteSnapshot;
-
-          const mergeById = (listA: any[] = [], listB: any[] = []) => {
-            const map = new Map<string, any>();
-            (listB || []).forEach((item) => {
-              if (item && item.id) map.set(item.id, item);
-            });
-            (listA || []).forEach((item) => {
-              if (item && item.id) {
-                const existing = map.get(item.id);
-                map.set(item.id, existing ? { ...existing, ...item } : item);
-              }
-            });
-            return Array.from(map.values());
-          };
-
-          const mergedClients = mergeById(localSnap.clients, remoteSnap.clients);
-          const mergedLeads = mergeById(localSnap.leads, remoteSnap.leads);
-          const mergedTasks = mergeById(localSnap.tasks, remoteSnap.tasks);
-          const mergedInvoices = mergeById(localSnap.invoices, remoteSnap.invoices);
-          const mergedDocs = mergeById(localSnap.documents, remoteSnap.documents);
-          const mergedVendors = mergeById(localSnap.vendors, remoteSnap.vendors);
-          const mergedUsers = mergeById(localSnap.users, remoteSnap.users);
-          const mergedCompanies = mergeById(localSnap.companies, remoteSnap.companies);
-          const combinedDelCountryCodes = [
-            ...(localSnap.deletedVisaCountryCodes || []),
-            ...(remoteSnap.deletedVisaCountryCodes || []),
-          ].map((c) => String(c).toLowerCase().trim());
-
-          const combinedDelServiceIds = [
-            ...(localSnap.deletedVisaServiceIds || []),
-            ...(remoteSnap.deletedVisaServiceIds || []),
-          ];
-
-          const combinedDelAppIds = [
-            ...(localSnap.deletedVisaAppIds || []),
-            ...(remoteSnap.deletedVisaAppIds || []),
-          ];
-
-          const mergedVisaApps = mergeById(localSnap.visaApplications, remoteSnap.visaApplications)
-            .filter((a: any) => a && a.id && !combinedDelAppIds.includes(a.id) && !a.id.startsWith('vsa-app-100'));
-
-          const rawCatalog = Array.isArray(localSnap.visaCountryCatalog)
-            ? localSnap.visaCountryCatalog
-            : (Array.isArray(remoteSnap.visaCountryCatalog) ? remoteSnap.visaCountryCatalog : []);
-          const mergedVisaCatalog = (rawCatalog || [])
-            .filter((c: any) => c && c.countryCode && !combinedDelCountryCodes.includes(String(c.countryCode).toLowerCase().trim()))
-            .map((c: any) => ({
-              ...c,
-              visaTypes: (Array.isArray(c.visaTypes) ? c.visaTypes : []).filter(
-                (vt: any) => vt && vt.id && !combinedDelServiceIds.includes(vt.id)
-              ),
-            }));
-
-          const updatedIso = new Date().toISOString();
-          const mergedSnapshot = {
-            ...remoteSnap,
-            ...localSnap,
-            clients: mergedClients,
-            leads: mergedLeads,
-            tasks: mergedTasks,
-            invoices: mergedInvoices,
-            documents: mergedDocs,
-            vendors: mergedVendors,
-            users: mergedUsers,
-            companies: mergedCompanies,
-            visaApplications: mergedVisaApps,
-            visaCountryCatalog: mergedVisaCatalog,
-            deletedVisaCountryCodes: combinedDelCountryCodes,
-            deletedVisaServiceIds: combinedDelServiceIds,
-            deletedVisaAppIds: combinedDelAppIds,
-            lastUpdated: updatedIso,
-            hasCustomModifications: true,
-          };
-
-          hydrateStateFromSnapshot(mergedSnapshot);
-          lastAppliedRemoteIsoRef.current = updatedIso;
-          try {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedSnapshot));
-          } catch {}
-
-          syncSnapshot(mergedSnapshot);
-          hasUserEditedRef.current = false;
-          setConflictInfo(null);
-          setServerSyncStatus('synced');
-          setLastServerSyncTime(new Date().toLocaleTimeString());
+          mergeSnapshots(localSnap, remoteSnap);
         }
       } catch (err) {
         console.error('Failed to resolve database conflict:', err);
       }
     },
-    [conflictInfo, getCurrentLocalSnapshot, hydrateStateFromSnapshot, syncSnapshot]
+    [conflictInfo, getCurrentLocalSnapshot, hydrateStateFromSnapshot, syncSnapshot, mergeSnapshots]
   );
 
   const dismissConflict = useCallback(() => {
@@ -1757,7 +1780,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Centralized Remote Ingestion Guard:
   // 1. Prevents empty remote snapshots from destroying populated local data (fixes vanishing after refresh)
-  // 2. Detects conflicts and opens the Conflict Resolution Modal
+  // 2. Automatically merges divergent local & remote data non-destructively without interrupting the user
   // 3. Hydrates cleanly when safe
   const processRemoteUpdate = useCallback(
     (remoteData: any, source: 'firestore' | 'server'): boolean => {
@@ -1794,12 +1817,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return false;
       }
 
-      // Check for conflict
+      // Check for conflict: automatically merge both local and remote instead of repeatedly interrupting the user
       const conflict = detectSnapshotConflict(localSnap, remoteData, source);
       if (conflict) {
-        console.warn('Conflict detected between local CRM state and remote source:', source, conflict.diffSummary);
-        setConflictInfo(conflict);
-        return false;
+        console.info('Automatic non-destructive merge executed between local state and', source, conflict.diffSummary);
+        mergeSnapshots(localSnap, remoteData);
+        return true;
       }
 
       // If remote is strictly newer or local has zero records, hydrate safely
@@ -1819,7 +1842,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return false;
     },
-    [getCurrentLocalSnapshot, detectSnapshotConflict, isRemoteStrictlyNewer, hydrateStateFromSnapshot, syncSnapshot]
+    [getCurrentLocalSnapshot, detectSnapshotConflict, isRemoteStrictlyNewer, hydrateStateFromSnapshot, syncSnapshot, mergeSnapshots]
   );
 
   // Robust multi-system initialization: Cloud Firestore -> Server Disk -> Local Storage
