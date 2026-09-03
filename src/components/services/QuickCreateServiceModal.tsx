@@ -81,9 +81,9 @@ export const QuickCreateServiceModal: React.FC<QuickCreateServiceModalProps> = (
     return Array.from(set);
   }, [serviceClassifications, serviceCategories]);
 
-  // Price calculations
-  const vatRate = 0.05;
-  const vatAmount = Math.round(defaultPrice * vatRate);
+  // Price calculations - Non-mandatory VAT (defaults to 0% exempt, optional 5%)
+  const [vatRate, setVatRate] = useState<number>(0);
+  const vatAmount = vatRate > 0 ? Math.round((defaultPrice * vatRate) / 100) : 0;
   const totalAmount = defaultPrice + vatAmount + governmentFees;
 
   if (!isOpen) return null;
@@ -308,17 +308,48 @@ export const QuickCreateServiceModal: React.FC<QuickCreateServiceModalProps> = (
               </div>
             </div>
 
-            {/* Live Pricing Breakdown */}
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-400">
-              <div className="flex items-center gap-3">
-                <span>Agency: <b>AED {defaultPrice.toLocaleString()}</b></span>
-                <span>+</span>
-                <span>Gov: <b>AED {governmentFees.toLocaleString()}</b></span>
-                <span>+</span>
-                <span>VAT 5%: <b>AED {vatAmount.toLocaleString()}</b></span>
+            {/* Live Pricing Breakdown & Non-Mandatory VAT */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  UAE VAT Option (Optional / Non-Mandatory)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setVatRate(0)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold border transition-colors cursor-pointer ${
+                      vatRate === 0
+                        ? 'bg-emerald-500 text-white border-emerald-500'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    0% Exempt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVatRate(5)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold border transition-colors cursor-pointer ${
+                      vatRate === 5
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    5% Standard
+                  </button>
+                </div>
               </div>
-              <div className="font-bold text-xs text-blue-600 dark:text-blue-400 font-mono">
-                Total Estimate: AED {totalAmount.toLocaleString()}
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-400">
+                <div className="flex items-center gap-3">
+                  <span>Agency: <b>AED {defaultPrice.toLocaleString()}</b></span>
+                  <span>+</span>
+                  <span>Gov: <b>AED {governmentFees.toLocaleString()}</b></span>
+                  <span>+</span>
+                  <span>VAT ({vatRate}%): <b>AED {vatAmount.toLocaleString()}</b> {vatRate === 0 ? '(0% Exempt)' : ''}</span>
+                </div>
+                <div className="font-bold text-xs text-blue-600 dark:text-blue-400 font-mono">
+                  Total Estimate: AED {totalAmount.toLocaleString()}
+                </div>
               </div>
             </div>
           </div>

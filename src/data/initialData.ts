@@ -235,7 +235,7 @@ export const DEFAULT_BILLING_SETTINGS: InvoiceBillingSettings = {
   phone: '+971 4 829 1100',
   email: 'finance@adcs.ae',
   website: 'https://adcs.ae',
-  vatRateDefault: 5,
+  vatRateDefault: 0,
   currency: 'AED',
   bankDetails: {
     bankName: 'Emirates NBD PJSC (Corporate Banking Dubai)',

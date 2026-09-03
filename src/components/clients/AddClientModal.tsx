@@ -63,6 +63,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
 
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway'>('Bank Transfer');
+  const [vatRate, setVatRate] = useState<number>(0);
 
   const [showQuickCreateService, setShowQuickCreateService] = useState(false);
 
@@ -143,13 +144,12 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
         tags: formData.tags,
       },
       formData.initialServiceId,
-      advanceAmount > 0
-        ? {
-            advanceAmount,
-            paymentMethod,
-            notes: `Initial retainer payment collected at registration`,
-          }
-        : undefined
+      {
+        advanceAmount: advanceAmount > 0 ? advanceAmount : 0,
+        paymentMethod,
+        notes: advanceAmount > 0 ? `Initial retainer payment collected at registration` : undefined,
+        vatRate,
+      }
     );
 
     if (res.success) {
@@ -590,12 +590,12 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
               }
 
               const gov = selectedSrv.governmentFees;
-              const vat = Math.round(finalPrice * 0.05);
+              const vat = vatRate > 0 ? Math.round((finalPrice * vatRate) / 100) : 0;
               const grandTotal = finalPrice + vat + gov;
 
               return (
                 <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-blue-100 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Invoice Amount Breakdown</span>
                       {isB2B && discountAmount > 0 && (
@@ -604,7 +604,34 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                         </span>
                       )}
                     </div>
-                    <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">Total: AED {grandTotal.toLocaleString()}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-slate-500 font-semibold">VAT:</span>
+                        <button
+                          type="button"
+                          onClick={() => setVatRate(0)}
+                          className={`px-1.5 py-0.5 text-[10px] font-bold rounded border transition-colors cursor-pointer ${
+                            vatRate === 0
+                              ? 'bg-emerald-500 text-white border-emerald-500'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          0% Exempt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVatRate(5)}
+                          className={`px-1.5 py-0.5 text-[10px] font-bold rounded border transition-colors cursor-pointer ${
+                            vatRate === 5
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          5% Standard
+                        </button>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">Total: AED {grandTotal.toLocaleString()}</span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 text-center">
@@ -618,8 +645,10 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                       </p>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50">
-                      <p className="text-[10px] text-slate-500">VAT (5%)</p>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">AED {vat.toLocaleString()}</p>
+                      <p className="text-[10px] text-slate-500">VAT ({vatRate}%)</p>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        AED {vat.toLocaleString()} {vatRate === 0 ? '(0% Exempt)' : ''}
+                      </p>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50">
                       <p className="text-[10px] text-slate-500">Gov Clearance</p>

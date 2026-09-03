@@ -64,6 +64,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     currentUser,
     billingSettings,
     createInvoice,
+    updateInvoice,
     updateClient,
     updateServiceStage,
     addServiceToClient,
@@ -220,7 +221,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
   const [invServiceFee, setInvServiceFee] = useState<number>(serviceCategories[0]?.defaultPrice || 3500);
   const [invGovFee, setInvGovFee] = useState<number>(serviceCategories[0]?.governmentFees || 2200);
   const [invoiceServiceLines, setInvoiceServiceLines] = useState<ClientInvoiceServiceLineItem[]>([]);
-  const [invVatRate, setInvVatRate] = useState<number>(billingSettings?.vatRate ?? 5);
+  const [invVatRate, setInvVatRate] = useState<number>(billingSettings?.vatRate ?? 0);
   const [invDueDate, setInvDueDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 14);
@@ -307,6 +308,67 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     notes: '',
   });
 
+  // Edit Invoice state in Client Dossier
+  const [showEditInvoiceModal, setShowEditInvoiceModal] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editInvServiceName, setEditInvServiceName] = useState('');
+  const [editInvSubtotal, setEditInvSubtotal] = useState<number>(0);
+  const [editInvGovFees, setEditInvGovFees] = useState<number>(0);
+  const [editInvVatRate, setEditInvVatRate] = useState<number>(0);
+  const [editInvAmountPaid, setEditInvAmountPaid] = useState<number>(0);
+  const [editInvDueDate, setEditInvDueDate] = useState('');
+  const [editInvPaymentMethod, setEditInvPaymentMethod] = useState<Invoice['paymentMethod']>('Bank Transfer');
+  const [editInvStatus, setEditInvStatus] = useState<Invoice['status']>('unpaid');
+  const [editInvNotes, setEditInvNotes] = useState('');
+
+  const handleOpenEditInvoice = (inv: Invoice) => {
+    setEditingInvoice(inv);
+    setEditInvServiceName(inv.serviceName || '');
+    setEditInvSubtotal(inv.subtotal || 0);
+    setEditInvGovFees(inv.governmentFees || 0);
+    setEditInvVatRate(inv.vatRate ?? 0);
+    setEditInvAmountPaid(inv.amountPaid || 0);
+    setEditInvDueDate(inv.dueDate || '');
+    setEditInvPaymentMethod(inv.paymentMethod || 'Bank Transfer');
+    setEditInvStatus(inv.status || 'unpaid');
+    setEditInvNotes(inv.notes || '');
+    setShowEditInvoiceModal(true);
+  };
+
+  const handleSaveEditInvoice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingInvoice) return;
+
+    const actualVatRate = editInvVatRate !== undefined && !isNaN(Number(editInvVatRate)) ? Math.max(0, Number(editInvVatRate)) : 0;
+    const vatAmount = (editInvSubtotal * actualVatRate) / 100;
+    const grandTotal = editInvSubtotal + editInvGovFees + vatAmount;
+    const balanceAmount = Math.max(0, grandTotal - editInvAmountPaid);
+    const resolvedStatus: Invoice['status'] =
+      balanceAmount === 0 ? 'paid' : editInvAmountPaid > 0 ? 'partially_paid' : editInvStatus;
+
+    updateInvoice(editingInvoice.id, {
+      clientId: client?.id || editingInvoice.clientId,
+      clientName: client?.fullName || editingInvoice.clientName,
+      clientEmail: client?.email || editingInvoice.clientEmail,
+      clientPhone: client?.mobile || editingInvoice.clientPhone,
+      serviceName: editInvServiceName,
+      subtotal: editInvSubtotal,
+      governmentFees: editInvGovFees,
+      vatRate: actualVatRate,
+      vatAmount,
+      grandTotal,
+      amountPaid: editInvAmountPaid,
+      balanceAmount,
+      dueDate: editInvDueDate,
+      paymentMethod: editInvPaymentMethod,
+      status: resolvedStatus,
+      notes: editInvNotes,
+    });
+
+    setShowEditInvoiceModal(false);
+    setEditingInvoice(null);
+  };
+
   if (!clientId) return null;
   const client = (clients || []).find((c) => c && c.id === clientId);
   if (!client) {
@@ -334,9 +396,42 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
   }
 
   const clientDocs = (documents || []).filter((d) => d && d.clientId === client.id);
-  const clientInvoices = (invoices || []).filter((i) => i && i.clientId === client.id);
+  const clientInvoices = (invoices || []).filter((i) => {
+    if (!i) return false;
+    if (i.clientId && i.clientId === client.id) return true;
+    if (i.clientEmail && client.email && i.clientEmail.trim().toLowerCase() === client.email.trim().toLowerCase()) return true;
+    if (i.clientName && client.fullName && i.clientName.trim().toLowerCase() === client.fullName.trim().toLowerCase()) return true;
+    if (i.clientPhone && client.mobile) {
+      const p1 = i.clientPhone.replace(/\D/g, '');
+      const p2 = client.mobile.replace(/\D/g, '');
+      if (p1 && p2 && p1 === p2) return true;
+    }
+    if (i.clientPassport && client.passportNo && i.clientPassport.trim().toLowerCase() === client.passportNo.trim().toLowerCase()) return true;
+    return false;
+  });
   const clientTransactions = (transactions || []).filter((t) => t && t.clientId === client.id);
   const clientTasks = (tasks || []).filter((t) => t && t.clientId === client.id);
+
+  const liveTotalFromInvoices = clientInvoices.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
+  const livePaidFromInvoices = clientInvoices.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
+  const liveOutstandingFromInvoices = clientInvoices.reduce((sum, inv) => {
+    if (inv.balanceAmount !== undefined && inv.balanceAmount !== null && !isNaN(Number(inv.balanceAmount))) {
+      return sum + Math.max(0, Number(inv.balanceAmount));
+    }
+    return sum + Math.max(0, (Number(inv.grandTotal) || 0) - (Number(inv.amountPaid) || 0));
+  }, 0);
+
+  const displayTotalAmount = clientInvoices.length > 0 ? liveTotalFromInvoices : (client.totalAmount ?? 0);
+  const displayPaidAmount = clientInvoices.length > 0 ? livePaidFromInvoices : (client.paidAmount ?? 0);
+  const displayOutstandingAmount = clientInvoices.length > 0 ? liveOutstandingFromInvoices : (client.outstandingAmount ?? 0);
+  const displayPaymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+    displayOutstandingAmount === 0 && displayTotalAmount > 0
+      ? 'paid'
+      : displayPaidAmount > 0
+      ? 'partially_paid'
+      : clientInvoices.length > 0 && displayTotalAmount > 0
+      ? 'unpaid'
+      : ((client.paymentStatus as any) || 'unpaid');
   const company = (companies || []).find((c) => c && c.id === client.companyId);
   const vendor = (vendors || []).find((v) => v && v.id === client.vendorId);
 
@@ -522,7 +617,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
         },
       ]);
     }
-    setInvVatRate(billingSettings?.vatRate ?? 5);
+    setInvVatRate(billingSettings?.vatRate ?? 0);
     const d = new Date();
     d.setDate(d.getDate() + 14);
     setInvDueDate(d.toISOString().split('T')[0]);
@@ -714,8 +809,14 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
                   {client.refNo || 'REF-CLIENT'}
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 uppercase">
-                  {(client.paymentStatus || 'unpaid').replace('_', ' ')}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
+                  displayPaymentStatus === 'paid'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                    : displayPaymentStatus === 'partially_paid'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-400/30'
+                }`}>
+                  {displayPaymentStatus.replace('_', ' ')}
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -748,8 +849,8 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
               <span className="text-[10px] uppercase font-semibold text-slate-400 block">
                 Outstanding Balance
               </span>
-              <div className="text-lg font-bold text-emerald-400 font-mono">
-                AED {(client.outstandingAmount ?? 0).toLocaleString()}
+              <div className={`text-lg font-bold font-mono ${displayOutstandingAmount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                AED {displayOutstandingAmount.toLocaleString()}
               </div>
             </div>
             <button
@@ -909,7 +1010,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                   <div className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-1">
                     {client.currentStageName || 'Application Processing'}
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Status: {(client.paymentStatus || 'unpaid').toUpperCase()}</p>
+                  <p className="text-xs text-slate-500 mt-1">Status: {displayPaymentStatus.toUpperCase()}</p>
                 </div>
               </div>
 
@@ -1432,7 +1533,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">Invoices & Financial Records</h3>
                   <p className="text-xs text-slate-500">
-                    Total: AED {(client.totalAmount ?? 0).toLocaleString()} &bull; Paid: AED {(client.paidAmount ?? 0).toLocaleString()} &bull; Outstanding: AED {(client.outstandingAmount ?? 0).toLocaleString()}
+                    Total: AED {displayTotalAmount.toLocaleString()} &bull; Paid: AED {displayPaidAmount.toLocaleString()} &bull; Outstanding: AED {displayOutstandingAmount.toLocaleString()}
                   </p>
                 </div>
                 <button
@@ -1474,6 +1575,15 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenEditInvoice(inv)}
+                        className="px-2.5 py-1.5 bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Edit Invoice"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        <span>Edit</span>
+                      </button>
+
                       {(inv.balanceAmount ?? 0) > 0 && (
                         <button
                           onClick={() => {
@@ -3269,6 +3379,223 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
             onClose={() => setShowQuickCreateService(false)}
             onCreated={handleServiceCreated}
           />
+        )}
+
+        {/* Edit Invoice Modal inside Client Dossier */}
+        {showEditInvoiceModal && editingInvoice && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 w-full max-w-lg shadow-2xl p-6 space-y-4 animate-in fade-in">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Edit Invoice #{editingInvoice.invoiceNumber}
+                    </h3>
+                    <p className="text-xs text-slate-500">Update invoice charges, payments, and client balance</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEditInvoiceModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditInvoice} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Service Description
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editInvServiceName}
+                    onChange={(e) => setEditInvServiceName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Subtotal (Agency Fee AED)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={editInvSubtotal}
+                      onChange={(e) => setEditInvSubtotal(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Government Fees (AED)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editInvGovFees}
+                      onChange={(e) => setEditInvGovFees(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        VAT Rate (%) (Optional)
+                      </label>
+                      <span className="text-[10px] font-bold text-slate-500">
+                        {editInvVatRate === 0 ? '0% Exempt' : `${editInvVatRate}% Taxable`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditInvVatRate(0)}
+                        className={`px-2 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                          editInvVatRate === 0
+                            ? 'bg-emerald-500 text-white border-emerald-500'
+                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        0% Exempt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditInvVatRate(5)}
+                        className={`px-2 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                          editInvVatRate === 5
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        5% Standard
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        placeholder="Custom %"
+                        value={editInvVatRate}
+                        onChange={(e) => setEditInvVatRate(e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="flex-1 px-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-mono text-center font-bold"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Amount Paid (AED)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editInvAmountPaid}
+                      onChange={(e) => setEditInvAmountPaid(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Live calculation banner */}
+                {(() => {
+                  const actualRate = editInvVatRate !== undefined && !isNaN(Number(editInvVatRate)) ? Math.max(0, Number(editInvVatRate)) : 0;
+                  const vatAmount = (editInvSubtotal * actualRate) / 100;
+                  const grandTotal = editInvSubtotal + editInvGovFees + vatAmount;
+                  const balance = Math.max(0, grandTotal - editInvAmountPaid);
+                  return (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                        <span>Grand Total:</span>
+                        <span className="font-mono font-semibold text-slate-900 dark:text-white">AED {grandTotal.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                        <span>Amount Paid:</span>
+                        <span className="font-mono font-semibold text-emerald-600">AED {editInvAmountPaid.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between font-bold pt-1 border-t border-slate-200 dark:border-slate-700">
+                        <span>New Balance / Outstanding:</span>
+                        <span className={`font-mono ${balance > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>AED {balance.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={editInvDueDate}
+                      onChange={(e) => setEditInvDueDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Payment Method
+                    </label>
+                    <select
+                      value={editInvPaymentMethod}
+                      onChange={(e) => setEditInvPaymentMethod(e.target.value as any)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Credit Card">Credit Card</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Cheque">Cheque</option>
+                      <option value="Online">Online</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={editInvNotes}
+                    onChange={(e) => setEditInvNotes(e.target.value)}
+                    placeholder="Invoice remarks or payment terms..."
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditInvoiceModal(false)}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold hover:bg-slate-200 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     </div>

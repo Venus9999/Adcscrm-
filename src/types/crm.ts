@@ -1014,6 +1014,7 @@ export interface VisaApplication {
   // Pricing & Payments
   governmentFee: number;
   serviceFee: number;
+  vatRate?: number;
   vatAmount: number;
   totalAmount: number;
   paidAmount: number;

@@ -885,23 +885,22 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Tax Registration Number (TRN / VAT No.) *
+                    Tax Registration Number (TRN / VAT No.) (Optional)
                   </label>
                   <input
                     type="text"
                     disabled={!isAdminOrMaster}
-                    required
                     value={billingForm.trnNumber ?? ''}
                     onChange={(e) => setBillingForm({ ...billingForm, trnNumber: e.target.value })}
-                    placeholder="e.g. 10048291000003"
+                    placeholder="e.g. 10048291000003 (Optional)"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-blue-600 disabled:opacity-60"
                   />
-                  <p className="text-[10px] text-slate-400 mt-0.5">15-digit Federal Tax Authority Registration Code</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">15-digit Federal Tax Authority Registration Code (Optional / Non-Mandatory)</p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Standard VAT Rate (%) *
+                    Standard VAT Rate (%) (Optional - 0% for Exempt)
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -909,12 +908,11 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                       disabled={!isAdminOrMaster}
                       min={0}
                       max={100}
-                      required
-                      value={billingForm.vatPercentage ?? ''}
+                      value={billingForm.vatPercentage ?? 0}
                       onChange={(e) => setBillingForm({ ...billingForm, vatPercentage: Number(e.target.value) })}
                       className="w-28 p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold disabled:opacity-60"
                     />
-                    <span className="text-xs text-slate-500 font-medium">% (Standard UAE FTA Rate is 5%)</span>
+                    <span className="text-xs text-slate-500 font-medium">% (Optional - Standard is 5%, or 0% for VAT exempt services)</span>
                   </div>
                 </div>
 

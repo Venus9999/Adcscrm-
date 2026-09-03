@@ -209,7 +209,7 @@ export const InvoicesPayments: React.FC = () => {
   const [invCustomServiceName, setInvCustomServiceName] = useState('');
   const [serviceFee, setServiceFee] = useState<number>(serviceCategories[0]?.defaultPrice || 3500);
   const [govFee, setGovFee] = useState<number>(serviceCategories[0]?.governmentFees || 2200);
-  const [vatRate, setVatRate] = useState<number>(billingSettings?.vatRate ?? 5);
+  const [vatRate, setVatRate] = useState<number>(billingSettings?.vatRate ?? 0);
   const [invDueDate, setInvDueDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 14);
@@ -229,7 +229,7 @@ export const InvoicesPayments: React.FC = () => {
   const [editServiceName, setEditServiceName] = useState('');
   const [editSubtotal, setEditSubtotal] = useState<number>(0);
   const [editGovFees, setEditGovFees] = useState<number>(0);
-  const [editVatRate, setEditVatRate] = useState<number>(5);
+  const [editVatRate, setEditVatRate] = useState<number>(0);
   const [editAmountPaid, setEditAmountPaid] = useState<number>(0);
   const [editIssueDate, setEditIssueDate] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
@@ -419,7 +419,7 @@ export const InvoicesPayments: React.FC = () => {
     const d = new Date();
     d.setDate(d.getDate() + 14);
     setInvDueDate(d.toISOString().split('T')[0]);
-    setVatRate(billingSettings?.vatRate ?? 5);
+    setVatRate(billingSettings?.vatRate ?? 0);
     setInvNotes('');
     setShowCreateModal(true);
   };
@@ -576,7 +576,7 @@ export const InvoicesPayments: React.FC = () => {
     setEditServiceName(inv.serviceName);
     setEditSubtotal(inv.subtotal);
     setEditGovFees(inv.governmentFees || 0);
-    setEditVatRate(inv.vatRate ?? billingSettings?.vatRate ?? 5);
+    setEditVatRate(inv.vatRate ?? billingSettings?.vatRate ?? 0);
     setEditAmountPaid(inv.amountPaid);
     setEditIssueDate(inv.issueDate);
     setEditDueDate(inv.dueDate);
@@ -616,6 +616,7 @@ export const InvoicesPayments: React.FC = () => {
     ];
 
     updateInvoice(editInvId, {
+      clientId: activeInvoice?.clientId,
       clientName: editClientName,
       clientEmail: editClientEmail,
       clientPhone: editClientPhone,

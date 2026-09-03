@@ -179,6 +179,7 @@ interface CRMContextType {
       paymentMethod?: Invoice['paymentMethod'];
       referenceNumber?: string;
       notes?: string;
+      vatRate?: number;
     }
   ) => { success: boolean; client?: Client; invoice?: Invoice; error?: string };
   updateClient: (id: string, updates: Partial<Client>) => void;
@@ -542,7 +543,31 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.clients && Array.isArray(parsed.clients)) {
-          return (parsed.clients as Client[]).filter((c) => c && c.id && !deletedClientIds.includes(c.id));
+          const rawClients = (parsed.clients as Client[]).filter((c) => c && c.id && !deletedClientIds.includes(c.id));
+          const rawInvoices = Array.isArray(parsed.invoices) ? (parsed.invoices as Invoice[]) : [];
+          return rawClients.map((c) => {
+            const clientInvs = rawInvoices.filter(
+              (inv) =>
+                inv &&
+                (inv.clientId === c.id ||
+                  (inv.clientEmail && (c.email || '').toLowerCase().trim() === inv.clientEmail.toLowerCase().trim()))
+            );
+            if (clientInvs.length > 0) {
+              const totalAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
+              const paidAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
+              const outstandingAmount = Math.max(0, totalAmount - paidAmount);
+              const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+                outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid';
+              return {
+                ...c,
+                totalAmount,
+                paidAmount,
+                outstandingAmount,
+                paymentStatus,
+              };
+            }
+            return c;
+          });
         }
       }
       return (INITIAL_CLIENTS || []).filter((c) => !deletedClientIds.includes(c.id));
@@ -3606,7 +3631,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const govFees = srvCat.governmentFees || 0;
-      const vat = Math.round(finalPrice * 0.05);
+      const activeVatRate = billingSettings?.vatRate !== undefined && !isNaN(Number(billingSettings.vatRate))
+        ? Math.max(0, Number(billingSettings.vatRate))
+        : 0;
+      const vat = activeVatRate > 0 ? Math.round((finalPrice * activeVatRate) / 100) : 0;
       const grandTotal = finalPrice + govFees + vat;
 
       const newInvoice: Invoice = {
@@ -3625,7 +3653,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         discountAmount: discountAmount,
         discountPercent: discountPercent,
         subtotal: finalPrice,
-        vatRate: 5,
+        vatRate: activeVatRate,
         vatAmount: vat,
         governmentFees: govFees,
         grandTotal: grandTotal,
@@ -3848,6 +3876,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         paymentMethod?: Invoice['paymentMethod'];
         referenceNumber?: string;
         notes?: string;
+        vatRate?: number;
       }
     ) => {
       // Check duplicate
@@ -3915,7 +3944,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
 
           const govFees = srvCat.governmentFees;
-          const vat = Math.round(price * 0.05);
+          const activeVatRate = (initialPayment as any)?.vatRate !== undefined && !isNaN(Number((initialPayment as any).vatRate))
+            ? Math.max(0, Number((initialPayment as any).vatRate))
+            : (clientData as any)?.vatRate !== undefined && !isNaN(Number((clientData as any).vatRate))
+            ? Math.max(0, Number((clientData as any).vatRate))
+            : (billingSettings?.vatRate !== undefined && !isNaN(Number(billingSettings.vatRate))
+            ? Math.max(0, Number(billingSettings.vatRate))
+            : 0);
+          const vat = activeVatRate > 0 ? Math.round((price * activeVatRate) / 100) : 0;
           const grandTotal = price + vat + govFees;
           const advancePaid = Math.min(grandTotal, Math.max(0, initialPayment?.advanceAmount || 0));
           const balance = Math.max(0, grandTotal - advancePaid);
@@ -3947,7 +3983,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             discountAmount: discountAmount,
             discountPercent: discountPercent,
             subtotal: price,
-            vatRate: 5,
+            vatRate: activeVatRate,
             vatAmount: vat,
             governmentFees: govFees,
             grandTotal: grandTotal,
@@ -4593,7 +4629,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const govFees = srvCat.governmentFees;
-      const vat = Math.round(price * 0.05);
+      const activeVatRate = (initialPayment as any)?.vatRate !== undefined && !isNaN(Number((initialPayment as any).vatRate))
+        ? Math.max(0, Number((initialPayment as any).vatRate))
+        : (billingSettings?.vatRate !== undefined && !isNaN(Number(billingSettings.vatRate))
+        ? Math.max(0, Number(billingSettings.vatRate))
+        : 0);
+      const vat = activeVatRate > 0 ? Math.round((price * activeVatRate) / 100) : 0;
       const grandTotal = price + vat + govFees;
 
       const advancePaid = Math.min(grandTotal, Math.max(0, initialPayment?.advanceAmount || 0));
@@ -4627,7 +4668,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         discountAmount: discountAmount,
         discountPercent: discountPercent,
         subtotal: price,
-        vatRate: 5,
+        vatRate: activeVatRate,
         vatAmount: vat,
         governmentFees: govFees,
         grandTotal: grandTotal,
@@ -5446,10 +5487,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   );
 
   // Invoices & Payments
+  const isInvoiceForClient = useCallback((inv: Partial<Invoice>, client: Client): boolean => {
+    if (!inv || !client) return false;
+    if (inv.clientId && inv.clientId === client.id) return true;
+    if (inv.clientEmail && client.email && inv.clientEmail.trim().toLowerCase() === client.email.trim().toLowerCase()) return true;
+    if (inv.clientName && client.fullName && inv.clientName.trim().toLowerCase() === client.fullName.trim().toLowerCase()) return true;
+    if (inv.clientPhone && client.mobile) {
+      const p1 = inv.clientPhone.replace(/\D/g, '');
+      const p2 = client.mobile.replace(/\D/g, '');
+      if (p1 && p2 && p1 === p2) return true;
+    }
+    if (inv.clientPassport && client.passportNo && inv.clientPassport.trim().toLowerCase() === client.passportNo.trim().toLowerCase()) return true;
+    return false;
+  }, []);
+
   const createInvoice = useCallback(
     (invData: Omit<Invoice, 'id' | 'invoiceNumber' | 'createdAt' | 'issuedByUserId' | 'issuedByUserName'>): Invoice => {
       const id = `inv-${Date.now()}`;
-      const count = invoices.length + 1;
+      const count = (invoices || []).length + 1;
       const invoiceNumber = `INV-2026-${String(count).padStart(4, '0')}`;
 
       const newInv: Invoice = {
@@ -5461,33 +5516,109 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createdAt: new Date().toISOString(),
       };
 
-      setInvoices((prev) => [newInv, ...prev]);
+      // Match client if clientId was not supplied or needs linking
+      if (!newInv.clientId) {
+        const matchedClient = (clients || []).find((c) => isInvoiceForClient(newInv, c));
+        if (matchedClient) {
+          newInv.clientId = matchedClient.id;
+        }
+      }
 
-      // Update client financial amounts
-      setClients((prev) =>
-        prev.map((c) => {
-          if (c.id === invData.clientId) {
-            const newTotal = c.totalAmount + newInv.grandTotal;
-            const newPaid = c.paidAmount + newInv.amountPaid;
-            const newOutstanding = Math.max(0, newTotal - newPaid);
-            return {
-              ...c,
-              totalAmount: newTotal,
-              paidAmount: newPaid,
-              outstandingAmount: newOutstanding,
-              paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
-              updatedAt: new Date().toISOString(),
+      const nextInvoices = [newInv, ...(invoices || [])];
+      setInvoices(nextInvoices);
+
+      // Update client financial amounts and services
+      const nextClients = (clients || []).map((c) => {
+        if (isInvoiceForClient(newInv, c)) {
+          const clientInvs = nextInvoices.filter((i) => isInvoiceForClient(i, c));
+          const newTotal = clientInvs.reduce((sum, i) => sum + (Number(i.grandTotal) || 0), 0);
+          const newPaid = clientInvs.reduce((sum, i) => sum + (Number(i.amountPaid) || 0), 0);
+          const newOutstanding = clientInvs.reduce((sum, i) => {
+            if (i.balanceAmount !== undefined && i.balanceAmount !== null && !isNaN(Number(i.balanceAmount))) {
+              return sum + Math.max(0, Number(i.balanceAmount));
+            }
+            return sum + Math.max(0, (Number(i.grandTotal) || 0) - (Number(i.amountPaid) || 0));
+          }, 0);
+          const newPaymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+            newOutstanding === 0 && newTotal > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid';
+
+          let updatedServices = [...(c.services || [])];
+          const hasSrv = updatedServices.some(
+            (s) => s.invoiceId === newInv.id || (newInv.serviceName && s.serviceName === newInv.serviceName)
+          );
+          if (!hasSrv && newInv.serviceName) {
+            const newSrv: ClientService = {
+              id: `srv-${Date.now()}`,
+              clientId: c.id,
+              serviceId: newInv.serviceId || `cat-${Date.now()}`,
+              serviceName: newInv.serviceName,
+              category: 'Corporate PRO & Legal Clearance',
+              price: newInv.subtotal || 0,
+              governmentFees: newInv.governmentFees || 0,
+              advancePaid: newInv.amountPaid || 0,
+              balance: newInv.balanceAmount !== undefined ? newInv.balanceAmount : Math.max(0, (newInv.grandTotal || 0) - (newInv.amountPaid || 0)),
+              invoiceId: newInv.id,
+              invoiceNumber: newInv.invoiceNumber,
+              status: 'active',
+              currentStageId: 'stage-1',
+              currentStageName: 'Application Processing',
+              assignedEmployeeId: currentUser.id,
+              assignedEmployeeName: currentUser.name,
+              startDate: newInv.issueDate || new Date().toISOString().split('T')[0],
+              targetCompletionDate: newInv.dueDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+              requiredDocs: [],
+              stageHistory: [
+                {
+                  id: `sh-${Date.now()}`,
+                  fromStage: 'Initiation',
+                  toStage: 'Application Processing',
+                  remarks: `Service linked from Invoice #${newInv.invoiceNumber}`,
+                  timestamp: new Date().toISOString(),
+                  updatedByUserId: currentUser.id,
+                  updatedByUserName: currentUser.name,
+                  updatedByUserRole: currentUser.role,
+                },
+              ],
+              referenceNumber: `SRV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
             };
+            updatedServices = [newSrv, ...updatedServices];
           }
-          return c;
-        })
-      );
+
+          return {
+            ...c,
+            totalAmount: newTotal,
+            paidAmount: newPaid,
+            outstandingAmount: newOutstanding,
+            paymentStatus: newPaymentStatus,
+            services: updatedServices,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return c;
+      });
+      setClients(nextClients);
+
+      hasUserEditedRef.current = true;
+      isLocalDebounceSavingRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.invoices = nextInvoices;
+          parsed.clients = nextClients;
+          parsed.lastUpdated = new Date().toISOString();
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+        }
+      } catch {}
 
       recordAuditLog('Invoice Generated', 'Payments', `Generated Invoice #${invoiceNumber} for AED ${newInv.grandTotal.toLocaleString()} (${newInv.clientName})`);
 
       return newInv;
     },
-    [invoices.length, currentUser, recordAuditLog]
+    [invoices, clients, currentUser, isInvoiceForClient, recordAuditLog]
   );
 
   const recordPayment = useCallback(
@@ -5497,89 +5628,115 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       let targetClientId = '';
       let targetServiceId: string | undefined = undefined;
       const receiptNum = `RCP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      const existingInv = (invoices || []).find((i) => i.id === invoiceId);
 
-      setInvoices((prev) =>
-        prev.map((inv) => {
-          if (inv.id === invoiceId) {
-            clientName = inv.clientName;
-            invNum = inv.invoiceNumber;
-            targetClientId = inv.clientId;
-            targetServiceId = inv.serviceId;
-            const newPaid = inv.amountPaid + amount;
-            const newBalance = Math.max(0, inv.grandTotal - newPaid);
-            const status: Invoice['status'] = newBalance === 0 ? 'paid' : 'partially_paid';
+      const nextInvoices = (invoices || []).map((inv) => {
+        if (inv.id === invoiceId) {
+          clientName = inv.clientName;
+          invNum = inv.invoiceNumber;
+          targetClientId = inv.clientId;
+          targetServiceId = inv.serviceId;
+          const newPaid = inv.amountPaid + amount;
+          const newBalance = Math.max(0, inv.grandTotal - newPaid);
+          const status: Invoice['status'] = newBalance === 0 ? 'paid' : 'partially_paid';
 
-            return {
-              ...inv,
-              amountPaid: newPaid,
-              balanceAmount: newBalance,
-              status,
-              paymentMethod: method,
-              transactionRef: ref || inv.transactionRef || `REF-${receiptNum}`,
-              receiptNumber: receiptNum,
-              paidDate: new Date().toISOString().split('T')[0],
-              notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}${notes}` : inv.notes,
-            };
-          }
-          return inv;
-        })
-      );
+          return {
+            ...inv,
+            amountPaid: newPaid,
+            balanceAmount: newBalance,
+            status,
+            paymentMethod: method,
+            transactionRef: ref || inv.transactionRef || `REF-${receiptNum}`,
+            receiptNumber: receiptNum,
+            paidDate: new Date().toISOString().split('T')[0],
+            notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}${notes}` : inv.notes,
+          };
+        }
+        return inv;
+      });
+      setInvoices(nextInvoices);
 
       // Adjust client financial balance and linked service instance
-      setClients((prev) =>
-        prev.map((c) => {
-          const matchingInv = invoices.find((i) => i.id === invoiceId);
-          const cId = targetClientId || matchingInv?.clientId;
-          if (c.id === cId) {
-            const newPaid = c.paidAmount + amount;
-            const newOutstanding = Math.max(0, c.totalAmount - newPaid);
+      const nextClients = (clients || []).map((c) => {
+        const isMatch = existingInv
+          ? isInvoiceForClient(existingInv, c) || (targetClientId && c.id === targetClientId)
+          : c.id === targetClientId;
+        if (!isMatch) return c;
 
-            // Update matching client service advancePaid and balance
-            const updatedServices = (c.services || []).map((s) => {
-              if (
-                (targetServiceId && s.id === targetServiceId) ||
-                s.invoiceId === invoiceId ||
-                (matchingInv && s.serviceId === matchingInv.serviceId)
-              ) {
-                const srvPaid = (s.advancePaid || 0) + amount;
-                const srvBalance = Math.max(0, (s.price + (s.governmentFees || 0)) - srvPaid);
-                return {
-                  ...s,
-                  advancePaid: srvPaid,
-                  balance: srvBalance,
-                  invoiceId: s.invoiceId || invoiceId,
-                  invoiceNumber: s.invoiceNumber || invNum || matchingInv?.invoiceNumber,
-                };
-              }
-              return s;
-            });
+        const clientInvs = nextInvoices.filter((inv) => isInvoiceForClient(inv, c));
+        const totalAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
+        const paidAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
+        const outstandingAmount = clientInvs.reduce((sum, inv) => {
+          if (inv.balanceAmount !== undefined && inv.balanceAmount !== null && !isNaN(Number(inv.balanceAmount))) {
+            return sum + Math.max(0, Number(inv.balanceAmount));
+          }
+          return sum + Math.max(0, (Number(inv.grandTotal) || 0) - (Number(inv.amountPaid) || 0));
+        }, 0);
+        const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+          outstandingAmount === 0 && totalAmount > 0 ? 'paid' : 'partially_paid';
 
-            const paymentNote: InternalNote = {
-              id: `note-${Date.now()}`,
-              userId: currentUser.id,
-              userName: currentUser.name,
-              userRole: currentUser.role,
-              userAvatar: currentUser.avatar,
-              text: `💳 [Payment Settled] AED ${amount.toLocaleString()} received for Invoice #${invNum || matchingInv?.invoiceNumber || invoiceId} via ${method}. Receipt Voucher #${receiptNum}.${notes ? ` Note: ${notes}` : ''}`,
-              createdAt: new Date().toISOString(),
-            };
-
+        // Update matching client service advancePaid and balance
+        const updatedServices = (c.services || []).map((s) => {
+          if (
+            (targetServiceId && s.id === targetServiceId) ||
+            s.invoiceId === invoiceId ||
+            (existingInv && s.serviceId === existingInv.serviceId) ||
+            (existingInv?.serviceName && s.serviceName && s.serviceName.trim().toLowerCase() === existingInv.serviceName.trim().toLowerCase())
+          ) {
+            const srvPaid = (s.advancePaid || 0) + amount;
+            const srvBalance = Math.max(0, (s.price + (s.governmentFees || 0)) - srvPaid);
             return {
-              ...c,
-              paidAmount: newPaid,
-              outstandingAmount: newOutstanding,
-              paymentStatus: newOutstanding === 0 ? 'paid' : 'partially_paid',
-              services: updatedServices,
-              notes: [paymentNote, ...(c.notes || [])],
-              updatedAt: new Date().toISOString(),
+              ...s,
+              advancePaid: srvPaid,
+              balance: srvBalance,
+              invoiceId: s.invoiceId || invoiceId,
+              invoiceNumber: s.invoiceNumber || invNum || existingInv?.invoiceNumber,
             };
           }
-          return c;
-        })
-      );
+          return s;
+        });
+
+        const paymentNote: InternalNote = {
+          id: `note-${Date.now()}`,
+          userId: currentUser.id,
+          userName: currentUser.name,
+          userRole: currentUser.role,
+          userAvatar: currentUser.avatar,
+          text: `💳 [Payment Settled] AED ${amount.toLocaleString()} received for Invoice #${invNum || existingInv?.invoiceNumber || invoiceId} via ${method}. Receipt Voucher #${receiptNum}.${notes ? ` Note: ${notes}` : ''}`,
+          createdAt: new Date().toISOString(),
+        };
+
+        return {
+          ...c,
+          totalAmount: clientInvs.length > 0 ? totalAmount : c.totalAmount,
+          paidAmount: clientInvs.length > 0 ? paidAmount : (c.paidAmount + amount),
+          outstandingAmount: clientInvs.length > 0 ? outstandingAmount : Math.max(0, c.totalAmount - (c.paidAmount + amount)),
+          paymentStatus,
+          services: updatedServices,
+          notes: [paymentNote, ...(c.notes || [])],
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      setClients(nextClients);
+
+      hasUserEditedRef.current = true;
+      isLocalDebounceSavingRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.invoices = nextInvoices;
+          parsed.clients = nextClients;
+          parsed.lastUpdated = new Date().toISOString();
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+        }
+      } catch {}
 
       // Automatically record linked Transaction ledger entry connected to User / Client
-      const targetInv = invoices.find((i) => i.id === invoiceId);
+      const targetInv = nextInvoices.find((i) => i.id === invoiceId) || existingInv;
       if (targetInv) {
         const txNumber = `TX-2026-${Math.floor(1000 + Math.random() * 9000)}`;
         const newTx: Transaction = {
@@ -5623,74 +5780,306 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       setNotifications((prev) => [notif, ...prev]);
     },
-    [currentUser, invoices, recordAuditLog]
+    [currentUser, invoices, clients, isInvoiceForClient, recordAuditLog]
   );
 
   const updateInvoice = useCallback(
     (invoiceId: string, updates: Partial<Invoice>) => {
       let generatedChangeLog: ChangeLogEntry | null = null;
-      setInvoices((prev) =>
-        prev.map((i) => {
-          if (i.id === invoiceId) {
-            const cleanUpdates: Partial<Invoice> = {};
-            (Object.keys(updates) as Array<keyof Invoice>).forEach((key) => {
-              if (updates[key] !== undefined) {
-                (cleanUpdates as any)[key] = updates[key];
-              }
-            });
+      let updatedInvoiceRecord: Invoice | null = null;
+      const affectedClientIds = new Set<string>();
+      if (updates.clientId) affectedClientIds.add(updates.clientId);
 
-            const changes = calculateObjectDiff(i, cleanUpdates);
-            let nextChangelog = i.changelog || [];
+      const nextInvoicesList = (invoices || []).map((i) => {
+        if (i.id === invoiceId) {
+          if (i.clientId) affectedClientIds.add(i.clientId);
 
-            if (changes.length > 0) {
-              const newEntry = createChangeLogEntry(
-                'Invoice',
-                i.id,
-                `Invoice #${i.invoiceNumber}`,
-                changes,
-                currentUser
-              );
-              generatedChangeLog = newEntry;
-              nextChangelog = [newEntry, ...nextChangelog];
+          const cleanUpdates: Partial<Invoice> = {};
+          (Object.keys(updates) as Array<keyof Invoice>).forEach((key) => {
+            if (updates[key] !== undefined) {
+              (cleanUpdates as any)[key] = updates[key];
             }
+          });
 
-            const updated: Invoice = {
-              ...i,
-              ...cleanUpdates,
-              id: i.id,
-              invoiceNumber: i.invoiceNumber,
-              createdAt: i.createdAt,
-              issuedByUserId: i.issuedByUserId,
-              issuedByUserName: i.issuedByUserName,
-              items: cleanUpdates.items !== undefined ? cleanUpdates.items : i.items || [],
-              changelog: nextChangelog,
-            };
-            if (cleanUpdates.grandTotal !== undefined || cleanUpdates.amountPaid !== undefined) {
-              const gt = cleanUpdates.grandTotal !== undefined ? cleanUpdates.grandTotal : i.grandTotal;
-              const ap = cleanUpdates.amountPaid !== undefined ? cleanUpdates.amountPaid : i.amountPaid;
-              updated.balanceAmount = Math.max(0, gt - ap);
-              updated.status = updated.balanceAmount === 0 ? 'paid' : ap > 0 ? 'partially_paid' : 'unpaid';
-            }
-            return updated;
+          const changes = calculateObjectDiff(i, cleanUpdates);
+          let nextChangelog = i.changelog || [];
+
+          if (changes.length > 0) {
+            const newEntry = createChangeLogEntry(
+              'Invoice',
+              i.id,
+              `Invoice #${i.invoiceNumber}`,
+              changes,
+              currentUser
+            );
+            generatedChangeLog = newEntry;
+            nextChangelog = [newEntry, ...nextChangelog];
           }
-          return i;
-        })
-      );
+
+          const updated: Invoice = {
+            ...i,
+            ...cleanUpdates,
+            id: i.id,
+            invoiceNumber: i.invoiceNumber,
+            createdAt: i.createdAt,
+            issuedByUserId: i.issuedByUserId,
+            issuedByUserName: i.issuedByUserName,
+            items: cleanUpdates.items !== undefined ? cleanUpdates.items : i.items || [],
+            changelog: nextChangelog,
+          };
+
+          if (cleanUpdates.grandTotal !== undefined || cleanUpdates.amountPaid !== undefined) {
+            const gt = cleanUpdates.grandTotal !== undefined ? cleanUpdates.grandTotal : i.grandTotal;
+            const ap = cleanUpdates.amountPaid !== undefined ? cleanUpdates.amountPaid : i.amountPaid;
+            updated.balanceAmount = Math.max(0, gt - ap);
+            updated.status = cleanUpdates.status || (updated.balanceAmount === 0 ? 'paid' : ap > 0 ? 'partially_paid' : 'unpaid');
+          } else if (cleanUpdates.status !== undefined) {
+            updated.status = cleanUpdates.status;
+          }
+
+          if (updated.clientId) affectedClientIds.add(updated.clientId);
+          updatedInvoiceRecord = updated;
+          return updated;
+        }
+        return i;
+      });
+
+      // Match client if not set
+      if (updatedInvoiceRecord && !(updatedInvoiceRecord as Invoice).clientId) {
+        const matched = (clients || []).find((c) => isInvoiceForClient(updatedInvoiceRecord as Invoice, c));
+        if (matched) {
+          (updatedInvoiceRecord as Invoice).clientId = matched.id;
+          affectedClientIds.add(matched.id);
+        }
+      }
+
+      setInvoices(nextInvoicesList);
+
+      // Synchronize client dossier & financial summary in clients state
+      const nextClientsList = (clients || []).map((c) => {
+        const isTargetClient =
+          affectedClientIds.has(c.id) ||
+          (updatedInvoiceRecord && (
+            c.id === updatedInvoiceRecord.clientId ||
+            isInvoiceForClient(updatedInvoiceRecord, c)
+          ));
+
+        if (!isTargetClient) return c;
+
+        const clientInvs = nextInvoicesList.filter((inv) => isInvoiceForClient(inv, c));
+        const totalAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
+        const paidAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
+        const outstandingAmount = clientInvs.reduce((sum, inv) => {
+          if (inv.balanceAmount !== undefined && inv.balanceAmount !== null && !isNaN(Number(inv.balanceAmount))) {
+            return sum + Math.max(0, Number(inv.balanceAmount));
+          }
+          return sum + Math.max(0, (Number(inv.grandTotal) || 0) - (Number(inv.amountPaid) || 0));
+        }, 0);
+        const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+          outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid';
+
+        // Synchronize linked service if exists
+        let updatedServices = [...(c.services || [])];
+        if (updatedInvoiceRecord) {
+          const invRec = updatedInvoiceRecord as Invoice;
+          let matchedService = false;
+          updatedServices = updatedServices.map((srv) => {
+            if (
+              srv.invoiceId === invoiceId ||
+              (invRec.serviceId && srv.id === invRec.serviceId) ||
+              (invRec.serviceName && srv.serviceName && srv.serviceName.trim().toLowerCase() === invRec.serviceName.trim().toLowerCase())
+            ) {
+              matchedService = true;
+              const srvPaid = invRec.amountPaid ?? srv.advancePaid ?? 0;
+              const srvTotal = invRec.subtotal !== undefined
+                ? invRec.subtotal + (invRec.governmentFees || 0)
+                : (srv.price + (srv.governmentFees || 0));
+              const srvBalance = invRec.balanceAmount !== undefined
+                ? invRec.balanceAmount
+                : Math.max(0, srvTotal - srvPaid);
+              return {
+                ...srv,
+                serviceName: invRec.serviceName || srv.serviceName,
+                price: invRec.subtotal !== undefined ? invRec.subtotal : srv.price,
+                governmentFees: invRec.governmentFees !== undefined ? invRec.governmentFees : srv.governmentFees,
+                advancePaid: srvPaid,
+                balance: srvBalance,
+                invoiceId: srv.invoiceId || invoiceId,
+                invoiceNumber: srv.invoiceNumber || invRec.invoiceNumber,
+              };
+            }
+            return srv;
+          });
+
+          if (!matchedService && (invRec.serviceName || invRec.subtotal)) {
+            const newSrv: ClientService = {
+              id: `srv-${Date.now()}`,
+              clientId: c.id,
+              serviceId: invRec.serviceId || `cat-${Date.now()}`,
+              serviceName: invRec.serviceName || 'Corporate PRO & Legal Clearance',
+              category: 'Corporate PRO & Legal Clearance',
+              price: invRec.subtotal || 0,
+              governmentFees: invRec.governmentFees || 0,
+              advancePaid: invRec.amountPaid || 0,
+              balance: invRec.balanceAmount !== undefined ? invRec.balanceAmount : Math.max(0, (invRec.grandTotal || 0) - (invRec.amountPaid || 0)),
+              invoiceId: invoiceId,
+              invoiceNumber: invRec.invoiceNumber,
+              status: 'active',
+              currentStageId: 'stage-1',
+              currentStageName: 'Application Processing',
+              assignedEmployeeId: currentUser.id,
+              assignedEmployeeName: currentUser.name,
+              startDate: invRec.issueDate || new Date().toISOString().split('T')[0],
+              targetCompletionDate: invRec.dueDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+              requiredDocs: [],
+              stageHistory: [
+                {
+                  id: `sh-${Date.now()}`,
+                  fromStage: 'Initiation',
+                  toStage: 'Application Processing',
+                  remarks: `Service linked from Invoice #${invRec.invoiceNumber}`,
+                  timestamp: new Date().toISOString(),
+                  updatedByUserId: currentUser.id,
+                  updatedByUserName: currentUser.name,
+                  updatedByUserRole: currentUser.role,
+                },
+              ],
+              referenceNumber: `SRV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+            };
+            updatedServices = [newSrv, ...updatedServices];
+          }
+        }
+
+        const updatedClient: Client = {
+          ...c,
+          totalAmount: clientInvs.length > 0 ? totalAmount : c.totalAmount,
+          paidAmount: clientInvs.length > 0 ? paidAmount : c.paidAmount,
+          outstandingAmount: clientInvs.length > 0 ? outstandingAmount : c.outstandingAmount,
+          paymentStatus: clientInvs.length > 0 ? paymentStatus : c.paymentStatus,
+          services: updatedServices,
+          updatedAt: new Date().toISOString(),
+        };
+
+        // If client contact information was updated on the invoice, keep client profile in sync
+        if (updates.clientName && updates.clientName.trim()) {
+          updatedClient.fullName = updates.clientName.trim();
+          const parts = updates.clientName.trim().split(' ');
+          updatedClient.firstName = parts[0];
+          updatedClient.lastName = parts.slice(1).join(' ') || '';
+        }
+        if (updates.clientEmail && updates.clientEmail.trim()) {
+          updatedClient.email = updates.clientEmail.trim();
+        }
+        if (updates.clientPhone && updates.clientPhone.trim()) {
+          updatedClient.mobile = updates.clientPhone.trim();
+        }
+        if (updates.clientAddress && updates.clientAddress.trim()) {
+          updatedClient.residentialAddress = updates.clientAddress.trim();
+        }
+        if (updates.clientPassport && updates.clientPassport.trim()) {
+          updatedClient.passportNo = updates.clientPassport.trim();
+        }
+
+        return updatedClient;
+      });
+
+      setClients(nextClientsList);
+
+      hasUserEditedRef.current = true;
+      isLocalDebounceSavingRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.invoices = nextInvoicesList;
+          parsed.clients = nextClientsList;
+          parsed.lastUpdated = new Date().toISOString();
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+        }
+      } catch {}
+
       if (generatedChangeLog) {
         recordAuditLog('Invoice Modified (Changelog)', 'Payments', `${currentUser.name} (${currentUser.role}) ${generatedChangeLog.summary} on Invoice ID ${invoiceId}`);
       } else {
         recordAuditLog('Invoice Updated', 'Payments', `Updated details for Invoice ID ${invoiceId}`);
       }
     },
-    [currentUser, recordAuditLog]
+    [currentUser, invoices, clients, isInvoiceForClient, recordAuditLog]
   );
 
   const updateInvoiceStatus = useCallback(
     (invoiceId: string, status: Invoice['status']) => {
-      setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, status } : i)));
+      const existingInv = (invoices || []).find((i) => i.id === invoiceId);
+
+      const nextInvoicesList = (invoices || []).map((i) => {
+        if (i.id === invoiceId) {
+          const isPaid = status === 'paid';
+          const newAmountPaid = isPaid ? i.grandTotal : status === 'unpaid' ? 0 : i.amountPaid;
+          const newBalance = Math.max(0, i.grandTotal - newAmountPaid);
+          return {
+            ...i,
+            status,
+            amountPaid: newAmountPaid,
+            balanceAmount: newBalance,
+          };
+        }
+        return i;
+      });
+      setInvoices(nextInvoicesList);
+
+      const nextClientsList = (clients || []).map((c) => {
+        const isMatch = existingInv
+          ? isInvoiceForClient(existingInv, c) || (existingInv.clientId && c.id === existingInv.clientId)
+          : false;
+
+        if (!isMatch) return c;
+
+        const clientInvs = nextInvoicesList.filter((inv) => isInvoiceForClient(inv, c));
+        const totalAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
+        const paidAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
+        const outstandingAmount = clientInvs.reduce((sum, inv) => {
+          if (inv.balanceAmount !== undefined && inv.balanceAmount !== null && !isNaN(Number(inv.balanceAmount))) {
+            return sum + Math.max(0, Number(inv.balanceAmount));
+          }
+          return sum + Math.max(0, (Number(inv.grandTotal) || 0) - (Number(inv.amountPaid) || 0));
+        }, 0);
+        const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+          outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid';
+
+        return {
+          ...c,
+          totalAmount,
+          paidAmount,
+          outstandingAmount,
+          paymentStatus,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      setClients(nextClientsList);
+
+      hasUserEditedRef.current = true;
+      isLocalDebounceSavingRef.current = true;
+      lastAppliedRemoteIsoRef.current = new Date().toISOString();
+
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.invoices = nextInvoicesList;
+          parsed.clients = nextClientsList;
+          parsed.lastUpdated = new Date().toISOString();
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+        }
+      } catch {}
+
       recordAuditLog('Invoice Status Changed', 'Payments', `Invoice ${invoiceId} marked as ${status}`);
     },
-    [recordAuditLog]
+    [invoices, clients, isInvoiceForClient, recordAuditLog]
   );
 
   const deleteInvoice = useCallback(
@@ -5716,16 +6105,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       let nextClients = clients;
       if (inv) {
         nextClients = (clients || []).map((c) => {
-          if (c.id === inv.clientId) {
-            const newTotal = Math.max(0, c.totalAmount - inv.grandTotal);
-            const newPaid = Math.max(0, c.paidAmount - inv.amountPaid);
-            const newOutstanding = Math.max(0, newTotal - newPaid);
+          if (isInvoiceForClient(inv, c) || (inv.clientId && c.id === inv.clientId)) {
+            const clientInvs = nextInvoices.filter((i) => i && (isInvoiceForClient(i, c) || (i.clientId && i.clientId === c.id)));
+            const newTotal = clientInvs.reduce((sum, i) => sum + (Number(i.grandTotal) || 0), 0);
+            const newPaid = clientInvs.reduce((sum, i) => sum + (Number(i.amountPaid) || 0), 0);
+            const newOutstanding = clientInvs.reduce((sum, i) => {
+              if (i.balanceAmount !== undefined && i.balanceAmount !== null && !isNaN(Number(i.balanceAmount))) {
+                return sum + Math.max(0, Number(i.balanceAmount));
+              }
+              return sum + Math.max(0, (Number(i.grandTotal) || 0) - (Number(i.amountPaid) || 0));
+            }, 0);
             return {
               ...c,
               totalAmount: newTotal,
               paidAmount: newPaid,
               outstandingAmount: newOutstanding,
-              paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
+              paymentStatus: newOutstanding === 0 && newTotal > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
               updatedAt: new Date().toISOString(),
             };
           }
@@ -6713,7 +7108,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const price = lead.estimatedValue || serviceCat?.defaultPrice || 5000;
       const govFees = serviceCat?.governmentFees || 1500;
-      const vat = Math.round(price * 0.05);
+      const activeVatRate = (options as any)?.vatRate !== undefined && !isNaN(Number((options as any).vatRate))
+        ? Math.max(0, Number((options as any).vatRate))
+        : (billingSettings?.vatRate !== undefined && !isNaN(Number(billingSettings.vatRate))
+        ? Math.max(0, Number(billingSettings.vatRate))
+        : 0);
+      const vat = activeVatRate > 0 ? Math.round((price * activeVatRate) / 100) : 0;
       const grandTotal = price + vat + govFees;
       const advance = Math.min(grandTotal, options?.advanceAmount || 0);
       const outstanding = Math.max(0, grandTotal - advance);
@@ -6744,7 +7144,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         serviceId: srvInstanceId,
         serviceName: serviceCat?.name || lead.serviceInterested || 'Business Clearance Service',
         subtotal: price,
-        vatRate: 5,
+        vatRate: activeVatRate,
         vatAmount: vat,
         governmentFees: govFees,
         grandTotal: grandTotal,

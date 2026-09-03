@@ -280,14 +280,13 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    VAT TRN Number (15 Digits) *
+                    VAT TRN Number (Optional / Non-Mandatory)
                   </label>
                   <input
                     type="text"
-                    required
                     value={formData.trn ?? ''}
                     onChange={(e) => setFormData({ ...formData, trn: e.target.value })}
-                    placeholder="10048291000003"
+                    placeholder="e.g. 10048291000003 (Optional)"
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-blue-600"
                   />
                 </div>
@@ -782,11 +781,13 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Standard UAE VAT Rate (%)
+                    Standard UAE VAT Rate (%) (Optional - 0% for Exempt)
                   </label>
                   <input
                     type="number"
-                    value={formData.vatRate ?? ''}
+                    min="0"
+                    max="100"
+                    value={formData.vatRate ?? 0}
                     onChange={(e) => setFormData({ ...formData, vatRate: Number(e.target.value) })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
                   />

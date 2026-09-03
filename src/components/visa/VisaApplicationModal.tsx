@@ -96,6 +96,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
   });
 
   const [processingSpeed, setProcessingSpeed] = useState<'Standard' | 'Express / VIP' | 'Super Express (24h)'>('Standard');
+  const [vatRate, setVatRate] = useState<number>(0);
 
   // Applicant Details State
   const isClientUser = currentUser.role === 'client';
@@ -233,7 +234,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
   const governmentFee = selectedVisaType?.standardGovFee ?? 0;
   const serviceFee = (selectedVisaType?.standardServiceFee ?? 0) + speedSurcharge;
   const subtotal = governmentFee + serviceFee;
-  const vatAmount = Math.round(serviceFee * 0.05 * 100) / 100;
+  const vatAmount = vatRate > 0 ? Math.round(((serviceFee * vatRate) / 100) * 100) / 100 : 0;
   const totalAmount = Math.round((subtotal + vatAmount) * 100) / 100;
 
   // Processing days
@@ -338,6 +339,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
         travelDate,
         governmentFee,
         serviceFee,
+        vatRate,
         vatAmount,
         totalAmount,
         assignedOfficerName: assignedStaffName,
@@ -1034,9 +1036,37 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                           <span className="font-semibold font-mono">+AED {speedSurcharge.toLocaleString()}</span>
                         </div>
                       )}
-                      <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                        <span>UAE VAT (5% on Service Fee):</span>
-                        <span className="font-semibold font-mono">AED {vatAmount.toLocaleString()}</span>
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <span>UAE VAT ({vatRate}%):</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setVatRate(0)}
+                              className={`px-1.5 py-0.5 text-[10px] font-bold rounded border transition-colors cursor-pointer ${
+                                vatRate === 0
+                                  ? 'bg-emerald-500 text-white border-emerald-500'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              0% Exempt
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setVatRate(5)}
+                              className={`px-1.5 py-0.5 text-[10px] font-bold rounded border transition-colors cursor-pointer ${
+                                vatRate === 5
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              5% Standard
+                            </button>
+                          </div>
+                        </div>
+                        <span className="font-semibold font-mono">
+                          AED {vatAmount.toLocaleString()} {vatRate === 0 ? '(0% Exempt)' : ''}
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-700">
                         <span>Total Due:</span>
