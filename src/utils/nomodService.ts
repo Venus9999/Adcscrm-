@@ -152,7 +152,10 @@ export async function verifyNomodPayment(
   customerName: string,
   apiKey?: string,
   requestedStatus?: 'approved' | 'paid' | 'rejected' | 'failed' | 'cancelled',
-  failureReason?: string
+  failureReason?: string,
+  cardBrand?: string,
+  last4?: string,
+  channel?: 'card' | 'apple_pay' | 'google_pay' | 'nomod_checkout'
 ): Promise<NomodPaymentResult> {
   try {
     const res = await fetch('/api/nomod/verify-payment', {
@@ -166,6 +169,9 @@ export async function verifyNomodPayment(
         apiKey,
         requestedStatus,
         failureReason,
+        cardBrand,
+        last4,
+        channel,
       }),
     });
     if (res.ok) {
@@ -188,11 +194,11 @@ export async function verifyNomodPayment(
       paymentUrl: `https://pay.nomodapp.com/en/l/${paymentId}`,
       reference,
       authCode: undefined,
-      cardBrand: 'Visa Debit (UAE Live)',
-      last4: '4242',
+      cardBrand: cardBrand || 'Visa Debit (UAE Live)',
+      last4: last4 || '4242',
       amount,
       currency: 'AED',
-      channel: 'card',
+      channel: channel || 'card',
       status: 'rejected',
       failureReason: failureReason || 'Card issuer declined transaction: Insufficient funds or card restriction (Decline 05)',
       paidAt: now,
@@ -204,9 +210,10 @@ export async function verifyNomodPayment(
 
   // Standard verified result format matching Nomod API specifications
   const brands = ['Visa Debit (UAE Live)', 'Mastercard (UAE Live)', 'Apple Pay (Live)', 'Google Pay (Live)'];
-  const brand = brands[Math.floor(Math.random() * brands.length)];
-  const last4 = Math.floor(1000 + Math.random() * 9000).toString();
+  const brand = cardBrand || brands[Math.floor(Math.random() * brands.length)];
+  const finalLast4 = last4 || Math.floor(1000 + Math.random() * 9000).toString();
   const authCode = `AUTH-${Math.floor(100000 + Math.random() * 900000)}`;
+  const finalChannel = channel || (brand.includes('Apple') ? 'apple_pay' : brand.includes('Google') ? 'google_pay' : 'card');
 
   return {
     success: true,
@@ -215,10 +222,10 @@ export async function verifyNomodPayment(
     reference,
     authCode,
     cardBrand: brand,
-    last4,
+    last4: finalLast4,
     amount,
     currency: 'AED',
-    channel: brand.includes('Apple') ? 'apple_pay' : brand.includes('Google') ? 'google_pay' : 'card',
+    channel: finalChannel,
     status: 'paid',
     paidAt: now,
     gatewayFee: Math.round(amount * 0.0295 * 100) / 100, // standard Nomod fee 2.95%

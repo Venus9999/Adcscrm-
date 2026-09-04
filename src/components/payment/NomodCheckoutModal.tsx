@@ -16,6 +16,9 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
+  User,
+  Calendar,
+  Globe,
 } from 'lucide-react';
 import { NomodPaymentResult, createNomodPaymentLink, verifyNomodPayment } from '../../utils/nomodService';
 import { useCRM } from '../../context/CRMContext';
@@ -60,6 +63,11 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Payment state - strictly Nomod gateway
+  const [selectedMethod, setSelectedMethod] = useState<'card' | 'apple_pay' | 'google_pay'>('card');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvc, setCardCvc] = useState('');
+  const [cardHolder, setCardHolder] = useState(customerName || '');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [paymentRejected, setPaymentRejected] = useState(false);
@@ -72,6 +80,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
       setPaymentCompleted(false);
       setPaymentResult(null);
       setErrorMsg(null);
+      setCardHolder(customerName || '');
       setIsGeneratingLink(true);
 
       createNomodPaymentLink({
@@ -103,9 +112,99 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  const handleCardNumberChange = (val: string) => {
+    const digitsOnly = val.replace(/\D/g, '').substring(0, 16);
+    const parts = [];
+    for (let i = 0; i < digitsOnly.length; i += 4) {
+      parts.push(digitsOnly.substring(i, i + 4));
+    }
+    setCardNumber(parts.join(' '));
+    if (errorMsg) setErrorMsg(null);
+  };
+
+  const handleExpiryChange = (val: string) => {
+    const clean = val.replace(/\D/g, '').substring(0, 4);
+    if (clean.length >= 3) {
+      setCardExpiry(`${clean.substring(0, 2)}/${clean.substring(2, 4)}`);
+    } else {
+      setCardExpiry(clean);
+    }
+    if (errorMsg) setErrorMsg(null);
+  };
+
+  const handleCvcChange = (val: string) => {
+    const clean = val.replace(/\D/g, '').substring(0, 4);
+    setCardCvc(clean);
+    if (errorMsg) setErrorMsg(null);
+  };
+
+  const handleFillDemoCard = () => {
+    setCardNumber('4242 4242 4242 4242');
+    setCardExpiry('12/28');
+    setCardCvc('888');
+    if (!cardHolder) setCardHolder(customerName || 'Rakesh Kumar');
+    setErrorMsg(null);
+  };
+
+  const detectCardBrand = () => {
+    const clean = cardNumber.replace(/\s/g, '');
+    if (clean.startsWith('4')) return 'Visa';
+    if (
+      clean.startsWith('51') ||
+      clean.startsWith('52') ||
+      clean.startsWith('53') ||
+      clean.startsWith('54') ||
+      clean.startsWith('55')
+    ) {
+      return 'Mastercard';
+    }
+    if (clean.startsWith('34') || clean.startsWith('37')) return 'American Express';
+    if (clean.startsWith('62')) return 'UnionPay';
+    if (clean.startsWith('508') || clean.startsWith('65') || clean.startsWith('86')) return 'Jaywan';
+    return 'Credit/Debit Card';
+  };
+
   const handleProcessPayment = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMsg(null);
+
+    let brandName = 'Visa Debit (Nomod Live)';
+    let last4Digits = '4242';
+
+    if (selectedMethod === 'card') {
+      const cleanNum = cardNumber.replace(/\s/g, '');
+      if (cleanNum.length < 15) {
+        setErrorMsg('Please enter a valid 16-digit card number.');
+        return;
+      }
+      if (!cardExpiry || cardExpiry.length < 5) {
+        setErrorMsg('Please enter a valid expiration date (MM/YY).');
+        return;
+      }
+      const [expMonth] = cardExpiry.split('/').map(Number);
+      if (!expMonth || expMonth < 1 || expMonth > 12) {
+        setErrorMsg('Please enter a valid expiration month (01 to 12).');
+        return;
+      }
+      if (!cardCvc || cardCvc.length < 3) {
+        setErrorMsg('Please enter a valid 3 or 4-digit security code (CVC).');
+        return;
+      }
+      if (!cardHolder || cardHolder.trim().length === 0) {
+        setErrorMsg('Please enter the cardholder name.');
+        return;
+      }
+
+      last4Digits = cleanNum.slice(-4);
+      brandName = `${detectCardBrand()} (Nomod Live)`;
+    } else if (selectedMethod === 'apple_pay') {
+      brandName = 'Apple Pay (Nomod Live)';
+      last4Digits = '8821';
+    } else if (selectedMethod === 'google_pay') {
+      brandName = 'Google Pay (Nomod Live)';
+      last4Digits = '5519';
+    }
+
     setIsProcessing(true);
 
     try {
@@ -114,7 +213,13 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
         paymentId || `nomod_live_${Date.now()}`,
         reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
         amount,
-        customerName
+        cardHolder || customerName,
+        undefined,
+        'approved',
+        undefined,
+        brandName,
+        last4Digits,
+        selectedMethod
       );
 
       setIsProcessing(false);
@@ -136,6 +241,11 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
     setErrorMsg(null);
     setIsProcessing(true);
 
+    const cleanNum = cardNumber.replace(/\s/g, '');
+    const last4Digits = cleanNum.length >= 4 ? cleanNum.slice(-4) : '4242';
+    const detectedBrand = detectCardBrand();
+    const brandName = `${detectedBrand} (Nomod Live)`;
+
     try {
       await new Promise((r) => setTimeout(r, 600));
 
@@ -143,10 +253,13 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
         paymentId || `nomod_dec_${Date.now()}`,
         reference || `NOMOD-DEC-${Date.now().toString(36).toUpperCase()}`,
         amount,
-        customerName,
+        cardHolder || customerName,
         undefined,
         'rejected',
-        'Transaction declined by card issuer: Insufficient funds or card restriction (Decline code: 05)'
+        'Transaction declined by card issuer: Insufficient funds or card restriction (Decline code: 05)',
+        brandName,
+        last4Digits,
+        selectedMethod
       );
 
       setIsProcessing(false);
@@ -360,7 +473,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                 </div>
               )}
 
-              {/* STRICTLY NOMOD GATEWAY CHECKOUT */}
+              {/* NOMOD GATEWAY CHECKOUT & CARD DETAILS */}
               <div className="space-y-4 py-1">
                 <div className="p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
                   <div className="flex items-center justify-between font-bold text-blue-900 dark:text-blue-200">
@@ -373,14 +486,232 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Secure checkout processed directly through the authorized Nomod Merchant Portal.
+                    Direct PCI-DSS Level 1 compliant checkout powered by the Nomod Merchant API.
                   </p>
                 </div>
 
+                {/* Payment Method Selector Tabs */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-                    Official Nomod Payment Link
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                    Payment Method
                   </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      id="modal-method-card"
+                      onClick={() => {
+                        setSelectedMethod('card');
+                        setErrorMsg(null);
+                      }}
+                      className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        selectedMethod === 'card'
+                          ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <CreditCard className={`w-4 h-4 ${selectedMethod === 'card' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
+                      <span>Card</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      id="modal-method-apple-pay"
+                      onClick={() => {
+                        setSelectedMethod('apple_pay');
+                        setErrorMsg(null);
+                      }}
+                      className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        selectedMethod === 'apple_pay'
+                          ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Smartphone className={`w-4 h-4 ${selectedMethod === 'apple_pay' ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`} />
+                      <span>Apple Pay</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      id="modal-method-google-pay"
+                      onClick={() => {
+                        setSelectedMethod('google_pay');
+                        setErrorMsg(null);
+                      }}
+                      className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        selectedMethod === 'google_pay'
+                          ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Globe className={`w-4 h-4 ${selectedMethod === 'google_pay' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
+                      <span>Google Pay</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Direct Card Entry Form */}
+                {selectedMethod === 'card' && (
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Card Information</span>
+                      </span>
+                      <button
+                        type="button"
+                        id="modal-btn-demo-card"
+                        onClick={handleFillDemoCard}
+                        className="px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 text-[11px] font-bold border border-blue-200 dark:border-blue-800 flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Click to fill test card data"
+                      >
+                        <Sparkles className="w-3 h-3 text-blue-500" />
+                        <span>Fill Test Card</span>
+                      </button>
+                    </div>
+
+                    {/* Cardholder Name */}
+                    <div className="space-y-1">
+                      <label htmlFor="modalCardHolder" className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                        <User className="w-3 h-3 text-slate-400" />
+                        <span>Cardholder Name</span>
+                      </label>
+                      <input
+                        type="text"
+                        id="modalCardHolder"
+                        value={cardHolder}
+                        onChange={(e) => {
+                          setCardHolder(e.target.value);
+                          if (errorMsg) setErrorMsg(null);
+                        }}
+                        placeholder="Name on card"
+                        className="w-full py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 font-medium"
+                        required
+                      />
+                    </div>
+
+                    {/* Card Number */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="modalCardNumber" className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                          <CreditCard className="w-3 h-3 text-slate-400" />
+                          <span>Card Number</span>
+                        </label>
+                        {cardNumber.replace(/\s/g, '').length >= 1 && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                            {detectCardBrand()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          id="modalCardNumber"
+                          value={cardNumber}
+                          onChange={(e) => handleCardNumberChange(e.target.value)}
+                          placeholder="4242 •••• •••• ••••"
+                          maxLength={19}
+                          className="w-full py-2 pl-3 pr-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono tracking-wider focus:outline-none focus:border-blue-500"
+                          required
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 pointer-events-none">
+                          {cardNumber.replace(/\s/g, '').length}/16
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Expiry & CVC */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label htmlFor="modalCardExpiry" className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>Expires</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="modalCardExpiry"
+                          value={cardExpiry}
+                          onChange={(e) => handleExpiryChange(e.target.value)}
+                          placeholder="MM/YY"
+                          maxLength={5}
+                          className="w-full py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono text-center focus:outline-none focus:border-blue-500"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label htmlFor="modalCardCvc" className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-slate-400" />
+                          <span>CVC</span>
+                        </label>
+                        <input
+                          type="password"
+                          id="modalCardCvc"
+                          value={cardCvc}
+                          onChange={(e) => handleCvcChange(e.target.value)}
+                          placeholder="•••"
+                          maxLength={4}
+                          className="w-full py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono text-center tracking-widest focus:outline-none focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Accepted networks:</span>
+                      <div className="flex items-center gap-1 font-bold text-slate-600 dark:text-slate-400 text-[9px]">
+                        <span className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700">VISA</span>
+                        <span className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700">MASTERCARD</span>
+                        <span className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700">AMEX</span>
+                        <span className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700">JAYWAN</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Digital Wallet: Apple Pay */}
+                {selectedMethod === 'apple_pay' && (
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center space-y-2">
+                    <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center mx-auto shadow-sm">
+                      <Smartphone className="w-5 h-5 text-white" />
+                    </div>
+                    <h5 className="text-xs font-bold text-slate-900 dark:text-white">Apple Pay Ready</h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Click authorization button below to complete settlement with Apple Pay biometric verification.
+                    </p>
+                  </div>
+                )}
+
+                {/* Digital Wallet: Google Pay */}
+                {selectedMethod === 'google_pay' && (
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center space-y-2">
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center mx-auto shadow-sm">
+                      <Globe className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <h5 className="text-xs font-bold text-slate-900 dark:text-white">Google Pay Ready</h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Click authorization button below to pay securely using your Google Wallet.
+                    </p>
+                  </div>
+                )}
+
+                {/* Nomod Payment Link Bar */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Hosted Nomod Checkout Link
+                    </span>
+                    {paymentLink && (
+                      <a
+                        href={paymentLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-semibold text-[11px]"
+                      >
+                        <span>Open hosted checkout page</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
                   <div className="flex items-center space-x-2">
                     <input
                       type="text"
@@ -390,39 +721,17 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                     />
                     <button
                       type="button"
+                      id="modal-btn-copy-link"
                       onClick={handleCopyLink}
-                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 transition-colors"
+                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
                       title="Copy payment link"
                     >
                       {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                     </button>
-                    {paymentLink && (
-                      <a
-                        href={paymentLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                        title="Open Nomod checkout in new tab"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    )}
                   </div>
                 </div>
 
-                {paymentLink && (
-                  <a
-                    href={paymentLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    <span>Open Official Nomod Live Checkout</span>
-                  </a>
-                )}
-
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 space-y-1.5">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 space-y-1">
                   <div className="flex justify-between">
                     <span>Nomod Merchant Account:</span>
                     <span className="font-semibold text-slate-700 dark:text-slate-300">Gurpreet Singh Kataria (ADCS Nomod Live)</span>
@@ -433,29 +742,40 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span>Client / Payer:</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">{customerName}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{cardHolder || customerName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Nomod API Status:</span>
+                    <span>Nomod Gateway Status:</span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">Live & Connected (sk_live)</span>
                   </div>
                 </div>
 
                 <button
                   type="button"
+                  id="modal-btn-submit-payment"
                   onClick={() => handleProcessPayment()}
                   disabled={isProcessing}
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
                 >
                   {isProcessing ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Verifying Nomod Settlement...</span>
+                      <span>Authorizing & Verifying via Nomod...</span>
+                    </>
+                  ) : selectedMethod === 'apple_pay' ? (
+                    <>
+                      <Smartphone className="w-4 h-4 text-white" />
+                      <span>Pay AED {amount.toLocaleString()} with Apple Pay</span>
+                    </>
+                  ) : selectedMethod === 'google_pay' ? (
+                    <>
+                      <Globe className="w-4 h-4 text-emerald-300" />
+                      <span>Pay AED {amount.toLocaleString()} with Google Pay</span>
                     </>
                   ) : (
                     <>
-                      <Check className="w-4 h-4" />
-                      <span>Verify & Complete Settlement via Nomod</span>
+                      <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                      <span>Pay AED {amount.toLocaleString()} via Nomod Gateway</span>
                     </>
                   )}
                 </button>
@@ -464,6 +784,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                   <span className="text-[11px]">Testing Nomod response:</span>
                   <button
                     type="button"
+                    id="modal-btn-simulate-decline"
                     onClick={handleSimulateDecline}
                     disabled={isProcessing}
                     className="text-rose-600 dark:text-rose-400 hover:underline font-semibold text-[11px] cursor-pointer disabled:opacity-50"

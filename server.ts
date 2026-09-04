@@ -409,6 +409,9 @@ async function startServer() {
         apiKey: clientApiKey,
         requestedStatus,
         failureReason,
+        cardBrand: clientCardBrand,
+        last4: clientLast4,
+        channel: clientChannel,
       } = req.body;
       const apiKey = clientApiKey || process.env.NOMOD_API_KEY || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY';
       const now = new Date().toISOString();
@@ -416,7 +419,7 @@ async function startServer() {
       // If a rejection or failure was explicitly requested (e.g. from bank decline simulation)
       if (requestedStatus === 'rejected' || requestedStatus === 'failed' || requestedStatus === 'declined') {
         const brands = ['Visa Debit (UAE Live)', 'Mastercard (UAE Live)', 'Apple Pay (Live)'];
-        const brand = brands[Math.floor(Math.random() * brands.length)];
+        const brand = clientCardBrand || brands[Math.floor(Math.random() * brands.length)];
         return res.json({
           success: true,
           result: {
@@ -426,10 +429,10 @@ async function startServer() {
             reference: reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
             authCode: undefined,
             cardBrand: brand,
-            last4: '4242',
+            last4: clientLast4 || '4242',
             amount: Number(amount) || 0,
             currency: 'AED',
-            channel: 'card',
+            channel: clientChannel || 'card',
             status: 'rejected',
             failureReason: failureReason || 'Transaction declined by card issuer: Insufficient funds or card restriction (Decline code: 05)',
             paidAt: now,
@@ -529,9 +532,10 @@ async function startServer() {
       }
 
       const brands = ['Visa Debit (UAE Live)', 'Mastercard (UAE Live)', 'Apple Pay (Live)', 'Google Pay (Live)', 'UAE Jaywan Debit'];
-      const brand = brands[Math.floor(Math.random() * brands.length)];
-      const last4 = Math.floor(1000 + Math.random() * 9000).toString();
+      const brand = clientCardBrand || brands[Math.floor(Math.random() * brands.length)];
+      const last4 = clientLast4 || Math.floor(1000 + Math.random() * 9000).toString();
       const authCode = `AUTH-${Math.floor(100000 + Math.random() * 900000)}`;
+      const finalChannel = clientChannel || (brand.includes('Apple') ? 'apple_pay' : brand.includes('Google') ? 'google_pay' : 'card');
 
       const result = {
         success: true,
@@ -543,7 +547,7 @@ async function startServer() {
         last4,
         amount: Number(amount) || 0,
         currency: 'AED',
-        channel: brand.includes('Apple') ? 'apple_pay' : brand.includes('Google') ? 'google_pay' : 'card',
+        channel: finalChannel,
         status: 'paid',
         paidAt: now,
         customerName: customerName || 'Valued Client',
