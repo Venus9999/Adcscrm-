@@ -955,7 +955,7 @@ export const InvoicesPayments: React.FC = () => {
                                 setShowNomodModal(true);
                               }}
                               className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-                              title="Checkout with Nomod (Cards, Apple Pay, Google Pay, UAE Jaywan Debit)"
+                              title="Checkout with Nomod (Credit & Debit Cards, UAE Jaywan Debit)"
                             >
                               <CreditCard className="w-3 h-3" />
                               <span>Pay via Nomod</span>
@@ -2558,6 +2558,7 @@ export const InvoicesPayments: React.FC = () => {
           currency={billingSettings?.currency || 'AED'}
           serviceTitle={nomodCheckoutInvoice.serviceName}
           applicationNumber={nomodCheckoutInvoice.invoiceNumber}
+          invoiceId={nomodCheckoutInvoice.id}
           customerName={nomodCheckoutInvoice.clientName}
           customerEmail={nomodCheckoutInvoice.clientEmail}
           customerPhone={nomodCheckoutInvoice.clientPhone}

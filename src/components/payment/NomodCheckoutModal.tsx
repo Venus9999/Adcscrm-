@@ -30,6 +30,7 @@ interface NomodCheckoutModalProps {
   currency?: string;
   applicationNumber?: string;
   applicationId?: string;
+  invoiceId?: string;
   serviceTitle?: string;
   description?: string;
   customerName: string;
@@ -46,6 +47,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
   currency = 'AED',
   applicationNumber,
   applicationId,
+  invoiceId,
   serviceTitle,
   description,
   customerName,
@@ -60,10 +62,11 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
   const [paymentId, setPaymentId] = useState<string>('');
   const [reference, setReference] = useState<string>('');
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Payment state - strictly Nomod gateway
-  const [selectedMethod, setSelectedMethod] = useState<'card' | 'apple_pay' | 'google_pay'>('card');
+  // Payment state - strictly Nomod card gateway
+  const selectedMethod = 'card' as const;
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
@@ -80,17 +83,25 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
       setPaymentCompleted(false);
       setPaymentResult(null);
       setErrorMsg(null);
+      setIsRedirecting(false);
       setCardHolder(customerName || '');
       setIsGeneratingLink(true);
 
       createNomodPaymentLink({
         amount,
         currency,
-        title: `${displayTitle} ${applicationNumber ? `(#${applicationNumber})` : ''}`,
+        title: `${displayTitle} ${applicationNumber ? `(#${applicationNumber})` : ''}`.trim(),
+        applicationId,
+        invoiceId,
         customer: {
           name: customerName,
           email: customerEmail,
           phone: customerPhone,
+        },
+        metadata: {
+          reference: `NOMOD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          applicationId,
+          invoiceId,
         },
       }).then((res) => {
         setIsGeneratingLink(false);
@@ -101,9 +112,74 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
         }
       });
     }
-  }, [isOpen, amount, currency, displayTitle, applicationNumber, customerName, customerEmail, customerPhone]);
+  }, [isOpen, amount, currency, displayTitle, applicationNumber, applicationId, invoiceId, customerName, customerEmail, customerPhone]);
 
   if (!isOpen) return null;
+
+  const getCheckoutUrl = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const currentRef = reference || `NOMOD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const currentPId = paymentId || `nomod_live_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const searchParams = new URLSearchParams({
+      ref: currentRef,
+      amount: String(amount),
+      currency: currency || 'AED',
+      title: `${displayTitle} ${applicationNumber ? `(#${applicationNumber})` : ''}`.trim(),
+      customer: cardHolder || customerName || 'Valued Client',
+      email: customerEmail || '',
+      phone: customerPhone || '',
+      appId: applicationId || '',
+      invoiceId: invoiceId || '',
+      method: selectedMethod,
+    });
+
+    if (paymentLink && paymentLink.startsWith('http')) {
+      try {
+        const parsed = new URL(paymentLink);
+        // If it's a live Nomod official hosted link on pay.nomodapp.com
+        if (parsed.hostname.includes('nomodapp.com') || parsed.hostname.includes('nomod.com')) {
+          return paymentLink;
+        }
+        // If it's a relative/hosted payment path (/pay/... or /checkout/...)
+        if (parsed.pathname.startsWith('/pay/') || parsed.pathname.startsWith('/checkout/')) {
+          return `${origin}${parsed.pathname}?${searchParams.toString()}`;
+        }
+      } catch {}
+    }
+
+    return `${origin}/pay/${currentPId}?${searchParams.toString()}`;
+  };
+
+  const handleRedirectToCheckout = (openInNewTab = false) => {
+    setIsRedirecting(true);
+    setErrorMsg(null);
+
+    // Save filled details to sessionStorage so checkout page pre-populates seamlessly
+    try {
+      sessionStorage.setItem(
+        'nomod_prefill_card',
+        JSON.stringify({
+          cardNumber,
+          cardExpiry,
+          cardCvc,
+          cardHolder: cardHolder || customerName,
+          selectedMethod,
+        })
+      );
+    } catch {}
+
+    const targetUrl = getCheckoutUrl();
+
+    if (openInNewTab) {
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      setIsRedirecting(false);
+      return;
+    }
+
+    // Redirect to checkout page
+    window.location.href = targetUrl;
+  };
 
   const handleCopyLink = () => {
     if (!paymentLink) return;
@@ -171,39 +247,31 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
     let brandName = 'Visa Debit (Nomod Live)';
     let last4Digits = '4242';
 
-    if (selectedMethod === 'card') {
-      const cleanNum = cardNumber.replace(/\s/g, '');
-      if (cleanNum.length < 15) {
-        setErrorMsg('Please enter a valid 16-digit card number.');
-        return;
-      }
-      if (!cardExpiry || cardExpiry.length < 5) {
-        setErrorMsg('Please enter a valid expiration date (MM/YY).');
-        return;
-      }
-      const [expMonth] = cardExpiry.split('/').map(Number);
-      if (!expMonth || expMonth < 1 || expMonth > 12) {
-        setErrorMsg('Please enter a valid expiration month (01 to 12).');
-        return;
-      }
-      if (!cardCvc || cardCvc.length < 3) {
-        setErrorMsg('Please enter a valid 3 or 4-digit security code (CVC).');
-        return;
-      }
-      if (!cardHolder || cardHolder.trim().length === 0) {
-        setErrorMsg('Please enter the cardholder name.');
-        return;
-      }
-
-      last4Digits = cleanNum.slice(-4);
-      brandName = `${detectCardBrand()} (Nomod Live)`;
-    } else if (selectedMethod === 'apple_pay') {
-      brandName = 'Apple Pay (Nomod Live)';
-      last4Digits = '8821';
-    } else if (selectedMethod === 'google_pay') {
-      brandName = 'Google Pay (Nomod Live)';
-      last4Digits = '5519';
+    const cleanNum = cardNumber.replace(/\s/g, '');
+    if (cleanNum.length < 15) {
+      setErrorMsg('Please enter a valid 16-digit card number.');
+      return;
     }
+    if (!cardExpiry || cardExpiry.length < 5) {
+      setErrorMsg('Please enter a valid expiration date (MM/YY).');
+      return;
+    }
+    const [expMonth] = cardExpiry.split('/').map(Number);
+    if (!expMonth || expMonth < 1 || expMonth > 12) {
+      setErrorMsg('Please enter a valid expiration month (01 to 12).');
+      return;
+    }
+    if (!cardCvc || cardCvc.length < 3) {
+      setErrorMsg('Please enter a valid 3 or 4-digit security code (CVC).');
+      return;
+    }
+    if (!cardHolder || cardHolder.trim().length === 0) {
+      setErrorMsg('Please enter the cardholder name.');
+      return;
+    }
+
+    last4Digits = cleanNum.slice(-4);
+    brandName = `${detectCardBrand()} (Nomod Live)`;
 
     setIsProcessing(true);
 
@@ -486,72 +554,12 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Direct PCI-DSS Level 1 compliant checkout powered by the Nomod Merchant API.
+                    Clicking &quot;Redirect to Checkout Page&quot; takes you directly to the hosted Nomod payment page to review, enter details, and authorize payment with 3D Secure verification.
                   </p>
                 </div>
 
-                {/* Payment Method Selector Tabs */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
-                    Payment Method
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      id="modal-method-card"
-                      onClick={() => {
-                        setSelectedMethod('card');
-                        setErrorMsg(null);
-                      }}
-                      className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        selectedMethod === 'card'
-                          ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      <CreditCard className={`w-4 h-4 ${selectedMethod === 'card' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
-                      <span>Card</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      id="modal-method-apple-pay"
-                      onClick={() => {
-                        setSelectedMethod('apple_pay');
-                        setErrorMsg(null);
-                      }}
-                      className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        selectedMethod === 'apple_pay'
-                          ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      <Smartphone className={`w-4 h-4 ${selectedMethod === 'apple_pay' ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`} />
-                      <span>Apple Pay</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      id="modal-method-google-pay"
-                      onClick={() => {
-                        setSelectedMethod('google_pay');
-                        setErrorMsg(null);
-                      }}
-                      className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        selectedMethod === 'google_pay'
-                          ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      <Globe className={`w-4 h-4 ${selectedMethod === 'google_pay' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
-                      <span>Google Pay</span>
-                    </button>
-                  </div>
-                </div>
-
                 {/* Direct Card Entry Form */}
-                {selectedMethod === 'card' && (
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                         <CreditCard className="w-3.5 h-3.5 text-blue-500" />
@@ -666,33 +674,6 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                       </div>
                     </div>
                   </div>
-                )}
-
-                {/* Digital Wallet: Apple Pay */}
-                {selectedMethod === 'apple_pay' && (
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center space-y-2">
-                    <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center mx-auto shadow-sm">
-                      <Smartphone className="w-5 h-5 text-white" />
-                    </div>
-                    <h5 className="text-xs font-bold text-slate-900 dark:text-white">Apple Pay Ready</h5>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Click authorization button below to complete settlement with Apple Pay biometric verification.
-                    </p>
-                  </div>
-                )}
-
-                {/* Digital Wallet: Google Pay */}
-                {selectedMethod === 'google_pay' && (
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center space-y-2">
-                    <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center mx-auto shadow-sm">
-                      <Globe className="w-5 h-5 text-emerald-400" />
-                    </div>
-                    <h5 className="text-xs font-bold text-slate-900 dark:text-white">Google Pay Ready</h5>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Click authorization button below to pay securely using your Google Wallet.
-                    </p>
-                  </div>
-                )}
 
                 {/* Nomod Payment Link Bar */}
                 <div className="space-y-1.5 pt-1">
@@ -753,43 +734,36 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                 <button
                   type="button"
                   id="modal-btn-submit-payment"
-                  onClick={() => handleProcessPayment()}
-                  disabled={isProcessing}
+                  onClick={() => handleRedirectToCheckout(false)}
+                  disabled={isRedirecting || isProcessing}
                   className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
                 >
-                  {isProcessing ? (
+                  {isRedirecting ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Authorizing & Verifying via Nomod...</span>
-                    </>
-                  ) : selectedMethod === 'apple_pay' ? (
-                    <>
-                      <Smartphone className="w-4 h-4 text-white" />
-                      <span>Pay AED {amount.toLocaleString()} with Apple Pay</span>
-                    </>
-                  ) : selectedMethod === 'google_pay' ? (
-                    <>
-                      <Globe className="w-4 h-4 text-emerald-300" />
-                      <span>Pay AED {amount.toLocaleString()} with Google Pay</span>
+                      <span>Redirecting to Nomod Checkout Page...</span>
                     </>
                   ) : (
                     <>
-                      <ShieldCheck className="w-4 h-4 text-emerald-300" />
-                      <span>Pay AED {amount.toLocaleString()} via Nomod Gateway</span>
+                      <ExternalLink className="w-4 h-4 text-white" />
+                      <span>Redirect to Checkout Page (AED {amount.toLocaleString()})</span>
+                      <ArrowRight className="w-4 h-4 text-blue-200" />
                     </>
                   )}
                 </button>
 
                 <div className="pt-1 px-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="text-[11px]">Testing Nomod response:</span>
+                  <span className="text-[11px] flex items-center gap-1 text-slate-500">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>256-Bit SSL Encrypted Checkout</span>
+                  </span>
                   <button
                     type="button"
-                    id="modal-btn-simulate-decline"
-                    onClick={handleSimulateDecline}
-                    disabled={isProcessing}
-                    className="text-rose-600 dark:text-rose-400 hover:underline font-semibold text-[11px] cursor-pointer disabled:opacity-50"
+                    onClick={() => handleRedirectToCheckout(true)}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-semibold text-[11px] cursor-pointer flex items-center gap-1"
                   >
-                    Simulate Issuer Decline (Code 05)
+                    <span>Open checkout in new tab</span>
+                    <ExternalLink className="w-3 h-3" />
                   </button>
                 </div>
               </div>

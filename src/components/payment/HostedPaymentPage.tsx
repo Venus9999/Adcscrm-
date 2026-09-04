@@ -136,13 +136,25 @@ export const HostedPaymentPage: React.FC = () => {
       });
 
       setCardHolder(finalCustomer || 'Valued Client');
+
+      try {
+        const prefillRaw = sessionStorage.getItem('nomod_prefill_card');
+        if (prefillRaw) {
+          const prefill = JSON.parse(prefillRaw);
+          if (prefill.cardNumber) setCardNumber(prefill.cardNumber);
+          if (prefill.cardExpiry) setCardExpiry(prefill.cardExpiry);
+          if (prefill.cardCvc) setCardCvc(prefill.cardCvc);
+          if (prefill.cardHolder) setCardHolder(prefill.cardHolder);
+          sessionStorage.removeItem('nomod_prefill_card');
+        }
+      } catch {}
     } catch (e) {
       console.error('Error parsing payment URL params:', e);
     }
   }, [invoices, visaApplications, billingSettings]);
 
   // Form State
-  const [selectedMethod, setSelectedMethod] = useState<'card' | 'apple_pay' | 'google_pay'>('card');
+  const selectedMethod = 'card' as const;
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
@@ -284,39 +296,31 @@ export const HostedPaymentPage: React.FC = () => {
     let brandName = 'Visa Debit (Nomod Live)';
     let last4Digits = '4242';
 
-    if (selectedMethod === 'card') {
-      const cleanNum = cardNumber.replace(/\s/g, '');
-      if (cleanNum.length < 15) {
-        setErrorMsg('Please enter a valid 16-digit card number.');
-        return;
-      }
-      if (!cardExpiry || cardExpiry.length < 5) {
-        setErrorMsg('Please enter a valid expiration date (MM/YY).');
-        return;
-      }
-      const [expMonth] = cardExpiry.split('/').map(Number);
-      if (!expMonth || expMonth < 1 || expMonth > 12) {
-        setErrorMsg('Please enter a valid expiration month (01 to 12).');
-        return;
-      }
-      if (!cardCvc || cardCvc.length < 3) {
-        setErrorMsg('Please enter a valid 3 or 4-digit security code (CVC).');
-        return;
-      }
-      if (!cardHolder || cardHolder.trim().length === 0) {
-        setErrorMsg('Please enter the cardholder name.');
-        return;
-      }
-
-      last4Digits = cleanNum.slice(-4);
-      brandName = `${detectCardBrand()} (Nomod Live)`;
-    } else if (selectedMethod === 'apple_pay') {
-      brandName = 'Apple Pay (Nomod Live)';
-      last4Digits = '8821';
-    } else if (selectedMethod === 'google_pay') {
-      brandName = 'Google Pay (Nomod Live)';
-      last4Digits = '5519';
+    const cleanNum = cardNumber.replace(/\s/g, '');
+    if (cleanNum.length < 15) {
+      setErrorMsg('Please enter a valid 16-digit card number.');
+      return;
     }
+    if (!cardExpiry || cardExpiry.length < 5) {
+      setErrorMsg('Please enter a valid expiration date (MM/YY).');
+      return;
+    }
+    const [expMonth] = cardExpiry.split('/').map(Number);
+    if (!expMonth || expMonth < 1 || expMonth > 12) {
+      setErrorMsg('Please enter a valid expiration month (01 to 12).');
+      return;
+    }
+    if (!cardCvc || cardCvc.length < 3) {
+      setErrorMsg('Please enter a valid 3 or 4-digit security code (CVC).');
+      return;
+    }
+    if (!cardHolder || cardHolder.trim().length === 0) {
+      setErrorMsg('Please enter the cardholder name.');
+      return;
+    }
+
+    last4Digits = cleanNum.slice(-4);
+    brandName = `${detectCardBrand()} (Nomod Live)`;
 
     setIsProcessing(true);
     setProcessStep('Establishing 256-bit TLS encrypted session with Nomod...');
@@ -673,67 +677,8 @@ export const HostedPaymentPage: React.FC = () => {
                   )}
 
                   {/* Payment Method Selector Tabs */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-                      Select Payment Method
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        id="method-card"
-                        onClick={() => {
-                          setSelectedMethod('card');
-                          setErrorMsg(null);
-                        }}
-                        className={`py-3 px-2 rounded-2xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 transition-all cursor-pointer ${
-                          selectedMethod === 'card'
-                            ? 'bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-500/10'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                        }`}
-                      >
-                        <CreditCard className={`w-4 h-4 ${selectedMethod === 'card' ? 'text-blue-400' : 'text-slate-500'}`} />
-                        <span>Card</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        id="method-apple-pay"
-                        onClick={() => {
-                          setSelectedMethod('apple_pay');
-                          setErrorMsg(null);
-                        }}
-                        className={`py-3 px-2 rounded-2xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 transition-all cursor-pointer ${
-                          selectedMethod === 'apple_pay'
-                            ? 'bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-500/10'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                        }`}
-                      >
-                        <Smartphone className={`w-4 h-4 ${selectedMethod === 'apple_pay' ? 'text-white' : 'text-slate-500'}`} />
-                        <span>Apple Pay</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        id="method-google-pay"
-                        onClick={() => {
-                          setSelectedMethod('google_pay');
-                          setErrorMsg(null);
-                        }}
-                        className={`py-3 px-2 rounded-2xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 transition-all cursor-pointer ${
-                          selectedMethod === 'google_pay'
-                            ? 'bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-500/10'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                        }`}
-                      >
-                        <Globe className={`w-4 h-4 ${selectedMethod === 'google_pay' ? 'text-emerald-400' : 'text-slate-500'}`} />
-                        <span>Google Pay</span>
-                      </button>
-                    </div>
-                  </div>
-
                   {/* Credit / Debit Card Form */}
-                  {selectedMethod === 'card' && (
-                    <div className="space-y-4 p-5 rounded-2xl bg-slate-950/80 border border-slate-800">
+                  <div className="space-y-4 p-5 rounded-2xl bg-slate-950/80 border border-slate-800">
                       <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
                         <div className="flex items-center gap-2">
                           <CreditCard className="w-4 h-4 text-blue-400" />
@@ -854,49 +799,6 @@ export const HostedPaymentPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  )}
-
-                  {/* Digital Wallets: Apple Pay */}
-                  {selectedMethod === 'apple_pay' && (
-                    <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 text-center space-y-4">
-                      <div className="w-12 h-12 rounded-2xl bg-black border border-slate-700 flex items-center justify-center mx-auto shadow-md">
-                        <Smartphone className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-white">Apple Pay Quick Settlement</h3>
-                        <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                          Click below to authorize instantaneous settlement via Apple Wallet & Touch ID / Face ID.
-                        </p>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
-                        <span>Apple Pay Device:</span>
-                        <span className="font-semibold text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Ready & Authorized
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Digital Wallets: Google Pay */}
-                  {selectedMethod === 'google_pay' && (
-                    <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 text-center space-y-4">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center mx-auto shadow-md">
-                        <Globe className="w-6 h-6 text-emerald-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-white">Google Pay Fast Checkout</h3>
-                        <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                          Click below to confirm secure payment with your Google account and linked bank cards.
-                        </p>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
-                        <span>Google Wallet:</span>
-                        <span className="font-semibold text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Ready & Connected
-                        </span>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Nomod Gateway Settlement Card */}
                   <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
@@ -938,16 +840,6 @@ export const HostedPaymentPage: React.FC = () => {
                           <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                           <span>{processStep || 'Verifying Nomod Settlement...'}</span>
                         </div>
-                      ) : selectedMethod === 'apple_pay' ? (
-                        <>
-                          <Smartphone className="w-5 h-5 text-white" />
-                          <span>Pay {params.currency} {params.amount.toLocaleString()} with Apple Pay</span>
-                        </>
-                      ) : selectedMethod === 'google_pay' ? (
-                        <>
-                          <Globe className="w-5 h-5 text-emerald-300" />
-                          <span>Pay {params.currency} {params.amount.toLocaleString()} with Google Pay</span>
-                        </>
                       ) : (
                         <>
                           <ShieldCheck className="w-5 h-5 text-emerald-300" />

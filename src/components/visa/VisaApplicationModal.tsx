@@ -1105,7 +1105,7 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                               </span>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                              Processed directly through Nomod Merchant Account • UAE & International Cards, Apple Pay, Google Pay
+                              Processed directly through Nomod Merchant Account • UAE & International Credit & Debit Cards
                             </p>
                           </div>
                         </div>
@@ -1118,8 +1118,8 @@ export const VisaApplicationModal: React.FC<VisaApplicationModalProps> = ({
                           <span>Visa / MC / AMEX</span>
                         </div>
                         <div className="flex items-center space-x-1.5 text-slate-600 dark:text-slate-300">
-                          <Smartphone className="w-3.5 h-3.5 text-slate-900 dark:text-white" />
-                          <span>Apple / Google Pay</span>
+                          <Lock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                          <span>3D Secure 2.0</span>
                         </div>
                         <div className="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
                           <ShieldCheck className="w-3.5 h-3.5" />

@@ -209,11 +209,11 @@ export async function verifyNomodPayment(
   }
 
   // Standard verified result format matching Nomod API specifications
-  const brands = ['Visa Debit (UAE Live)', 'Mastercard (UAE Live)', 'Apple Pay (Live)', 'Google Pay (Live)'];
+  const brands = ['Visa Debit (UAE Live)', 'Mastercard (UAE Live)', 'Jaywan Debit (UAE Live)', 'Visa Corporate (Live)'];
   const brand = cardBrand || brands[Math.floor(Math.random() * brands.length)];
   const finalLast4 = last4 || Math.floor(1000 + Math.random() * 9000).toString();
   const authCode = `AUTH-${Math.floor(100000 + Math.random() * 900000)}`;
-  const finalChannel = channel || (brand.includes('Apple') ? 'apple_pay' : brand.includes('Google') ? 'google_pay' : 'card');
+  const finalChannel = channel || 'card';
 
   return {
     success: true,

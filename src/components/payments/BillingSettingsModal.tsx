@@ -497,7 +497,7 @@ export const BillingSettingsModal: React.FC<BillingSettingsModalProps> = ({ isOp
                     <strong className="block text-blue-950 dark:text-blue-100 font-bold">
                       {formData.nomodEnabled && formData.nomodApiKey ? 'Nomod Live Gateway Active' : 'Nomod Gateway Disconnected'}
                     </strong>
-                    Accept instant direct card payments (Visa, Mastercard, Apple Pay, Google Pay, UAE Jaywan Debit) with automated invoice settlement.
+                    Accept instant direct card payments (Visa, Mastercard, AMEX, UAE Jaywan Debit) with automated invoice settlement.
                   </div>
                 </div>
                 <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md whitespace-nowrap ${

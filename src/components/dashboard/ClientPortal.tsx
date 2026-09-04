@@ -930,7 +930,7 @@ export const ClientPortal: React.FC = () => {
                           setShowNomodModal(true);
                         }}
                         className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
-                        title="Checkout with Nomod Gateway (Credit/Debit Card, Apple Pay, Google Pay)"
+                        title="Checkout with Nomod Gateway (Credit/Debit Card)"
                       >
                         <CreditCard className="w-3.5 h-3.5" />
                         <span>Pay via Nomod (AED {inv.balanceAmount.toLocaleString()})</span>
@@ -1175,6 +1175,7 @@ export const ClientPortal: React.FC = () => {
           currency={billingSettings?.currency || 'AED'}
           serviceTitle={nomodCheckoutInvoice.serviceName}
           applicationNumber={nomodCheckoutInvoice.invoiceNumber}
+          invoiceId={nomodCheckoutInvoice.id}
           customerName={nomodCheckoutInvoice.clientName || client.fullName}
           customerEmail={nomodCheckoutInvoice.clientEmail || client.email}
           customerPhone={nomodCheckoutInvoice.clientPhone || client.phone}

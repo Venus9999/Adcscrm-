@@ -1056,7 +1056,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                     <span>Nomod Live Gateway & Digital Payments</span>
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Accept instant credit/debit card payments, Apple Pay, Google Pay, and UAE debit cards.
+                    Accept instant credit/debit card payments, Visa, Mastercard, and UAE Jaywan debit cards.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
