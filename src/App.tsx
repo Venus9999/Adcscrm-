@@ -24,6 +24,7 @@ import { AuditTrail } from './components/audit/AuditTrail';
 import { ServicesCatalog } from './components/services/ServicesCatalog';
 import { SystemSettings } from './components/settings/SystemSettings';
 import { DepartmentSettings } from './components/settings/DepartmentSettings';
+import { RecoveryDashboard } from './components/admin/RecoveryDashboard';
 import { GlobalSearchModal } from './components/common/GlobalSearchModal';
 import { LeadsManagement } from './components/leads/LeadsManagement';
 import { TransactionsManagement } from './components/transactions/TransactionsManagement';
@@ -272,6 +273,12 @@ const AppContent: React.FC = () => {
 
       case 'branding':
         return <SystemSettings initialTab="branding" />;
+
+      case 'recovery':
+      case 'recovery_dashboard':
+      case 'snapshots':
+      case 'backup_vault':
+        return <RecoveryDashboard />;
 
       case 'settings':
         return <SystemSettings />;

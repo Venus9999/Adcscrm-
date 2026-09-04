@@ -1068,3 +1068,29 @@ export interface NomodPaymentOutcome {
   timestamp?: string;
   rawGatewayResponse?: any;
 }
+
+export interface CRMSnapshotStats {
+  clients: number;
+  leads: number;
+  invoices: number;
+  transactions: number;
+  tasks: number;
+  users: number;
+  companies: number;
+  documents: number;
+  totalCoreRecords: number;
+}
+
+export interface CRMSnapshot {
+  id: string;
+  filename: string;
+  createdAt: string;
+  size: number;
+  reason: string;
+  triggerType: 'pre_config' | 'manual' | 'scheduled' | 'upgrade_shield' | 'version_upgrade' | 'system' | 'pre_restore';
+  stats: CRMSnapshotStats;
+  sampleClients?: string[];
+  isVaultSnapshot?: boolean;
+  createdBy?: string;
+  data?: any;
+}

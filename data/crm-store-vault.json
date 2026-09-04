@@ -1,0 +1,15 @@
+{
+  "clients": [
+    {
+      "id": "client-1",
+      "name": "Test Client"
+    }
+  ],
+  "_snapshotMeta": {
+    "reason": "Test Pre-Config Checkpoint",
+    "triggerType": "pre_config",
+    "createdAt": "2026-09-04T12:30:32.870Z",
+    "createdBy": "Gurpreet Singh Kataria (master)",
+    "version": "4.0"
+  }
+}

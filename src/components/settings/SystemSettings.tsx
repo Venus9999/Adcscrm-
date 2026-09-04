@@ -95,6 +95,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
     createDatabaseBackup,
     exportCRMData,
     importCRMData,
+    setActiveTab: setCRMActiveTab,
   } = useCRM();
 
   const {
@@ -3362,6 +3363,15 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ initialTab = 'bi
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Create Backup</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCRMActiveTab('recovery')}
+                  className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Recovery Dashboard</span>
                 </button>
               </div>
             </div>

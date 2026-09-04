@@ -48,8 +48,16 @@ import {
   DiscountType,
   ServiceClassification,
   ChangeLogEntry,
+  CRMSnapshot,
+  CRMSnapshotStats,
 } from '../types/crm';
 import { calculateObjectDiff, createChangeLogEntry } from '../utils/diffTracker';
+import {
+  saveToIndexedDbVault,
+  getFromIndexedDbVault,
+  saveSnapshotToIndexedDb,
+  getLatestIndexedDbSnapshot,
+} from '../utils/indexedDbStorage';
 import {
   INITIAL_COMPANIES,
   INITIAL_USERS,
@@ -299,6 +307,17 @@ interface CRMContextType {
   loadDataFromServer: (options?: { forceReset?: boolean }) => Promise<boolean>;
   createDatabaseBackup: () => Promise<{ success: boolean; filename?: string; error?: string }>;
 
+  // Recovery Dashboard & Automated Pre-Config Snapshots
+  snapshots: CRMSnapshot[];
+  liveStats: CRMSnapshot | null;
+  vaultStats: CRMSnapshot | null;
+  isLoadingSnapshots: boolean;
+  fetchSnapshots: () => Promise<CRMSnapshot[]>;
+  createSnapshot: (reason: string, triggerType?: 'manual' | 'pre_config' | 'scheduled') => Promise<{ success: boolean; snapshot?: CRMSnapshot; error?: string }>;
+  restoreSnapshot: (filename: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  deleteSnapshot: (filename: string) => Promise<{ success: boolean; error?: string }>;
+  takePreConfigSnapshot: (reason: string, triggerType?: 'manual' | 'pre_config' | 'scheduled') => Promise<void>;
+
   // System Utility
   resetToDefaultData: () => void;
   clearAllDataToZero: () => Promise<void>;
@@ -430,57 +449,87 @@ export const PROTECTED_CORE_USER_EMAILS = ['master@adcs.ae', 'hkfmsdxb@gmail.com
 export const BANNED_DEMO_USER_IDS = ['user-admin-main', 'user-emp-main', 'user-agent-main', 'user-sales', 'user-2', 'user-3', 'user-4'];
 export const BANNED_DEMO_USER_EMAILS = ['admin@adcs.ae', 'employee@adcs.ae', 'agent@adcs.ae', 'sales@adcs.ae'];
 
-// Safe storage reader: Probes local primary store, persistent vault, and backup archives to prevent data loss during version upgrades
+export const CURRENT_APP_VERSION = '4.2.0';
+export const CRM_APP_VERSION_KEY = 'adcs_crm_app_version';
+
+// Safe storage reader: Dynamically probes ALL known and historical localStorage keys across version upgrades
 export const readSafeStorageSnapshot = (): any => {
-  const keysToProbe = [
+  const discoveredKeys = new Set<string>([
     LOCAL_STORAGE_KEY,
     CRM_VAULT_STORAGE_KEY,
     CRM_ARCHIVE_STORAGE_KEY,
+    'adcs_crm_db_v3',
     'adcs_crm_db_v2',
+    'adcs_crm_db_v1',
     'adcs_crm_db',
-  ];
+    'adcs_crm_store',
+    'adcs_crm_state',
+    'adcs_crm_backup',
+  ]);
+
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && /(adcs|crm|backup|snapshot|vault|store|db)/i.test(k)) {
+          discoveredKeys.add(k);
+        }
+      }
+    }
+  } catch {}
+
   let bestSnapshot: any = null;
   let maxScore = -1;
 
-  for (const key of keysToProbe) {
+  for (const key of Array.from(discoveredKeys)) {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object') continue;
 
-      const clientsCount = Array.isArray(parsed.clients)
-        ? parsed.clients.filter((c: any) => c && c.id !== 'client-test-1').length
-        : 0;
-      const leadsCount = Array.isArray(parsed.leads) ? parsed.leads.length : 0;
-      const invoicesCount = Array.isArray(parsed.invoices) ? parsed.invoices.length : 0;
-      const tasksCount = Array.isArray(parsed.tasks) ? parsed.tasks.length : 0;
-      const transactionsCount = Array.isArray(parsed.transactions) ? parsed.transactions.length : 0;
+      // Extract inner data if payload was wrapped in a snapshot container
+      const data = parsed.data && typeof parsed.data === 'object' ? parsed.data : parsed;
 
-      const score = clientsCount * 20 + leadsCount * 10 + invoicesCount * 10 + transactionsCount * 5 + tasksCount;
+      const clientsCount = Array.isArray(data.clients)
+        ? data.clients.filter((c: any) => c && c.id !== 'client-test-1').length
+        : 0;
+      const leadsCount = Array.isArray(data.leads) ? data.leads.length : 0;
+      const invoicesCount = Array.isArray(data.invoices) ? data.invoices.length : 0;
+      const transactionsCount = Array.isArray(data.transactions) ? data.transactions.length : 0;
+      const tasksCount = Array.isArray(data.tasks) ? data.tasks.length : 0;
+      const documentsCount = Array.isArray(data.documents) ? data.documents.length : 0;
+      const visaAppsCount = Array.isArray(data.visaApplications) ? data.visaApplications.length : 0;
+      const usersCount = Array.isArray(data.users) ? data.users.length : 0;
+      const companiesCount = Array.isArray(data.companies) ? data.companies.length : 0;
+      const stagesCount = Array.isArray(data.stages) ? data.stages.length : 0;
+
+      const score =
+        clientsCount * 25 +
+        leadsCount * 15 +
+        invoicesCount * 15 +
+        transactionsCount * 10 +
+        visaAppsCount * 10 +
+        documentsCount * 5 +
+        tasksCount * 3 +
+        companiesCount * 2 +
+        usersCount * 2 +
+        stagesCount * 1;
 
       if (score > maxScore) {
         maxScore = score;
-        bestSnapshot = parsed;
+        bestSnapshot = data;
       }
     } catch {}
   }
 
-  // If we found a populated snapshot, ensure LOCAL_STORAGE_KEY has it so other components find it
+  // If we found a populated snapshot, ensure LOCAL_STORAGE_KEY & CRM_VAULT_STORAGE_KEY have it
   if (bestSnapshot && maxScore > 0) {
     try {
-      const currentRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (!currentRaw) {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(bestSnapshot));
-      } else {
-        const curr = JSON.parse(currentRaw);
-        const currClients = Array.isArray(curr.clients) ? curr.clients.filter((c: any) => c && c.id !== 'client-test-1').length : 0;
-        const currLeads = Array.isArray(curr.leads) ? curr.leads.length : 0;
-        const currInvs = Array.isArray(curr.invoices) ? curr.invoices.length : 0;
-        if (currClients === 0 && currLeads === 0 && currInvs === 0) {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(bestSnapshot));
-        }
-      }
+      const snapJson = JSON.stringify(bestSnapshot);
+      localStorage.setItem(LOCAL_STORAGE_KEY, snapJson);
+      localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapJson);
+      saveToIndexedDbVault('current_working_state', bestSnapshot).catch(() => {});
     } catch {}
   }
 
@@ -1069,6 +1118,77 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [serverSyncStatus, setServerSyncStatus] = useState<'synced' | 'saving' | 'error' | 'offline'>('synced');
   const [lastServerSyncTime, setLastServerSyncTime] = useState<string | null>(null);
   const [conflictInfo, setConflictInfo] = useState<ConflictInfo | null>(null);
+
+  // Snapshots & Master Recovery Dashboard State
+  const [snapshots, setSnapshots] = useState<CRMSnapshot[]>([]);
+  const [liveStats, setLiveStats] = useState<CRMSnapshot | null>(null);
+  const [vaultStats, setVaultStats] = useState<CRMSnapshot | null>(null);
+  const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
+
+  // Automated pre-configuration safety checkpoint trigger
+  const triggerPreConfigSnapshot = useCallback((reason: string) => {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(CRM_VAULT_STORAGE_KEY);
+      if (raw) {
+        const snap = JSON.parse(raw);
+        fetch('/api/crm/snapshots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: `Pre-Configuration: ${reason}`,
+            triggerType: 'pre_config',
+            data: snap,
+            createdBy: 'Master Admin',
+          }),
+        })
+          .then((r) => r.json())
+          .then((res) => {
+            if (res?.success && res.snapshot) {
+              setSnapshots((prev) => [res.snapshot, ...prev.filter((s) => s.filename !== res.snapshot.filename)]);
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {}
+  }, []);
+
+  // Automated version upgrade safety checkpoint trigger
+  const triggerVersionUpgradeSnapshot = useCallback((oldVersion: string, newVersion: string) => {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY) || localStorage.getItem(CRM_VAULT_STORAGE_KEY);
+      if (raw) {
+        const snap = JSON.parse(raw);
+        saveSnapshotToIndexedDb(
+          snap,
+          `Automated Pre-Upgrade Backup (v${oldVersion || 'legacy'} -> v${newVersion})`,
+          'version_upgrade'
+        ).catch(() => {});
+
+        try {
+          const vKey = `adcs_crm_backup_v_${(oldVersion || 'legacy').replace(/\./g, '_')}_${Date.now()}`;
+          localStorage.setItem(vKey, raw);
+        } catch {}
+
+        fetch('/api/crm/snapshots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: `Automated Pre-Upgrade Backup (v${oldVersion || 'legacy'} -> v${newVersion})`,
+            triggerType: 'version_upgrade',
+            data: snap,
+            createdBy: 'Upgrade Shield Engine',
+          }),
+        })
+          .then((r) => r.json())
+          .then((res) => {
+            if (res?.success && res.snapshot) {
+              setSnapshots((prev) => [res.snapshot, ...prev.filter((s) => s.filename !== res.snapshot.filename)]);
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {}
+  }, []);
 
   // Helper to check if remote is strictly newer than local timestamp
   const isRemoteStrictlyNewer = (remoteIso?: string, localIso?: string): boolean => {
@@ -2152,7 +2272,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (localSnap.leads?.length || 0) +
         (localSnap.tasks?.length || 0) +
         (localSnap.invoices?.length || 0) +
-        (localSnap.transactions?.length || 0);
+        (localSnap.transactions?.length || 0) +
+        (localSnap.documents?.length || 0) +
+        (localSnap.visaApplications?.length || 0);
 
       // Probe safe storage snapshot (vault, archive, legacy keys) if memory is unpopulated
       let activeLocalSnap = localSnap;
@@ -2163,7 +2285,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           (safeSnap?.leads?.length || 0) +
           (safeSnap?.tasks?.length || 0) +
           (safeSnap?.invoices?.length || 0) +
-          (safeSnap?.transactions?.length || 0);
+          (safeSnap?.transactions?.length || 0) +
+          (safeSnap?.documents?.length || 0) +
+          (safeSnap?.visaApplications?.length || 0);
         if (safeTotal > 0) {
           localTotalRecords = safeTotal;
           activeLocalSnap = safeSnap;
@@ -2175,7 +2299,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (Array.isArray(remoteData.leads) ? remoteData.leads.length : 0) +
         (Array.isArray(remoteData.tasks) ? remoteData.tasks.length : 0) +
         (Array.isArray(remoteData.invoices) ? remoteData.invoices.length : 0) +
-        (Array.isArray(remoteData.transactions) ? remoteData.transactions.length : 0);
+        (Array.isArray(remoteData.transactions) ? remoteData.transactions.length : 0) +
+        (Array.isArray(remoteData.documents) ? remoteData.documents.length : 0) +
+        (Array.isArray(remoteData.visaApplications) ? remoteData.visaApplications.length : 0);
 
       // CRITICAL FIX FOR VANISHING DATA:
       // If local state has real records, but remote snapshot is cold-start, empty,
@@ -2210,6 +2336,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const mergedSnap = getCurrentLocalSnapshot();
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedSnap));
             localStorage.setItem(CRM_VAULT_STORAGE_KEY, JSON.stringify(mergedSnap));
+            saveToIndexedDbVault('current_working_state', mergedSnap).catch(() => {});
           } catch {}
         }, 100);
         setLastServerSyncTime(new Date().toLocaleTimeString());
@@ -2222,7 +2349,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [getCurrentLocalSnapshot, detectSnapshotConflict, isRemoteStrictlyNewer, hydrateStateFromSnapshot, syncSnapshot, mergeSnapshots]
   );
 
-  // Robust multi-system initialization: Cloud Firestore -> Server Disk -> Local Storage
+  // Robust multi-system initialization: Cloud Firestore -> Server Disk -> Local Storage -> IndexedDB
   useEffect(() => {
     let active = true;
 
@@ -2230,7 +2357,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       let localLoaded = false;
       try {
         // Fast optimistic cache read from safe storage snapshot for instant render
-        const parsed = readSafeStorageSnapshot();
+        let parsed = readSafeStorageSnapshot();
+        if (!parsed) {
+          try {
+            const idbData = (await getFromIndexedDbVault('current_working_state')) || (await getLatestIndexedDbSnapshot());
+            if (idbData) {
+              parsed = idbData;
+            }
+          } catch {}
+        }
+
         if (parsed) {
           hydrateStateFromSnapshot(parsed);
           localLoaded = true;
@@ -2238,6 +2374,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             lastAppliedRemoteIsoRef.current = parsed.lastUpdated;
           }
         }
+
+        // Automated Version Upgrade Shield Checkpoint:
+        // When version changes, take an automated pre-upgrade snapshot to IndexedDB and server snapshots
+        try {
+          const storedVer = localStorage.getItem(CRM_APP_VERSION_KEY);
+          if (storedVer !== CURRENT_APP_VERSION) {
+            console.info(`[Upgrade Shield] Application version update detected: v${storedVer || 'legacy'} -> v${CURRENT_APP_VERSION}`);
+            triggerVersionUpgradeSnapshot(storedVer || 'legacy', CURRENT_APP_VERSION);
+            localStorage.setItem(CRM_APP_VERSION_KEY, CURRENT_APP_VERSION);
+          }
+        } catch {}
       } catch (e) {
         console.warn('Failed to load local CRM cache', e);
       }
@@ -2566,9 +2713,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isColdStart: !hasUserEditedRef.current,
     };
 
-    // 1. Synchronously save to local storage first
+    // 1. Synchronously save to local storage and persistent browser vaults
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(snapshot));
+      const snapJson = JSON.stringify(snapshot);
+      localStorage.setItem(LOCAL_STORAGE_KEY, snapJson);
+      localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapJson);
+      saveToIndexedDbVault('current_working_state', snapshot).catch(() => {});
     } catch (e) {
       console.error('Failed to save CRM state to localStorage', e);
     }
@@ -3261,6 +3411,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
       }
 
+      triggerPreConfigSnapshot(`Invoice & Billing Settings Modified (${updates.companyName || 'VAT / Stamp'})`);
+
       setBillingSettings((prev) => {
         const next = { ...prev, ...updates };
         setCrmBranding((b) => ({ ...b, billingSettings: next }));
@@ -3275,15 +3427,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return { success: true };
     },
-    [currentUser, recordAuditLog]
+    [currentUser, recordAuditLog, triggerPreConfigSnapshot]
   );
 
   const resetBillingSettingsToDefault = useCallback((): { success: boolean } => {
+    triggerPreConfigSnapshot('Reset Billing Settings to Defaults');
     setBillingSettings(DEFAULT_BILLING_SETTINGS);
     setCrmBranding((b) => ({ ...b, billingSettings: DEFAULT_BILLING_SETTINGS }));
     recordAuditLog('Billing Settings Reset', 'Settings', `Reset invoice billing defaults to system standards by ${currentUser.name}`);
     return { success: true };
-  }, [currentUser, recordAuditLog]);
+  }, [currentUser, recordAuditLog, triggerPreConfigSnapshot]);
 
   // Send / Dispatch Official Visa Status Email
   const sendVisaStatusEmail = useCallback(
@@ -5287,6 +5440,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can add custom stages');
         return;
       }
+      triggerPreConfigSnapshot(`Added Custom Workflow Stage (${stage.name})`);
       hasUserEditedRef.current = true;
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
@@ -5320,7 +5474,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       recordAuditLog('Stage Added', 'Stages', `Created custom work stage: ${stage.name}`);
     },
-    [currentUser.role, recordAuditLog, syncSnapshot]
+    [currentUser.role, recordAuditLog, syncSnapshot, triggerPreConfigSnapshot]
   );
 
   const updateStage = useCallback(
@@ -5329,6 +5483,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can edit workflow stages');
         return;
       }
+      triggerPreConfigSnapshot(`Modified Workflow Stage (${stageId})`);
       hasUserEditedRef.current = true;
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
@@ -5354,7 +5509,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       recordAuditLog('Stage Updated', 'Stages', `Updated stage config for ${stageId}`);
     },
-    [currentUser.role, recordAuditLog, syncSnapshot]
+    [currentUser.role, recordAuditLog, syncSnapshot, triggerPreConfigSnapshot]
   );
 
   const deleteStage = useCallback(
@@ -5363,6 +5518,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can delete workflow stages');
         return;
       }
+      triggerPreConfigSnapshot(`Deleted Workflow Stage (${stageId})`);
       hasUserEditedRef.current = true;
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
@@ -5401,7 +5557,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       recordAuditLog('Stage Deleted', 'Stages', `Deleted work stage: ${stage?.name || stageId}`);
     },
-    [currentUser.role, stages, recordAuditLog, syncSnapshot]
+    [currentUser.role, stages, recordAuditLog, syncSnapshot, triggerPreConfigSnapshot]
   );
 
   // Role Management
@@ -9779,6 +9935,20 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return true;
       }
 
+      // 5. Try IndexedDB persistent browser vault (immune to localStorage clearing/version upgrades)
+      try {
+        const idbSnap = (await getFromIndexedDbVault('current_working_state')) || (await getLatestIndexedDbSnapshot());
+        if (idbSnap && ((idbSnap.clients?.length || 0) > 0 || (idbSnap.leads?.length || 0) > 0 || (idbSnap.invoices?.length || 0) > 0)) {
+          hydrateStateFromSnapshot({ ...idbSnap, forceReset });
+          syncSnapshot(idbSnap);
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(idbSnap));
+          localStorage.setItem(CRM_VAULT_STORAGE_KEY, JSON.stringify(idbSnap));
+          setServerSyncStatus('synced');
+          setLastServerSyncTime(new Date().toLocaleTimeString());
+          return true;
+        }
+      } catch {}
+
       return false;
     } catch {
       return false;
@@ -9816,6 +9986,185 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: false, error: err.message };
     }
   }, []);
+
+  // ==========================================
+  // MASTER RECOVERY & SNAPSHOT VAULT METHODS
+  // ==========================================
+
+  // Fetch snapshots list from server
+  const fetchSnapshots = useCallback(async (): Promise<CRMSnapshot[]> => {
+    setIsLoadingSnapshots(true);
+    try {
+      const res = await fetch('/api/crm/snapshots');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.snapshots)) {
+          setSnapshots(json.snapshots);
+          if (json.liveStats) setLiveStats(json.liveStats);
+          if (json.vaultStats) setVaultStats(json.vaultStats);
+          return json.snapshots;
+        }
+      }
+      return [];
+    } catch (err) {
+      console.warn('Error fetching recovery snapshots:', err);
+      return [];
+    } finally {
+      setIsLoadingSnapshots(false);
+    }
+  }, []);
+
+  // Create a point-in-time snapshot
+  const createSnapshot = useCallback(
+    async (
+      reason: string,
+      triggerType: 'manual' | 'pre_config' | 'scheduled' = 'manual'
+    ): Promise<{ success: boolean; snapshot?: CRMSnapshot; error?: string }> => {
+      try {
+        const currentData = getCurrentLocalSnapshot();
+        const res = await fetch('/api/crm/snapshots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: reason.trim() || 'Manual Master Snapshot',
+            triggerType,
+            data: currentData,
+            createdBy: currentUser.name || 'Master Admin',
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          return { success: false, error: json.error || 'Failed to capture snapshot.' };
+        }
+
+        if (json.snapshot) {
+          setSnapshots((prev) => [json.snapshot, ...prev.filter((s) => s.filename !== json.snapshot.filename)]);
+          recordAuditLog(
+            'Database Snapshot Captured',
+            'Security',
+            `Master admin (${currentUser.name}) captured point-in-time snapshot: ${json.snapshot.filename} (${reason})`
+          );
+        }
+        return { success: true, snapshot: json.snapshot };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Network error creating snapshot.' };
+      }
+    },
+    [currentUser.name, getCurrentLocalSnapshot, recordAuditLog]
+  );
+
+  // Restore snapshot to active database & vault
+  const restoreSnapshot = useCallback(
+    async (filename: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+      try {
+        const res = await fetch(`/api/crm/snapshots/${encodeURIComponent(filename)}/restore`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          return { success: false, error: json.error || 'Failed to restore snapshot.' };
+        }
+
+        if (json.data) {
+          hydrateStateFromSnapshot({ ...json.data, forceReset: true });
+          try {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(json.data));
+            localStorage.setItem(CRM_VAULT_STORAGE_KEY, JSON.stringify(json.data));
+          } catch {}
+          syncSnapshot(json.data);
+          recordAuditLog(
+            'Database Snapshot Restored',
+            'Security',
+            `Restored complete database to snapshot: ${filename} (${json.snapshot?.reason || 'Snapshot'}) by ${currentUser.name}`
+          );
+          await fetchSnapshots();
+          return { success: true, message: json.message || `Successfully restored ${filename}` };
+        }
+        return { success: false, error: 'No data returned from restore operation.' };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Network error during snapshot restore.' };
+      }
+    },
+    [currentUser.name, hydrateStateFromSnapshot, recordAuditLog, syncSnapshot, fetchSnapshots]
+  );
+
+  // Delete an obsolete snapshot
+  const deleteSnapshot = useCallback(async (filename: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`/api/crm/snapshots/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, error: json.error || 'Failed to delete snapshot.' };
+      }
+      setSnapshots((prev) => prev.filter((s) => s.filename !== filename));
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }, []);
+
+  // Pre-configuration automated safety snapshot
+  const takePreConfigSnapshot = useCallback(
+    async (reason: string, triggerType: 'manual' | 'pre_config' | 'scheduled' = 'pre_config') => {
+      try {
+        const currentData = getCurrentLocalSnapshot();
+        // 1. Local browser snapshot backup
+        try {
+          const histRaw = localStorage.getItem('adcs_crm_snapshot_history');
+          const hist = histRaw ? JSON.parse(histRaw) : [];
+          hist.unshift({
+            id: `snap-${Date.now()}`,
+            filename: `crm-snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}-${triggerType}.json`,
+            createdAt: new Date().toISOString(),
+            reason,
+            triggerType,
+            stats: {
+              clients: (currentData.clients || []).length,
+              leads: (currentData.leads || []).length,
+              invoices: (currentData.invoices || []).length,
+              transactions: (currentData.transactions || []).length,
+              tasks: (currentData.tasks || []).length,
+              users: (currentData.users || []).length,
+              companies: (currentData.companies || []).length,
+              documents: (currentData.documents || []).length,
+              totalCoreRecords:
+                (currentData.clients || []).length +
+                (currentData.leads || []).length +
+                (currentData.invoices || []).length +
+                (currentData.transactions || []).length +
+                (currentData.tasks || []).length,
+            },
+          });
+          localStorage.setItem('adcs_crm_snapshot_history', JSON.stringify(hist.slice(0, 20)));
+        } catch {}
+
+        // 2. Server snapshot vault
+        fetch('/api/crm/snapshots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason,
+            triggerType,
+            data: currentData,
+            createdBy: currentUser?.name || 'Master Admin',
+          }),
+        })
+          .then((r) => r.json())
+          .then((resJson) => {
+            if (resJson.success && resJson.snapshot) {
+              setSnapshots((prev) => [resJson.snapshot, ...prev.filter((s) => s.filename !== resJson.snapshot.filename)]);
+            }
+          })
+          .catch(() => {});
+      } catch (err) {
+        console.warn('Pre-config snapshot notice:', err);
+      }
+    },
+    [currentUser?.name, getCurrentLocalSnapshot]
+  );
 
   // ==========================================
   // GLOBAL VISA SERVICES & WORKFLOW MANAGEMENT
@@ -11874,6 +12223,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         saveDataToServer,
         loadDataFromServer,
         createDatabaseBackup,
+
+        // Recovery Dashboard & Automated Snapshots
+        snapshots,
+        liveStats,
+        vaultStats,
+        isLoadingSnapshots,
+        fetchSnapshots,
+        createSnapshot,
+        restoreSnapshot,
+        deleteSnapshot,
+        takePreConfigSnapshot,
 
         // Conflict Resolution
         conflictInfo,

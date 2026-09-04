@@ -14,6 +14,7 @@ import {
   Globe,
   Plane,
   Wand2,
+  RotateCcw,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 
@@ -144,6 +145,14 @@ export const MasterDashboard: React.FC = () => {
           >
             <span>Open Visa Hub ({visaApplications.length})</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setActiveTab('recovery')}
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-blue-300 text-xs font-bold rounded-lg border border-blue-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Open Master Recovery Dashboard"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-blue-400" />
+            <span>Recovery Vault</span>
           </button>
         </div>
       </div>

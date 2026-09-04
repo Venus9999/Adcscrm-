@@ -29,6 +29,7 @@ import {
   Wand2,
   PenTool,
   Server,
+  RotateCcw,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { PWAInstallModal } from '../common/PWAInstallModal';
@@ -39,7 +40,7 @@ interface SidebarNavItem {
   label: string;
   icon: any;
   allowedRoles: string[];
-  badge?: number;
+  badge?: number | string;
   badgeColor?: string;
   canAccess?: (user: any) => boolean;
 }
@@ -263,6 +264,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       id: 'smtp',
       label: 'Email & SMTP Server',
       icon: Server,
+      allowedRoles: ['master', 'admin'],
+    },
+    {
+      id: 'recovery',
+      label: 'Recovery Dashboard',
+      icon: RotateCcw,
+      badge: 'Shield',
       allowedRoles: ['master', 'admin'],
     },
     {

@@ -19,70 +19,144 @@ if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 
-// Upgrade Shield: Count critical records (clients, leads, invoices) in a JSON store
-const countCoreRecords = (filePath: string): number => {
+// Upgrade Shield: Calculate comprehensive metrics across all CRM collections in a JSON file or object
+const calculateStoreMetrics = (target: string | any) => {
   try {
-    if (!fs.existsSync(filePath)) return 0;
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    const d = JSON.parse(raw);
-    const clients = (d.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0);
-    const leads = (d.leads?.length || 0);
-    const invoices = (d.invoices?.length || 0);
-    return clients + leads + invoices;
+    let d: any = target;
+    if (typeof target === 'string') {
+      if (!fs.existsSync(target)) return { totalRecords: 0, coreRecords: 0, score: 0, hasData: false, isCold: true, counts: {} as Record<string, number> };
+      const raw = fs.readFileSync(target, 'utf-8');
+      d = JSON.parse(raw);
+    }
+    if (!d || typeof d !== 'object') {
+      return { totalRecords: 0, coreRecords: 0, score: 0, hasData: false, isCold: true, counts: {} as Record<string, number> };
+    }
+
+    const clients = (Array.isArray(d.clients) ? d.clients.filter((c: any) => c && c.id !== 'client-test-1') : []).length;
+    const leads = (Array.isArray(d.leads) ? d.leads : []).length;
+    const invoices = (Array.isArray(d.invoices) ? d.invoices : []).length;
+    const transactions = (Array.isArray(d.transactions) ? d.transactions : []).length;
+    const tasks = (Array.isArray(d.tasks) ? d.tasks : []).length;
+    const documents = (Array.isArray(d.documents) ? d.documents : []).length;
+    const visaApplications = (Array.isArray(d.visaApplications) ? d.visaApplications : []).length;
+    const users = (Array.isArray(d.users) ? d.users : []).length;
+    const companies = (Array.isArray(d.companies) ? d.companies : []).length;
+    const stages = (Array.isArray(d.stages) ? d.stages : []).length;
+    const vendors = (Array.isArray(d.vendors) ? d.vendors : []).length;
+    const departments = (Array.isArray(d.departments) ? d.departments : []).length;
+
+    const coreRecords = clients + leads + invoices + transactions;
+    const operationalRecords = tasks + documents + visaApplications;
+    const structuralRecords = users + companies + stages + vendors + departments;
+    const totalRecords = coreRecords + operationalRecords;
+
+    const score =
+      clients * 25 +
+      leads * 15 +
+      invoices * 15 +
+      transactions * 10 +
+      visaApplications * 10 +
+      documents * 5 +
+      tasks * 3 +
+      companies * 2 +
+      users * 2 +
+      stages * 1;
+
+    const hasData = totalRecords > 0 || (structuralRecords > 0 && (Boolean(d.hasCustomModifications) || clients > 0 || users > 2));
+    const isCold = Boolean(d.isColdStart) && totalRecords === 0;
+
+    return {
+      totalRecords,
+      coreRecords,
+      score,
+      hasData,
+      isCold,
+      counts: {
+        clients,
+        leads,
+        invoices,
+        transactions,
+        tasks,
+        documents,
+        visaApplications,
+        users,
+        companies,
+        stages,
+        vendors,
+        departments,
+      },
+    };
   } catch {
-    return 0;
+    return { totalRecords: 0, coreRecords: 0, score: 0, hasData: false, isCold: true, counts: {} as Record<string, number> };
   }
 };
 
+const countCoreRecords = (filePath: string): number => {
+  return calculateStoreMetrics(filePath).totalRecords;
+};
+
 // Startup Auto-Recovery: Prevent data wipe when application is upgraded or container redeployed
-try {
-  const storeCoreCount = countCoreRecords(STORE_FILE);
-  if (storeCoreCount > 0) {
-    // Current working store has records, keep persistent vault in sync
-    fs.copyFileSync(STORE_FILE, VAULT_FILE);
-  } else {
-    // Current store has 0 core records (e.g. fresh upgrade/deployment). Check vault and backups
-    const vaultCoreCount = countCoreRecords(VAULT_FILE);
-    if (vaultCoreCount > 0) {
-      console.info(`[Upgrade Shield] Restoring ${vaultCoreCount} core CRM records from persistent vault...`);
-      fs.copyFileSync(VAULT_FILE, STORE_FILE);
-    } else if (fs.existsSync(BACKUPS_DIR)) {
-      const backupFiles = fs.readdirSync(BACKUPS_DIR)
-        .filter((f) => f.endsWith('.json'))
-        .map((f) => path.join(BACKUPS_DIR, f))
-        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-
-      for (const bFile of backupFiles) {
-        const bCount = countCoreRecords(bFile);
-        if (bCount > 0) {
-          console.info(`[Upgrade Shield] Restoring ${bCount} core CRM records from backup ${path.basename(bFile)}...`);
-          fs.copyFileSync(bFile, STORE_FILE);
-          fs.copyFileSync(bFile, VAULT_FILE);
-          break;
-        }
-      }
-    }
-  }
-} catch (e) {
-  console.warn('[Upgrade Shield] Startup store check notice:', e);
-}
-
-// Ensure public directory has the latest CRM store snapshot for static deployment and GitHub sync
 try {
   const publicDir = path.join(process.cwd(), 'public');
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
   }
   const publicStore = path.join(publicDir, 'crm-store.json');
+  const distDir = path.join(process.cwd(), 'dist');
+  const distStore = path.join(distDir, 'crm-store.json');
+
+  // Candidate sources to inspect in priority order
+  const candidates: { path: string; label: string }[] = [
+    { path: STORE_FILE, label: 'Live Store' },
+    { path: VAULT_FILE, label: 'Persistent Vault' },
+    { path: publicStore, label: 'Public Seed Store' },
+    { path: distStore, label: 'Dist Seed Store' },
+  ];
+
+  if (fs.existsSync(BACKUPS_DIR)) {
+    const backupFiles = fs.readdirSync(BACKUPS_DIR)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => path.join(BACKUPS_DIR, f))
+      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+
+    for (const bFile of backupFiles.slice(0, 10)) {
+      candidates.push({ path: bFile, label: `Backup ${path.basename(bFile)}` });
+    }
+  }
+
+  let bestCandidate: { path: string; label: string; metrics: ReturnType<typeof calculateStoreMetrics> } | null = null;
+  let storeMetrics = calculateStoreMetrics(STORE_FILE);
+
+  for (const c of candidates) {
+    if (fs.existsSync(c.path)) {
+      const m = calculateStoreMetrics(c.path);
+      if (!bestCandidate || m.score > bestCandidate.metrics.score) {
+        bestCandidate = { path: c.path, label: c.label, metrics: m };
+      }
+    }
+  }
+
+  if (bestCandidate && bestCandidate.metrics.score > 0) {
+    if (!fs.existsSync(STORE_FILE) || storeMetrics.score < bestCandidate.metrics.score) {
+      console.info(`[Upgrade Shield] Restoring ${bestCandidate.metrics.totalRecords} records from ${bestCandidate.label} to Live Store (score: ${bestCandidate.metrics.score})...`);
+      fs.copyFileSync(bestCandidate.path, STORE_FILE);
+      fs.copyFileSync(bestCandidate.path, VAULT_FILE);
+      storeMetrics = bestCandidate.metrics;
+    } else {
+      // Store has best records, keep vault in sync
+      fs.copyFileSync(STORE_FILE, VAULT_FILE);
+    }
+  }
+
+  // Ensure public and dist have the latest store synced for static builds and git repo
   if (fs.existsSync(STORE_FILE)) {
     fs.copyFileSync(STORE_FILE, publicStore);
-  }
-  const distDir = path.join(process.cwd(), 'dist');
-  if (fs.existsSync(distDir) && fs.existsSync(STORE_FILE)) {
-    fs.copyFileSync(STORE_FILE, path.join(distDir, 'crm-store.json'));
+    if (fs.existsSync(distDir)) {
+      fs.copyFileSync(STORE_FILE, distStore);
+    }
   }
 } catch (e) {
-  console.warn('Initial store sync notice:', e);
+  console.warn('[Upgrade Shield] Startup store check notice:', e);
 }
 
 async function startServer() {
@@ -624,24 +698,25 @@ async function startServer() {
       if (fs.existsSync(STORE_FILE)) {
         const raw = fs.readFileSync(STORE_FILE, 'utf-8');
         const data = JSON.parse(raw);
-        const hasRecords =
-          (data.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) > 0 ||
-          (data.leads?.length || 0) > 0 ||
-          (data.invoices?.length || 0) > 0 ||
-          (data.tasks?.length || 0) > 0;
-        const isColdStart = Boolean(data.isColdStart) && !hasRecords;
+        const metrics = calculateStoreMetrics(data);
+        const isColdStart = metrics.isCold;
         return res.json({
           success: true,
-          hasData: !isColdStart,
+          hasData: metrics.hasData,
           isColdStart,
           lastUpdated: isColdStart ? null : (data.lastUpdated || null),
+          score: metrics.score,
+          totalRecords: metrics.totalRecords,
           usersCount: data.users?.length || 0,
-          clientsCount: data.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0,
+          clientsCount: metrics.counts.clients,
           vendorsCount: data.vendors?.length || 0,
-          leadsCount: data.leads?.length || 0,
+          leadsCount: metrics.counts.leads,
           departmentsCount: data.departments?.length || 0,
-          invoicesCount: data.invoices?.length || 0,
-          tasksCount: data.tasks?.length || 0,
+          invoicesCount: metrics.counts.invoices,
+          tasksCount: metrics.counts.tasks,
+          transactionsCount: metrics.counts.transactions,
+          documentsCount: metrics.counts.documents,
+          visaApplicationsCount: metrics.counts.visaApplications,
         });
       }
       return res.json({ success: true, hasData: false, isColdStart: true, lastUpdated: null });
@@ -799,25 +874,16 @@ async function startServer() {
         } else {
           data.visaApplications = [];
         }
-        const hasCoreRecords =
-          (data.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) > 0 ||
-          (data.leads?.length || 0) > 0 ||
-          (data.invoices?.length || 0) > 0;
-        const hasRecords = hasCoreRecords || (data.tasks?.length || 0) > 0;
-        const isCold = Boolean(data.isColdStart) || !hasRecords;
+        const metrics = calculateStoreMetrics(data);
         return res.json({
           success: true,
           data,
-          hasData: hasRecords,
-          hasCoreRecords,
-          isColdStart: isCold,
-          counts: {
-            clients: (data.clients || []).length,
-            leads: (data.leads || []).length,
-            invoices: (data.invoices || []).length,
-            transactions: (data.transactions || []).length,
-            tasks: (data.tasks || []).length,
-          },
+          hasData: metrics.hasData,
+          hasCoreRecords: metrics.coreRecords > 0,
+          isColdStart: metrics.isCold,
+          score: metrics.score,
+          totalRecords: metrics.totalRecords,
+          counts: metrics.counts,
         });
       }
       return res.json({ success: true, data: null, hasData: false, isColdStart: true });
@@ -1224,17 +1290,41 @@ async function startServer() {
       fs.writeFileSync(tempFile, jsonStr, 'utf-8');
       fs.renameSync(tempFile, STORE_FILE);
 
-      // Upgrade Shield: Keep persistent vault in sync whenever snapshot has core records
-      const hasCoreRecordsNow =
-        (cleanClients.length > 0) ||
-        (cleanLeads.length > 0) ||
-        (cleanInvoices.length > 0);
-
-      if (hasCoreRecordsNow) {
+      // Upgrade Shield: Keep persistent vault in sync whenever snapshot has data
+      const mergedMetrics = calculateStoreMetrics(merged);
+      if (mergedMetrics.hasData || mergedMetrics.totalRecords > 0) {
         try {
           fs.writeFileSync(VAULT_FILE, jsonStr, 'utf-8');
         } catch (eVault) {
           console.warn('[Upgrade Shield] Persistent vault write notice:', eVault);
+        }
+      }
+
+      // If this save was triggered by a version upgrade, create an automatic checkpoint in backups
+      if (payload.isVersionUpgrade || payload.triggerType === 'version_upgrade') {
+        try {
+          if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+          const upTs = new Date().toISOString().replace(/[:.]/g, '-');
+          const upBackupPath = path.join(BACKUPS_DIR, `crm-snapshot-${upTs}-version-upgrade.json`);
+          fs.writeFileSync(
+            upBackupPath,
+            JSON.stringify(
+              {
+                ...merged,
+                _snapshotMeta: {
+                  reason: payload.versionUpgradeReason || 'Automated Version Upgrade Safety Checkpoint',
+                  triggerType: 'version_upgrade',
+                  createdAt: new Date().toISOString(),
+                  createdBy: 'Upgrade Shield Engine',
+                },
+              },
+              null,
+              2
+            ),
+            'utf-8'
+          );
+        } catch (bErr) {
+          console.warn('Version upgrade checkpoint notice:', bErr);
         }
       }
 
@@ -1307,15 +1397,364 @@ async function startServer() {
     }
   });
 
-  // GET /api/crm/backups - List backups
+  // Helper to extract metadata and stats from any snapshot file
+  function parseSnapshotMeta(filePath: string, filename: string) {
+    try {
+      const stats = fs.statSync(filePath);
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const data = JSON.parse(raw);
+      const meta = data._snapshotMeta || {};
+
+      const clients = Array.isArray(data.clients) ? data.clients.filter((c: any) => c && c.id !== 'client-test-1') : [];
+      const leads = Array.isArray(data.leads) ? data.leads : [];
+      const invoices = Array.isArray(data.invoices) ? data.invoices : [];
+      const transactions = Array.isArray(data.transactions) ? data.transactions : [];
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      const users = Array.isArray(data.users) ? data.users : [];
+      const companies = Array.isArray(data.companies) ? data.companies : [];
+      const documents = Array.isArray(data.documents) ? data.documents : [];
+
+      const totalCoreRecords = clients.length + leads.length + invoices.length + transactions.length + tasks.length;
+
+      let reason = meta.reason;
+      let triggerType = meta.triggerType;
+
+      if (!reason) {
+        if (filename.includes('pre-config')) {
+          reason = 'Pre-Configuration Change Snapshot';
+          triggerType = 'pre_config';
+        } else if (filename.includes('pre-restore')) {
+          reason = 'Pre-Restore Safety Checkpoint';
+          triggerType = 'pre_restore';
+        } else if (filename.includes('upgrade-shield') || filename.includes('vault')) {
+          reason = 'Upgrade Shield System Snapshot';
+          triggerType = 'upgrade_shield';
+        } else if (filename.includes('manual')) {
+          reason = 'Manual Administrative Snapshot';
+          triggerType = 'manual';
+        } else {
+          reason = 'Automated System Backup';
+          triggerType = 'scheduled';
+        }
+      }
+
+      const sampleClients = clients.slice(0, 4).map((c: any) => c.name || c.companyName || c.email).filter(Boolean);
+
+      return {
+        id: filename.replace('.json', ''),
+        filename,
+        createdAt: meta.createdAt || stats.mtime.toISOString(),
+        size: stats.size,
+        reason,
+        triggerType: triggerType || 'system',
+        createdBy: meta.createdBy || 'System Administrator',
+        stats: {
+          clients: clients.length,
+          leads: leads.length,
+          invoices: invoices.length,
+          transactions: transactions.length,
+          tasks: tasks.length,
+          users: users.length,
+          companies: companies.length,
+          documents: documents.length,
+          totalCoreRecords,
+        },
+        sampleClients,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // GET /api/crm/snapshots - Master Recovery Dashboard snapshot list
+  app.get('/api/crm/snapshots', (req, res) => {
+    try {
+      if (!fs.existsSync(BACKUPS_DIR)) {
+        fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+      }
+
+      const files = fs.readdirSync(BACKUPS_DIR)
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => path.join(BACKUPS_DIR, f))
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+
+      const snapshots = files
+        .map((filePath) => parseSnapshotMeta(filePath, path.basename(filePath)))
+        .filter(Boolean);
+
+      // Current live stats
+      let liveStats = null;
+      if (fs.existsSync(STORE_FILE)) {
+        liveStats = parseSnapshotMeta(STORE_FILE, 'live-database.json');
+      }
+
+      // Vault stats
+      let vaultStats = null;
+      if (fs.existsSync(VAULT_FILE)) {
+        vaultStats = parseSnapshotMeta(VAULT_FILE, 'persistent-vault.json');
+      }
+
+      return res.json({
+        success: true,
+        upgradeShieldActive: true,
+        totalSnapshots: snapshots.length,
+        liveStats,
+        vaultStats,
+        snapshots,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/crm/snapshots - Create a new snapshot (e.g. pre-config, manual, scheduled)
+  app.post('/api/crm/snapshots', (req, res) => {
+    try {
+      if (!fs.existsSync(BACKUPS_DIR)) {
+        fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+      }
+
+      const { reason = 'Manual Master Snapshot', triggerType = 'manual', data, createdBy = 'Master Admin' } = req.body || {};
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const safeSlug = String(triggerType).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+      const filename = `crm-snapshot-${timestamp}-${safeSlug}.json`;
+      const backupPath = path.join(BACKUPS_DIR, filename);
+
+      let payloadToSave: any = null;
+      if (data && typeof data === 'object') {
+        payloadToSave = {
+          ...data,
+          _snapshotMeta: {
+            reason,
+            triggerType,
+            createdAt: new Date().toISOString(),
+            createdBy,
+            version: '4.0',
+          },
+        };
+      } else if (fs.existsSync(STORE_FILE)) {
+        const raw = fs.readFileSync(STORE_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        payloadToSave = {
+          ...parsed,
+          _snapshotMeta: {
+            reason,
+            triggerType,
+            createdAt: new Date().toISOString(),
+            createdBy,
+            version: '4.0',
+          },
+        };
+      } else if (fs.existsSync(VAULT_FILE)) {
+        const raw = fs.readFileSync(VAULT_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        payloadToSave = {
+          ...parsed,
+          _snapshotMeta: {
+            reason,
+            triggerType,
+            createdAt: new Date().toISOString(),
+            createdBy,
+            version: '4.0',
+          },
+        };
+      } else {
+        return res.status(400).json({ success: false, error: 'No active CRM data found to snapshot' });
+      }
+
+      fs.writeFileSync(backupPath, JSON.stringify(payloadToSave, null, 2), 'utf-8');
+
+      // Update vault with this populated snapshot if it has core records
+      const snapshotMeta = parseSnapshotMeta(backupPath, filename);
+      if (snapshotMeta && snapshotMeta.stats.totalCoreRecords > 0) {
+        fs.writeFileSync(VAULT_FILE, JSON.stringify(payloadToSave, null, 2), 'utf-8');
+      }
+
+      return res.json({
+        success: true,
+        message: 'Snapshot created successfully',
+        snapshot: snapshotMeta,
+      });
+    } catch (err: any) {
+      console.error('Error creating CRM snapshot:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // GET /api/crm/snapshots/:filename - View snapshot details or full data
+  app.get('/api/crm/snapshots/:filename', (req, res) => {
+    try {
+      const filename = path.basename(req.params.filename);
+      const filePath = path.join(BACKUPS_DIR, filename);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ success: false, error: 'Snapshot not found' });
+      }
+
+      const meta = parseSnapshotMeta(filePath, filename);
+      const isFull = req.query.full === 'true';
+
+      if (isFull) {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const data = JSON.parse(raw);
+        return res.json({ success: true, meta, data });
+      }
+
+      return res.json({ success: true, meta });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // GET /api/crm/snapshots/:filename/download - Download snapshot as JSON
+  app.get('/api/crm/snapshots/:filename/download', (req, res) => {
+    try {
+      const filename = path.basename(req.params.filename);
+      const filePath = path.join(BACKUPS_DIR, filename);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ success: false, error: 'Snapshot file not found' });
+      }
+
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', 'application/json');
+      return res.sendFile(filePath);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/crm/snapshots/:filename/restore - Restore specific snapshot to Live DB & Vault
+  app.post('/api/crm/snapshots/:filename/restore', (req, res) => {
+    try {
+      const filename = path.basename(req.params.filename);
+      const filePath = path.join(BACKUPS_DIR, filename);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ success: false, error: 'Snapshot file not found' });
+      }
+
+      // Step 1: Pre-restore safety backup of current live state
+      if (fs.existsSync(STORE_FILE)) {
+        try {
+          const liveRaw = fs.readFileSync(STORE_FILE, 'utf-8');
+          const liveData = JSON.parse(liveRaw);
+          const liveCoreCount = countCoreRecords(STORE_FILE);
+          if (liveCoreCount > 0) {
+            const safetyTs = new Date().toISOString().replace(/[:.]/g, '-');
+            const safetyPath = path.join(BACKUPS_DIR, `crm-snapshot-${safetyTs}-pre-restore.json`);
+            fs.writeFileSync(
+              safetyPath,
+              JSON.stringify(
+                {
+                  ...liveData,
+                  _snapshotMeta: {
+                    reason: `Pre-Restore Safety Checkpoint (before restoring ${filename})`,
+                    triggerType: 'pre_restore',
+                    createdAt: new Date().toISOString(),
+                    createdBy: 'Automated Recovery Shield',
+                  },
+                },
+                null,
+                2
+              ),
+              'utf-8'
+            );
+          }
+        } catch (safetyErr) {
+          console.warn('Pre-restore safety snapshot notice:', safetyErr);
+        }
+      }
+
+      // Step 2: Read target snapshot payload
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const restoredData = JSON.parse(raw);
+
+      // Clean up internal snapshot meta from working database
+      const cleanWorkingData = { ...restoredData };
+      delete cleanWorkingData._snapshotMeta;
+      cleanWorkingData.lastUpdated = new Date().toISOString();
+
+      const cleanJson = JSON.stringify(cleanWorkingData, null, 2);
+
+      // Step 3: Write to live store and vault
+      fs.writeFileSync(STORE_FILE, cleanJson, 'utf-8');
+      fs.writeFileSync(VAULT_FILE, cleanJson, 'utf-8');
+
+      // Mirror to public and dist
+      try {
+        fs.writeFileSync(path.join(process.cwd(), 'public', 'crm-store.json'), cleanJson, 'utf-8');
+      } catch {}
+      try {
+        if (fs.existsSync(path.join(process.cwd(), 'dist'))) {
+          fs.writeFileSync(path.join(process.cwd(), 'dist', 'crm-store.json'), cleanJson, 'utf-8');
+        }
+      } catch {}
+
+      // Step 4: Broadcast update to all connected SSE clients
+      const broadcastMsg = `data: ${JSON.stringify({
+        type: 'CRM_UPDATE',
+        lastUpdated: cleanWorkingData.lastUpdated,
+        data: cleanWorkingData,
+      })}\n\n`;
+
+      for (const client of sseClients) {
+        try {
+          client.write(broadcastMsg);
+        } catch {
+          sseClients.delete(client);
+        }
+      }
+
+      const meta = parseSnapshotMeta(filePath, filename);
+
+      return res.json({
+        success: true,
+        message: `Database successfully restored from ${filename}`,
+        restoredFrom: filename,
+        snapshot: meta,
+        data: cleanWorkingData,
+      });
+    } catch (err: any) {
+      console.error('Error restoring snapshot:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // DELETE /api/crm/snapshots/:filename - Delete an obsolete snapshot
+  app.delete('/api/crm/snapshots/:filename', (req, res) => {
+    try {
+      const filename = path.basename(req.params.filename);
+      const filePath = path.join(BACKUPS_DIR, filename);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ success: false, error: 'Snapshot not found' });
+      }
+
+      const allFiles = fs.readdirSync(BACKUPS_DIR).filter((f) => f.endsWith('.json'));
+      if (allFiles.length <= 1) {
+        return res.status(400).json({
+          success: false,
+          error: 'Cannot delete the only remaining backup in the vault.',
+        });
+      }
+
+      fs.unlinkSync(filePath);
+      return res.json({ success: true, message: `Snapshot ${filename} removed.` });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Backward compatibility: GET /api/crm/backups
   app.get('/api/crm/backups', (req, res) => {
     try {
       if (!fs.existsSync(BACKUPS_DIR)) {
         return res.json({ success: true, backups: [] });
       }
       const files = fs.readdirSync(BACKUPS_DIR)
-        .filter(f => f.endsWith('.json'))
-        .map(f => {
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => {
           const stats = fs.statSync(path.join(BACKUPS_DIR, f));
           return {
             filename: f,
@@ -1387,29 +1826,39 @@ async function startServer() {
   // POST /api/crm/vault/restore - Manually or automatically restore CRM store from persistent vault
   app.post('/api/crm/vault/restore', (req, res) => {
     try {
-      let sourceFile: string | null = null;
-      if (fs.existsSync(VAULT_FILE) && countCoreRecords(VAULT_FILE) > 0) {
-        sourceFile = VAULT_FILE;
-      } else if (fs.existsSync(BACKUPS_DIR)) {
+      const publicStore = path.join(process.cwd(), 'public', 'crm-store.json');
+      const distStore = path.join(process.cwd(), 'dist', 'crm-store.json');
+
+      const candidateFiles: string[] = [];
+      if (fs.existsSync(VAULT_FILE)) candidateFiles.push(VAULT_FILE);
+      if (fs.existsSync(BACKUPS_DIR)) {
         const backupFiles = fs.readdirSync(BACKUPS_DIR)
           .filter((f) => f.endsWith('.json'))
           .map((f) => path.join(BACKUPS_DIR, f))
           .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-        for (const bFile of backupFiles) {
-          if (countCoreRecords(bFile) > 0) {
-            sourceFile = bFile;
-            break;
+        candidateFiles.push(...backupFiles);
+      }
+      if (fs.existsSync(publicStore)) candidateFiles.push(publicStore);
+      if (fs.existsSync(distStore)) candidateFiles.push(distStore);
+
+      let bestCandidate: { path: string; metrics: ReturnType<typeof calculateStoreMetrics> } | null = null;
+      for (const f of candidateFiles) {
+        if (fs.existsSync(f)) {
+          const m = calculateStoreMetrics(f);
+          if (!bestCandidate || m.score > bestCandidate.metrics.score) {
+            bestCandidate = { path: f, metrics: m };
           }
         }
       }
 
-      if (!sourceFile) {
+      if (!bestCandidate || bestCandidate.metrics.totalRecords === 0) {
         return res.status(404).json({
           success: false,
           error: 'No populated backup or persistent vault found on the server to restore from.',
         });
       }
 
+      const sourceFile = bestCandidate.path;
       const raw = fs.readFileSync(sourceFile, 'utf-8');
       const restoredData = JSON.parse(raw);
       fs.writeFileSync(STORE_FILE, raw, 'utf-8');
