@@ -419,6 +419,14 @@ const DELETED_DOCUMENTS_STORAGE_KEY = 'adcs_crm_deleted_document_ids';
 const DELETED_INVOICES_STORAGE_KEY = 'adcs_crm_deleted_invoice_ids';
 const DELETED_TASKS_STORAGE_KEY = 'adcs_crm_deleted_task_ids';
 const DELETED_LEADS_STORAGE_KEY = 'adcs_crm_deleted_lead_ids';
+const DELETED_STAGES_STORAGE_KEY = 'adcs_crm_deleted_stage_ids';
+const DELETED_SERVICE_CATEGORIES_STORAGE_KEY = 'adcs_crm_deleted_service_category_ids';
+const DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY = 'adcs_crm_deleted_service_classification_ids';
+
+export const PROTECTED_CORE_USER_IDS = ['user-master', 'user-1788353211231', 'user-1788060402768'];
+export const PROTECTED_CORE_USER_EMAILS = ['master@adcs.ae', 'hkfmsdxb@gmail.com', 'tahir@theadcs.com'];
+export const BANNED_DEMO_USER_IDS = ['user-admin-main', 'user-emp-main', 'user-agent-main', 'user-sales', 'user-2', 'user-3', 'user-4'];
+export const BANNED_DEMO_USER_EMAILS = ['admin@adcs.ae', 'employee@adcs.ae', 'agent@adcs.ae', 'sales@adcs.ae'];
 
 export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Load saved state or default
@@ -510,24 +518,141 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return INITIAL_VENDORS || [];
     }
   });
-  const [users, setUsers] = useState<User[]>(() =>
-    getInitialStorageList('users', INITIAL_USERS, true)
-  );
+  const [users, setUsers] = useState<User[]>(() => {
+    try {
+      let deletedUserIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_USERS_STORAGE_KEY);
+        if (delRaw) deletedUserIds = JSON.parse(delRaw);
+      } catch {}
+
+      // Strip protected core staff from deletedUserIds if mistakenly placed there
+      deletedUserIds = deletedUserIds.filter(
+        (id) => !PROTECTED_CORE_USER_IDS.includes(id) && !PROTECTED_CORE_USER_EMAILS.includes(id.toLowerCase().trim())
+      );
+      try {
+        localStorage.setItem(DELETED_USERS_STORAGE_KEY, JSON.stringify(deletedUserIds));
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+
+      let candidateUsers: User[] = [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.users && Array.isArray(parsed.users) && parsed.users.length > 0) {
+          candidateUsers = parsed.users;
+        }
+      }
+      if (candidateUsers.length === 0) {
+        candidateUsers = INITIAL_USERS;
+      }
+
+      const userMap = new Map<string, User>();
+      // Guarantee initial core users exist
+      INITIAL_USERS.forEach((u) => {
+        if (u && u.id && !BANNED_DEMO_USER_IDS.includes(u.id) && !BANNED_DEMO_USER_EMAILS.includes((u.email || '').toLowerCase().trim())) {
+          userMap.set(u.id, u);
+        }
+      });
+
+      candidateUsers.forEach((u) => {
+        if (!u || !u.id) return;
+        const emailClean = (u.email || '').toLowerCase().trim();
+        // Discard demo users
+        if (BANNED_DEMO_USER_IDS.includes(u.id) || BANNED_DEMO_USER_EMAILS.includes(emailClean)) return;
+        // Check tombstone for non-protected users
+        if (deletedUserIds.includes(u.id) || deletedUserIds.includes(emailClean)) {
+          if (!PROTECTED_CORE_USER_IDS.includes(u.id) && !PROTECTED_CORE_USER_EMAILS.includes(emailClean)) {
+            return;
+          }
+        }
+        const existing = userMap.get(u.id);
+        userMap.set(u.id, existing ? { ...existing, ...u } : u);
+      });
+
+      return Array.from(userMap.values());
+    } catch {
+      return INITIAL_USERS.filter((u) => !BANNED_DEMO_USER_IDS.includes(u.id));
+    }
+  });
   const [roles, setRoles] = useState<RoleDefinition[]>(() =>
     getInitialStorageList('roles', INITIAL_ROLES, true)
   );
-  const [stages, setStages] = useState<WorkStage[]>(() =>
-    getInitialStorageList('stages', INITIAL_STAGES, true)
-  );
+  const [stages, setStages] = useState<WorkStage[]>(() => {
+    try {
+      let deletedStageIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_STAGES_STORAGE_KEY);
+        if (delRaw) deletedStageIds = JSON.parse(delRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.stages && Array.isArray(parsed.stages) && parsed.stages.length > 0) {
+          return (parsed.stages as WorkStage[]).filter((s) => s && s.id && !deletedStageIds.includes(s.id));
+        }
+      }
+      return (INITIAL_STAGES || []).filter((s) => s && s.id && !deletedStageIds.includes(s.id));
+    } catch {
+      return INITIAL_STAGES || [];
+    }
+  });
   const [workflows, setWorkflows] = useState<PipelineWorkflow[]>(() =>
     getInitialStorageList('workflows', INITIAL_WORKFLOWS, true)
   );
-  const [serviceClassifications, setServiceClassifications] = useState<ServiceClassification[]>(() =>
-    getInitialStorageList('serviceClassifications', INITIAL_SERVICE_CLASSIFICATIONS, true)
-  );
-  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>(() =>
-    getInitialStorageList('serviceCategories', INITIAL_SERVICE_CATEGORIES, true)
-  );
+  const [serviceClassifications, setServiceClassifications] = useState<ServiceClassification[]>(() => {
+    try {
+      let deletedClassificationIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
+        if (delRaw) deletedClassificationIds = JSON.parse(delRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.serviceClassifications && Array.isArray(parsed.serviceClassifications) && parsed.serviceClassifications.length > 0) {
+          return (parsed.serviceClassifications as ServiceClassification[]).filter((c) => c && c.id && !deletedClassificationIds.includes(c.id));
+        }
+      }
+      return (INITIAL_SERVICE_CLASSIFICATIONS || []).filter((c) => c && c.id && !deletedClassificationIds.includes(c.id));
+    } catch {
+      return INITIAL_SERVICE_CLASSIFICATIONS || [];
+    }
+  });
+  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>(() => {
+    try {
+      let deletedCategoryIds: string[] = [];
+      try {
+        const delRaw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
+        if (delRaw) deletedCategoryIds = JSON.parse(delRaw);
+      } catch {}
+
+      const saved =
+        localStorage.getItem(LOCAL_STORAGE_KEY) ||
+        localStorage.getItem('adcs_crm_db_v2') ||
+        localStorage.getItem('adcs_crm_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories) && parsed.serviceCategories.length > 0) {
+          return (parsed.serviceCategories as ServiceCategory[]).filter((s) => s && s.id && !deletedCategoryIds.includes(s.id));
+        }
+      }
+      return (INITIAL_SERVICE_CATEGORIES || []).filter((s) => s && s.id && !deletedCategoryIds.includes(s.id));
+    } catch {
+      return INITIAL_SERVICE_CATEGORIES || [];
+    }
+  });
   const [clients, setClients] = useState<Client[]>(() => {
     try {
       let deletedClientIds: string[] = [];
@@ -978,6 +1103,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let deletedTaskIds: string[] = [];
     let deletedInvoiceIds: string[] = [];
     let deletedLeadIds: string[] = [];
+    let deletedStageIds: string[] = [];
+    let deletedServiceCategoryIds: string[] = [];
+    let deletedServiceClassificationIds: string[] = [];
 
     try {
       const delCompRaw = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY);
@@ -1000,6 +1128,42 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (delInvRaw) deletedInvoiceIds = JSON.parse(delInvRaw);
       const delLeadRaw = localStorage.getItem(DELETED_LEADS_STORAGE_KEY);
       if (delLeadRaw) deletedLeadIds = JSON.parse(delLeadRaw);
+      const delStageRaw = localStorage.getItem(DELETED_STAGES_STORAGE_KEY);
+      if (delStageRaw) deletedStageIds = JSON.parse(delStageRaw);
+      const delCatRaw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
+      if (delCatRaw) deletedServiceCategoryIds = JSON.parse(delCatRaw);
+      const delClassRaw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
+      if (delClassRaw) deletedServiceClassificationIds = JSON.parse(delClassRaw);
+
+      if (Array.isArray(parsed.deletedStageIds)) {
+        parsed.deletedStageIds.forEach((id: string) => {
+          if (id && !deletedStageIds.includes(id)) deletedStageIds.push(id);
+        });
+        localStorage.setItem(DELETED_STAGES_STORAGE_KEY, JSON.stringify(deletedStageIds));
+      }
+      if (Array.isArray(parsed.deletedServiceCategoryIds)) {
+        parsed.deletedServiceCategoryIds.forEach((id: string) => {
+          if (id && !deletedServiceCategoryIds.includes(id)) deletedServiceCategoryIds.push(id);
+        });
+      }
+      if (Array.isArray(parsed.deletedCategoryIds)) {
+        parsed.deletedCategoryIds.forEach((id: string) => {
+          if (id && !deletedServiceCategoryIds.includes(id)) deletedServiceCategoryIds.push(id);
+        });
+      }
+      localStorage.setItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY, JSON.stringify(deletedServiceCategoryIds));
+
+      if (Array.isArray(parsed.deletedServiceClassificationIds)) {
+        parsed.deletedServiceClassificationIds.forEach((id: string) => {
+          if (id && !deletedServiceClassificationIds.includes(id)) deletedServiceClassificationIds.push(id);
+        });
+      }
+      if (Array.isArray(parsed.deletedClassificationIds)) {
+        parsed.deletedClassificationIds.forEach((id: string) => {
+          if (id && !deletedServiceClassificationIds.includes(id)) deletedServiceClassificationIds.push(id);
+        });
+      }
+      localStorage.setItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY, JSON.stringify(deletedServiceClassificationIds));
 
       if (Array.isArray(parsed.deletedCompanyIds)) {
         parsed.deletedCompanyIds.forEach((id: string) => {
@@ -1092,14 +1256,46 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (delRaw) deletedUserIds = JSON.parse(delRaw);
       } catch {}
 
+      // Strip protected core staff from deletedUserIds
+      deletedUserIds = deletedUserIds.filter(
+        (id) => !PROTECTED_CORE_USER_IDS.includes(id) && !PROTECTED_CORE_USER_EMAILS.includes(id.toLowerCase().trim())
+      );
+      try {
+        localStorage.setItem(DELETED_USERS_STORAGE_KEY, JSON.stringify(deletedUserIds));
+      } catch {}
+
       const cleanUsers = (parsed.users || [])
-        .filter((u: User) => u && u.id && u.email && !deletedUserIds.includes(u.id) && !deletedUserIds.includes(u.email.toLowerCase().trim()))
+        .filter((u: User) => {
+          if (!u || !u.id || !u.email) return false;
+          const emailClean = u.email.toLowerCase().trim();
+          if (BANNED_DEMO_USER_IDS.includes(u.id) || BANNED_DEMO_USER_EMAILS.includes(emailClean)) return false;
+          if (deletedUserIds.includes(u.id) || deletedUserIds.includes(emailClean)) {
+            if (!PROTECTED_CORE_USER_IDS.includes(u.id) && !PROTECTED_CORE_USER_EMAILS.includes(emailClean)) {
+              return false;
+            }
+          }
+          return true;
+        })
         .map((u: User) => ({
           ...u,
           companyIds: u.companyIds && u.companyIds.length > 0 ? u.companyIds : u.companyId ? [u.companyId] : [],
         }));
 
       const mergedUsers = [...cleanUsers];
+
+      // Always guarantee protected staff exist in user list (Harpreet Kaur Kataria, Muhammad Tahir, Gurpreet Singh)
+      INITIAL_USERS.forEach((initU) => {
+        if (!initU || !initU.id) return;
+        const initEmail = (initU.email || '').toLowerCase().trim();
+        if (PROTECTED_CORE_USER_IDS.includes(initU.id) || PROTECTED_CORE_USER_EMAILS.includes(initEmail)) {
+          const exists = mergedUsers.some(
+            (u) => u.id === initU.id || (u.email && u.email.toLowerCase().trim() === initEmail)
+          );
+          if (!exists) {
+            mergedUsers.push(initU);
+          }
+        }
+      });
 
       // If active profile exists and not deleted, make sure it is preserved
       try {
@@ -1177,9 +1373,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return INITIAL_USERS[0];
       });
     }
-    if (parsed.stages && Array.isArray(parsed.stages)) setStages(parsed.stages);
-    if (parsed.serviceClassifications && Array.isArray(parsed.serviceClassifications)) setServiceClassifications(parsed.serviceClassifications);
-    if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) setServiceCategories(parsed.serviceCategories);
+    if (parsed.stages && Array.isArray(parsed.stages)) {
+      setStages(parsed.stages.filter((s: WorkStage) => s && s.id && !deletedStageIds.includes(s.id)));
+    }
+    if (parsed.serviceClassifications && Array.isArray(parsed.serviceClassifications)) {
+      setServiceClassifications(parsed.serviceClassifications.filter((c: ServiceClassification) => c && c.id && !deletedServiceClassificationIds.includes(c.id)));
+    }
+    if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) {
+      setServiceCategories(parsed.serviceCategories.filter((s: ServiceCategory) => s && s.id && !deletedServiceCategoryIds.includes(s.id)));
+    }
     if (parsed.clients && Array.isArray(parsed.clients)) {
       const parsedInvoices = Array.isArray(parsed.invoices) ? parsed.invoices : [];
       const cleanClients = parsed.clients
@@ -1500,6 +1702,40 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             documents: documents.length > 0 ? documents : (parsed.documents || []),
             companies: companies.length > 0 ? companies : (parsed.companies || []),
             users: users.length > 0 ? users : (parsed.users || []),
+            stages: stages.length > 0 ? stages : (parsed.stages || []),
+            workflows: workflows.length > 0 ? workflows : (parsed.workflows || []),
+            serviceCategories: serviceCategories.length > 0 ? serviceCategories : (parsed.serviceCategories || []),
+            serviceClassifications: serviceClassifications.length > 0 ? serviceClassifications : (parsed.serviceClassifications || []),
+            deletedStageIds: (() => {
+              try {
+                const raw = localStorage.getItem(DELETED_STAGES_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : (parsed.deletedStageIds || []);
+              } catch { return parsed.deletedStageIds || []; }
+            })(),
+            deletedServiceCategoryIds: (() => {
+              try {
+                const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : (parsed.deletedServiceCategoryIds || parsed.deletedCategoryIds || []);
+              } catch { return parsed.deletedServiceCategoryIds || []; }
+            })(),
+            deletedCategoryIds: (() => {
+              try {
+                const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : (parsed.deletedCategoryIds || parsed.deletedServiceCategoryIds || []);
+              } catch { return parsed.deletedCategoryIds || []; }
+            })(),
+            deletedServiceClassificationIds: (() => {
+              try {
+                const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : (parsed.deletedServiceClassificationIds || parsed.deletedClassificationIds || []);
+              } catch { return parsed.deletedServiceClassificationIds || []; }
+            })(),
+            deletedClassificationIds: (() => {
+              try {
+                const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : (parsed.deletedClassificationIds || parsed.deletedServiceClassificationIds || []);
+              } catch { return parsed.deletedClassificationIds || []; }
+            })(),
             hasCustomModifications: hasUserEditedRef.current,
             lastUpdated: lastAppliedRemoteIsoRef.current || parsed.lastUpdated || new Date().toISOString(),
           };
@@ -1532,6 +1768,36 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       transactions,
       visaApplications,
       visaCountryCatalog,
+      deletedStageIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_STAGES_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch { return []; }
+      })(),
+      deletedServiceCategoryIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch { return []; }
+      })(),
+      deletedCategoryIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch { return []; }
+      })(),
+      deletedServiceClassificationIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch { return []; }
+      })(),
+      deletedClassificationIds: (() => {
+        try {
+          const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch { return []; }
+      })(),
       lastUpdated: lastAppliedRemoteIsoRef.current || new Date().toISOString(),
       hasCustomModifications: hasUserEditedRef.current,
     };
@@ -1668,8 +1934,42 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const mergedUsers = mergeById(localSnap?.users, remoteSnap?.users);
       const mergedCompanies = mergeById(localSnap?.companies, remoteSnap?.companies);
       const mergedDepartments = mergeById(localSnap?.departments, remoteSnap?.departments);
-      const mergedCategories = mergeById(localSnap?.serviceCategories, remoteSnap?.serviceCategories);
-      const mergedClassifications = mergeById(localSnap?.serviceClassifications, remoteSnap?.serviceClassifications);
+
+      const combinedDelStageIds = [
+        ...new Set([
+          ...(localSnap?.deletedStageIds || []),
+          ...(remoteSnap?.deletedStageIds || []),
+        ]),
+      ];
+
+      const combinedDelCategoryIds = [
+        ...new Set([
+          ...(localSnap?.deletedServiceCategoryIds || []),
+          ...(localSnap?.deletedCategoryIds || []),
+          ...(remoteSnap?.deletedServiceCategoryIds || []),
+          ...(remoteSnap?.deletedCategoryIds || []),
+        ]),
+      ];
+
+      const combinedDelClassificationIds = [
+        ...new Set([
+          ...(localSnap?.deletedServiceClassificationIds || []),
+          ...(localSnap?.deletedClassificationIds || []),
+          ...(remoteSnap?.deletedServiceClassificationIds || []),
+          ...(remoteSnap?.deletedClassificationIds || []),
+        ]),
+      ];
+
+      // Stages: preserve customized order and config, strictly filter deleted
+      const rawStages = Array.isArray(localSnap?.stages) && localSnap.stages.length > 0
+        ? localSnap.stages
+        : (Array.isArray(remoteSnap?.stages) ? remoteSnap.stages : []);
+      const mergedStages = (rawStages || []).filter((s: any) => s && s.id && !combinedDelStageIds.includes(s.id));
+
+      const mergedCategories = mergeById(localSnap?.serviceCategories, remoteSnap?.serviceCategories)
+        .filter((c: any) => c && c.id && !combinedDelCategoryIds.includes(c.id));
+      const mergedClassifications = mergeById(localSnap?.serviceClassifications, remoteSnap?.serviceClassifications)
+        .filter((c: any) => c && c.id && !combinedDelClassificationIds.includes(c.id));
       const mergedTransactions = mergeById(localSnap?.transactions, remoteSnap?.transactions);
       const mergedMessages = mergeById(localSnap?.messages, remoteSnap?.messages);
       const mergedNotifications = mergeById(localSnap?.notifications, remoteSnap?.notifications);
@@ -1718,6 +2018,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         users: mergedUsers,
         companies: mergedCompanies,
         departments: mergedDepartments,
+        stages: mergedStages,
+        workflows: Array.isArray(localSnap?.workflows) && localSnap.workflows.length > 0 ? localSnap.workflows : (remoteSnap?.workflows || []),
         serviceCategories: mergedCategories,
         serviceClassifications: mergedClassifications,
         transactions: mergedTransactions,
@@ -1729,6 +2031,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deletedVisaCountryCodes: combinedDelCountryCodes,
         deletedVisaServiceIds: combinedDelServiceIds,
         deletedVisaAppIds: combinedDelAppIds,
+        deletedStageIds: combinedDelStageIds,
+        deletedServiceCategoryIds: combinedDelCategoryIds,
+        deletedCategoryIds: combinedDelCategoryIds,
+        deletedServiceClassificationIds: combinedDelClassificationIds,
+        deletedClassificationIds: combinedDelClassificationIds,
         lastUpdated: updatedIso,
         hasCustomModifications: true,
       };
@@ -1737,6 +2044,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = updatedIso;
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedSnapshot));
+        localStorage.setItem(DELETED_STAGES_STORAGE_KEY, JSON.stringify(combinedDelStageIds));
+        localStorage.setItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY, JSON.stringify(combinedDelCategoryIds));
+        localStorage.setItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY, JSON.stringify(combinedDelClassificationIds));
       } catch {}
 
       syncSnapshot(mergedSnapshot);
@@ -4929,14 +5239,40 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can add custom stages');
         return;
       }
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
       const newStage: WorkStage = {
         ...stage,
         id: `stage-${Date.now()}`,
       };
-      setStages((prev) => [...prev, newStage]);
+
+      setStages((prev) => {
+        const next = [...prev, newStage];
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.stages = next;
+            if (Array.isArray(parsed.deletedStageIds)) {
+              parsed.deletedStageIds = parsed.deletedStageIds.filter((id: string) => id !== newStage.id);
+            }
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+        return next;
+      });
+
       recordAuditLog('Stage Added', 'Stages', `Created custom work stage: ${stage.name}`);
     },
-    [currentUser.role, recordAuditLog]
+    [currentUser.role, recordAuditLog, syncSnapshot]
   );
 
   const updateStage = useCallback(
@@ -4945,10 +5281,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can edit workflow stages');
         return;
       }
-      setStages((prev) => prev.map((s) => (s.id === stageId ? { ...s, ...updates } : s)));
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
+      setStages((prev) => {
+        const next = prev.map((s) => (s.id === stageId ? { ...s, ...updates } : s));
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.stages = next;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+        return next;
+      });
+
       recordAuditLog('Stage Updated', 'Stages', `Updated stage config for ${stageId}`);
     },
-    [currentUser.role, recordAuditLog]
+    [currentUser.role, recordAuditLog, syncSnapshot]
   );
 
   const deleteStage = useCallback(
@@ -4957,11 +5315,45 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can delete workflow stages');
         return;
       }
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
+      // Save tombstone
+      let updatedDeletedStageIds: string[] = [];
+      try {
+        const raw = localStorage.getItem(DELETED_STAGES_STORAGE_KEY);
+        if (raw) updatedDeletedStageIds = JSON.parse(raw);
+        if (!updatedDeletedStageIds.includes(stageId)) updatedDeletedStageIds.push(stageId);
+        localStorage.setItem(DELETED_STAGES_STORAGE_KEY, JSON.stringify(updatedDeletedStageIds));
+      } catch {}
+
       const stage = stages.find((s) => s.id === stageId);
-      setStages((prev) => (prev || []).filter((s) => s && s.id !== stageId));
+      setStages((prev) => {
+        const next = (prev || []).filter((s) => s && s.id !== stageId);
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.stages = next;
+            parsed.deletedStageIds = [
+              ...new Set([...(Array.isArray(parsed.deletedStageIds) ? parsed.deletedStageIds : []), stageId, ...updatedDeletedStageIds])
+            ];
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+        return next;
+      });
+
       recordAuditLog('Stage Deleted', 'Stages', `Deleted work stage: ${stage?.name || stageId}`);
     },
-    [currentUser.role, stages, recordAuditLog]
+    [currentUser.role, stages, recordAuditLog, syncSnapshot]
   );
 
   // Role Management
@@ -5816,6 +6208,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             nextChangelog = [newEntry, ...nextChangelog];
           }
 
+          const subtotal = cleanUpdates.subtotal !== undefined ? Number(cleanUpdates.subtotal) : Number(i.subtotal || 0);
+          const governmentFees = cleanUpdates.governmentFees !== undefined ? Number(cleanUpdates.governmentFees) : Number(i.governmentFees || 0);
+          const vatRate = cleanUpdates.vatRate !== undefined ? Number(cleanUpdates.vatRate) : Number(i.vatRate || 0);
+          const computedVat = cleanUpdates.vatAmount !== undefined ? Number(cleanUpdates.vatAmount) : (subtotal * vatRate) / 100;
+
+          // If grandTotal was explicitly changed in updates, use that; otherwise calculate subtotal + govFees + computedVat
+          let grandTotal = cleanUpdates.grandTotal !== undefined && cleanUpdates.grandTotal !== null && !isNaN(Number(cleanUpdates.grandTotal))
+            ? Number(cleanUpdates.grandTotal)
+            : (subtotal + governmentFees + computedVat);
+          if (isNaN(grandTotal)) grandTotal = (subtotal + governmentFees + computedVat) || 0;
+
+          const amountPaid = cleanUpdates.amountPaid !== undefined ? Number(cleanUpdates.amountPaid) : Number(i.amountPaid || 0);
+          const balanceAmount = cleanUpdates.balanceAmount !== undefined && cleanUpdates.balanceAmount !== null && !isNaN(Number(cleanUpdates.balanceAmount))
+            ? Number(cleanUpdates.balanceAmount)
+            : Math.max(0, grandTotal - amountPaid);
+
+          const status = cleanUpdates.status || (balanceAmount === 0 && grandTotal > 0 ? 'paid' : amountPaid > 0 ? 'partially_paid' : 'unpaid');
+
           const updated: Invoice = {
             ...i,
             ...cleanUpdates,
@@ -5824,18 +6234,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             createdAt: i.createdAt,
             issuedByUserId: i.issuedByUserId,
             issuedByUserName: i.issuedByUserName,
+            subtotal,
+            governmentFees,
+            vatRate,
+            vatAmount: computedVat,
+            grandTotal,
+            amountPaid,
+            balanceAmount,
+            status,
             items: cleanUpdates.items !== undefined ? cleanUpdates.items : i.items || [],
             changelog: nextChangelog,
           };
-
-          if (cleanUpdates.grandTotal !== undefined || cleanUpdates.amountPaid !== undefined) {
-            const gt = cleanUpdates.grandTotal !== undefined ? cleanUpdates.grandTotal : i.grandTotal;
-            const ap = cleanUpdates.amountPaid !== undefined ? cleanUpdates.amountPaid : i.amountPaid;
-            updated.balanceAmount = Math.max(0, gt - ap);
-            updated.status = cleanUpdates.status || (updated.balanceAmount === 0 ? 'paid' : ap > 0 ? 'partially_paid' : 'unpaid');
-          } else if (cleanUpdates.status !== undefined) {
-            updated.status = cleanUpdates.status;
-          }
 
           if (updated.clientId) affectedClientIds.add(updated.clientId);
           updatedInvoiceRecord = updated;
@@ -6168,15 +6577,44 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can create service classifications');
         return {} as ServiceClassification;
       }
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
       const newClassification: ServiceClassification = {
         ...classData,
         id: `class-${Date.now()}`,
       };
-      setServiceClassifications((prev) => [...prev, newClassification]);
+
+      setServiceClassifications((prev) => {
+        const next = [...prev, newClassification];
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.serviceClassifications = next;
+            if (Array.isArray(parsed.deletedServiceClassificationIds)) {
+              parsed.deletedServiceClassificationIds = parsed.deletedServiceClassificationIds.filter((cid: string) => cid !== newClassification.id);
+            }
+            if (Array.isArray(parsed.deletedClassificationIds)) {
+              parsed.deletedClassificationIds = parsed.deletedClassificationIds.filter((cid: string) => cid !== newClassification.id);
+            }
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+        return next;
+      });
+
       recordAuditLog('Service Classification Added', 'Services', `Created service classification "${newClassification.name}"`);
       return newClassification;
     },
-    [currentUser.role, recordAuditLog]
+    [currentUser.role, recordAuditLog, syncSnapshot]
   );
 
   const updateServiceClassification = useCallback(
@@ -6185,28 +6623,61 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can edit service classifications');
         return;
       }
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
       let oldName = '';
-      setServiceClassifications((prev) =>
-        prev.map((c) => {
+      setServiceClassifications((prev) => {
+        const next = prev.map((c) => {
           if (c.id === id) {
             oldName = c.name;
             return { ...c, ...updates };
           }
           return c;
-        })
-      );
+        });
+
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.serviceClassifications = next;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+
+        return next;
+      });
 
       // If category name changed, cascade update to all service categories
       if (updates.name && oldName && updates.name.trim() !== oldName.trim()) {
         const newName = updates.name.trim();
-        setServiceCategories((prev) =>
-          prev.map((s) => (s.category === oldName ? { ...s, category: newName } : s))
-        );
+        setServiceCategories((prev) => {
+          const next = prev.map((s) => (s.category === oldName ? { ...s, category: newName } : s));
+          try {
+            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              parsed.serviceCategories = next;
+              parsed.lastUpdated = nowIso;
+              parsed.hasCustomModifications = true;
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+              syncSnapshot(parsed);
+            }
+          } catch {}
+          return next;
+        });
       }
 
       recordAuditLog('Service Classification Updated', 'Services', `Updated service classification ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [currentUser.role, recordAuditLog, syncSnapshot]
   );
 
   const deleteServiceClassification = useCallback(
@@ -6215,24 +6686,68 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can delete service classifications');
         return;
       }
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
+      // Save tombstone
+      let updatedDelClassificationIds: string[] = [];
+      try {
+        const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
+        if (raw) updatedDelClassificationIds = JSON.parse(raw);
+        if (!updatedDelClassificationIds.includes(id)) updatedDelClassificationIds.push(id);
+        localStorage.setItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY, JSON.stringify(updatedDelClassificationIds));
+      } catch {}
+
       let deletedName = '';
       setServiceClassifications((prev) => {
         const target = prev.find((c) => c.id === id);
         if (target) deletedName = target.name;
-        return prev.filter((c) => c.id !== id);
+        const next = prev.filter((c) => c.id !== id);
+
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.serviceClassifications = next;
+            parsed.deletedServiceClassificationIds = [
+              ...new Set([...(Array.isArray(parsed.deletedServiceClassificationIds) ? parsed.deletedServiceClassificationIds : []), id, ...updatedDelClassificationIds])
+            ];
+            parsed.deletedClassificationIds = parsed.deletedServiceClassificationIds;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+
+        return next;
       });
 
       // Migrate services under this classification
       if (deletedName) {
         const fallback = migrateToCategory || 'General';
-        setServiceCategories((prev) =>
-          prev.map((s) => (s.category === deletedName ? { ...s, category: fallback } : s))
-        );
+        setServiceCategories((prev) => {
+          const next = prev.map((s) => (s.category === deletedName ? { ...s, category: fallback } : s));
+          try {
+            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              parsed.serviceCategories = next;
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+              syncSnapshot(parsed);
+            }
+          } catch {}
+          return next;
+        });
       }
 
       recordAuditLog('Service Classification Deleted', 'Services', `Deleted service classification ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [currentUser.role, recordAuditLog, syncSnapshot]
   );
 
   const addServiceCategory = useCallback(
@@ -6241,15 +6756,44 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Clients cannot create service categories');
         return {} as ServiceCategory;
       }
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
       const newService: ServiceCategory = {
         ...srvData,
         id: `srv-${Date.now()}`,
       };
-      setServiceCategories((prev) => [newService, ...prev]);
+
+      setServiceCategories((prev) => {
+        const next = [newService, ...prev];
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.serviceCategories = next;
+            if (Array.isArray(parsed.deletedServiceCategoryIds)) {
+              parsed.deletedServiceCategoryIds = parsed.deletedServiceCategoryIds.filter((cid: string) => cid !== newService.id);
+            }
+            if (Array.isArray(parsed.deletedCategoryIds)) {
+              parsed.deletedCategoryIds = parsed.deletedCategoryIds.filter((cid: string) => cid !== newService.id);
+            }
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+        return next;
+      });
+
       recordAuditLog('Service Category Added', 'Services', `Created new service catalog item "${newService.name}" (${newService.code})`);
       return newService;
     },
-    [currentUser.role, recordAuditLog]
+    [currentUser.role, recordAuditLog, syncSnapshot]
   );
 
   const updateServiceCategory = useCallback(
@@ -6258,8 +6802,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can edit service categories');
         return;
       }
-      setServiceCategories((prev) =>
-        prev.map((s) => {
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
+      setServiceCategories((prev) => {
+        const next = prev.map((s) => {
           if (s.id === id) {
             const cleanUpdates: Partial<ServiceCategory> = {};
             (Object.keys(updates) as Array<keyof ServiceCategory>).forEach((key) => {
@@ -6278,11 +6826,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             };
           }
           return s;
-        })
-      );
+        });
+
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.serviceCategories = next;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+
+        return next;
+      });
+
       recordAuditLog('Service Category Updated', 'Services', `Updated service catalog item ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [currentUser.role, recordAuditLog, syncSnapshot]
   );
 
   const deleteServiceCategory = useCallback(
@@ -6291,10 +6857,45 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Permission denied: Only Admin and Master can delete service categories');
         return;
       }
-      setServiceCategories((prev) => (prev || []).filter((s) => s && s.id !== id));
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+
+      // Save tombstone
+      let updatedDelCategoryIds: string[] = [];
+      try {
+        const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
+        if (raw) updatedDelCategoryIds = JSON.parse(raw);
+        if (!updatedDelCategoryIds.includes(id)) updatedDelCategoryIds.push(id);
+        localStorage.setItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY, JSON.stringify(updatedDelCategoryIds));
+      } catch {}
+
+      setServiceCategories((prev) => {
+        const next = (prev || []).filter((s) => s && s.id !== id);
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.serviceCategories = next;
+            parsed.deletedServiceCategoryIds = [
+              ...new Set([...(Array.isArray(parsed.deletedServiceCategoryIds) ? parsed.deletedServiceCategoryIds : []), id, ...updatedDelCategoryIds])
+            ];
+            parsed.deletedCategoryIds = parsed.deletedServiceCategoryIds;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+            }
+            syncSnapshot(parsed);
+          }
+        } catch {}
+        return next;
+      });
+
       recordAuditLog('Service Category Deleted', 'Services', `Deleted service catalog ID ${id}`);
     },
-    [currentUser.role, recordAuditLog]
+    [currentUser.role, recordAuditLog, syncSnapshot]
   );
 
   // Vendors Management
@@ -6469,16 +7070,51 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addTransaction = useCallback(
     (txData: Omit<Transaction, 'id' | 'transactionNumber' | 'createdAt' | 'recordedByUserId' | 'recordedByUserName'>): Transaction => {
       const txNumber = `TX-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      const nowIso = new Date().toISOString();
+
+      let formattedDate = txData.date;
+      if (!formattedDate) {
+        formattedDate = nowIso;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(formattedDate.trim())) {
+        const timePart = nowIso.split('T')[1];
+        formattedDate = `${formattedDate.trim()}T${timePart}`;
+      }
+
       const newTx: Transaction = {
         ...txData,
+        date: formattedDate,
         id: `tx-${Date.now()}`,
         transactionNumber: txNumber,
-        createdAt: new Date().toISOString(),
+        createdAt: nowIso,
         recordedByUserId: currentUser.id,
         recordedByUserName: currentUser.name,
       };
 
-      setTransactions((prev) => [newTx, ...prev]);
+      hasUserEditedRef.current = true;
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      setTransactions((prev) => {
+        const nextList = [newTx, ...(prev || [])];
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.transactions = nextList;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({
+                type: 'CRM_TAB_UPDATE',
+                snapshot: parsed,
+              });
+            }
+            saveCRMDataToCloud(parsed, true).catch(() => {});
+          }
+        } catch {}
+        return nextList;
+      });
 
       // If linked to a client, adjust client financial ledger balances
       if (newTx.clientId) {
@@ -6508,7 +7144,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       recordAuditLog(
         'Transaction Recorded',
         'Transactions',
-        `Recorded ${newTx.type.toUpperCase()} transaction #${txNumber} for AED ${newTx.amount.toLocaleString()} (${newTx.category})`
+        `Recorded ${newTx.type.toUpperCase()} transaction #${txNumber} for AED ${newTx.amount.toLocaleString()} (${newTx.category}) with date & time`
       );
 
       return newTx;
@@ -6518,8 +7154,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateTransaction = useCallback(
     (id: string, updates: Partial<Transaction>) => {
-      setTransactions((prev) =>
-        prev.map((tx) => {
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      setTransactions((prev) => {
+        const nextList = (prev || []).map((tx) => {
           if (tx.id === id) {
             const cleanUpdates: Partial<Transaction> = {};
             (Object.keys(updates) as Array<keyof Transaction>).forEach((key) => {
@@ -6527,6 +7168,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 (cleanUpdates as any)[key] = updates[key];
               }
             });
+            if (cleanUpdates.date && /^\d{4}-\d{2}-\d{2}$/.test(String(cleanUpdates.date).trim())) {
+              const timePart = nowIso.split('T')[1];
+              cleanUpdates.date = `${String(cleanUpdates.date).trim()}T${timePart}`;
+            }
             return {
               ...tx,
               ...cleanUpdates,
@@ -6538,8 +7183,28 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             };
           }
           return tx;
-        })
-      );
+        });
+
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.transactions = nextList;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({
+                type: 'CRM_TAB_UPDATE',
+                snapshot: parsed,
+              });
+            }
+            saveCRMDataToCloud(parsed, true).catch(() => {});
+          }
+        } catch {}
+
+        return nextList;
+      });
       recordAuditLog('Transaction Updated', 'Transactions', `Updated transaction ID ${id}`);
     },
     [recordAuditLog]
@@ -6548,6 +7213,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteTransaction = useCallback(
     (id: string) => {
       if (!checkDeletePermission('Transaction Record', id)) return;
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
       setTransactions((prev) => {
         const tx = (prev || []).find((t) => t && t.id === id);
         if (tx && tx.clientId) {
@@ -6573,7 +7243,27 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             })
           );
         }
-        return (prev || []).filter((tx) => tx && tx.id !== id);
+        const nextList = (prev || []).filter((item) => item && item.id !== id);
+
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.transactions = nextList;
+            parsed.lastUpdated = nowIso;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({
+                type: 'CRM_TAB_UPDATE',
+                snapshot: parsed,
+              });
+            }
+            saveCRMDataToCloud(parsed, true).catch(() => {});
+          }
+        } catch {}
+
+        return nextList;
       });
       recordAuditLog('Transaction Deleted', 'Transactions', `Deleted transaction record ID ${id}`);
     },
@@ -8327,12 +9017,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deleteUser = useCallback(
     (id: string) => {
+      // Find user before removing to get email
+      const targetUser = users.find((u) => u.id === id);
+
+      // Check if user is protected (Harpreet Kaur Kataria, Muhammad Tahir, Gurpreet Singh)
+      if (
+        PROTECTED_CORE_USER_IDS.includes(id) ||
+        (targetUser?.email && PROTECTED_CORE_USER_EMAILS.includes(targetUser.email.toLowerCase().trim()))
+      ) {
+        console.warn('Protected core account (Harpreet Kaur Kataria / Gurpreet Singh / Muhammad Tahir) cannot be deleted');
+        return;
+      }
+
       hasUserEditedRef.current = true;
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
-
-      // Find user before removing to get email
-      const targetUser = users.find((u) => u.id === id);
 
       // Record in permanent deleted set
       try {
@@ -8665,6 +9364,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       localStorage.removeItem(DELETED_VENDORS_STORAGE_KEY);
       localStorage.removeItem(DELETED_USERS_STORAGE_KEY);
       localStorage.removeItem(DELETED_COMPANIES_STORAGE_KEY);
+      localStorage.removeItem(DELETED_STAGES_STORAGE_KEY);
+      localStorage.removeItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
+      localStorage.removeItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
     } catch {}
 
     const defaultSnapshot = {

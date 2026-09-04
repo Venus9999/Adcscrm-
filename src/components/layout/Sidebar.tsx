@@ -64,7 +64,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
     filteredLeads,
     visaApplications,
     filteredVisaApplications,
+    selectedClientId,
     setSelectedClientId,
+    clients,
     crmBranding,
     logout,
   } = useCRM();
@@ -147,6 +149,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
       label: 'Clients Directory',
       icon: Users,
       allowedRoles: ['master', 'admin', 'employee'],
+    },
+    {
+      id: 'client_portal',
+      label: 'Client Portal',
+      icon: Compass,
+      allowedRoles: ['master', 'admin'],
     },
     {
       id: 'vendors',
@@ -376,8 +384,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
           </div>
           <button
             onClick={() => {
+              if (clients && clients.length > 0) {
+                const targetId = selectedClientId && clients.some((c) => c.id === selectedClientId)
+                  ? selectedClientId
+                  : clients[0].id;
+                setSelectedClientId(targetId);
+              }
               setActiveTab('client_portal');
-              setSelectedClientId('client-1');
               onCloseMobile?.();
             }}
             className="w-full mt-1.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-md transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"

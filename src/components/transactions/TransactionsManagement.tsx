@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { Transaction } from '../../types/crm';
+import { formatDateTime, toDateTimeLocalString } from '../../utils/dateTimeFormat';
 
 export const TransactionsManagement: React.FC = () => {
   const {
@@ -161,7 +162,7 @@ export const TransactionsManagement: React.FC = () => {
       paymentMethod: 'Bank Transfer',
       referenceNumber: `TR-${Math.floor(100000 + Math.random() * 900000)}`,
       receiptNumber: `RCP-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      date: new Date().toISOString().split('T')[0],
+      date: toDateTimeLocalString(new Date()),
       status: 'completed',
       notes: '',
     });
@@ -183,7 +184,7 @@ export const TransactionsManagement: React.FC = () => {
       paymentMethod: tx.paymentMethod,
       referenceNumber: tx.referenceNumber || '',
       receiptNumber: tx.receiptNumber || '',
-      date: tx.date,
+      date: toDateTimeLocalString(tx.date || tx.createdAt),
       status: tx.status,
       notes: tx.notes || '',
     });
@@ -251,10 +252,10 @@ export const TransactionsManagement: React.FC = () => {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Tx Number', 'Date', 'Type', 'Category', 'Client', 'Company', 'Amount (AED)', 'Method', 'Reference', 'Receipt #', 'Status'];
+    const headers = ['Tx Number', 'Date & Time', 'Type', 'Category', 'Client', 'Company', 'Amount (AED)', 'Method', 'Reference', 'Receipt #', 'Status'];
     const rows = displayTransactions.map((tx) => [
       tx.transactionNumber,
-      tx.date,
+      `"${formatDateTime(tx.date || tx.createdAt)}"`,
       tx.type,
       `"${tx.category.replace(/"/g, '""')}"`,
       `"${(tx.clientName || 'N/A').replace(/"/g, '""')}"`,
@@ -543,7 +544,10 @@ export const TransactionsManagement: React.FC = () => {
                           <Icon className={`w-3.5 h-3.5 ${style.color}`} />
                           <span>{tx.transactionNumber}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{tx.date}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1 font-mono">
+                          <Clock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                          <span>{formatDateTime(tx.date || tx.createdAt)}</span>
+                        </div>
                         {tx.receiptNumber && (
                           <div className="font-mono text-[9px] text-blue-600 dark:text-blue-400 mt-0.5">
                             {tx.receiptNumber}
@@ -865,9 +869,12 @@ export const TransactionsManagement: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Transaction Date</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Transaction Date & Time *
+                  </label>
                   <input
-                    type="date"
+                    type="datetime-local"
+                    required
                     value={formData.date ?? ''}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
@@ -1001,6 +1008,19 @@ export const TransactionsManagement: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Transaction Date & Time *
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={formData.date ?? ''}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Reference Number</label>
@@ -1078,8 +1098,10 @@ export const TransactionsManagement: React.FC = () => {
                 <span className="font-mono font-bold text-slate-900 dark:text-white">{selectedTx.transactionNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Date:</span>
-                <span className="text-slate-700 dark:text-slate-300">{selectedTx.date}</span>
+                <span className="text-slate-400">Date & Time:</span>
+                <span className="font-mono text-slate-700 dark:text-slate-300">
+                  {formatDateTime(selectedTx.date || selectedTx.createdAt)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Account / Client:</span>

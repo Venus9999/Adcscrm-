@@ -658,6 +658,33 @@ async function startServer() {
         if (!data.deletedVisaCountryCodes || !Array.isArray(data.deletedVisaCountryCodes)) data.deletedVisaCountryCodes = [];
         if (!data.deletedVisaServiceIds || !Array.isArray(data.deletedVisaServiceIds)) data.deletedVisaServiceIds = [];
         if (!data.deletedVisaAppIds || !Array.isArray(data.deletedVisaAppIds)) data.deletedVisaAppIds = [];
+        if (!data.deletedStageIds || !Array.isArray(data.deletedStageIds)) data.deletedStageIds = [];
+        if (!data.deletedServiceCategoryIds || !Array.isArray(data.deletedServiceCategoryIds)) {
+          data.deletedServiceCategoryIds = Array.isArray(data.deletedCategoryIds) ? data.deletedCategoryIds : [];
+        }
+        if (!data.deletedCategoryIds || !Array.isArray(data.deletedCategoryIds)) {
+          data.deletedCategoryIds = data.deletedServiceCategoryIds;
+        }
+        if (!data.deletedServiceClassificationIds || !Array.isArray(data.deletedServiceClassificationIds)) {
+          data.deletedServiceClassificationIds = Array.isArray(data.deletedClassificationIds) ? data.deletedClassificationIds : [];
+        }
+        if (!data.deletedClassificationIds || !Array.isArray(data.deletedClassificationIds)) {
+          data.deletedClassificationIds = data.deletedServiceClassificationIds;
+        }
+
+        if (data.stages && Array.isArray(data.stages)) {
+          data.stages = data.stages.filter((s: any) => s && s.id && !data.deletedStageIds.includes(s.id));
+        }
+        if (data.serviceCategories && Array.isArray(data.serviceCategories)) {
+          data.serviceCategories = data.serviceCategories.filter(
+            (s: any) => s && s.id && !data.deletedServiceCategoryIds.includes(s.id) && !data.deletedCategoryIds.includes(s.id)
+          );
+        }
+        if (data.serviceClassifications && Array.isArray(data.serviceClassifications)) {
+          data.serviceClassifications = data.serviceClassifications.filter(
+            (c: any) => c && c.id && !data.deletedServiceClassificationIds.includes(c.id) && !data.deletedClassificationIds.includes(c.id)
+          );
+        }
 
         if (data.companies && Array.isArray(data.companies)) {
           data.companies = data.companies.filter((c: any) => c && c.id && !data.deletedCompanyIds.includes(c.id));
@@ -742,7 +769,10 @@ async function startServer() {
   app.post('/api/crm/data', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     try {
-      const payload = req.body;
+      const rawBody = req.body;
+      const payload = (rawBody && typeof rawBody === 'object' && rawBody.data && typeof rawBody.data === 'object' && (rawBody.data.clients || rawBody.data.users || rawBody.data.stages || rawBody.data.serviceCategories || rawBody.data.leads))
+        ? rawBody.data
+        : rawBody;
       if (!payload || typeof payload !== 'object') {
         return res.status(400).json({ success: false, error: 'Invalid payload format' });
       }
@@ -884,6 +914,31 @@ async function startServer() {
         ]),
       ];
 
+      const combinedDeletedStageIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedStageIds) ? payload.deletedStageIds : []),
+          ...(Array.isArray(existing.deletedStageIds) ? existing.deletedStageIds : []),
+        ]),
+      ];
+
+      const combinedDeletedServiceCategoryIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedServiceCategoryIds) ? payload.deletedServiceCategoryIds : []),
+          ...(Array.isArray(payload.deletedCategoryIds) ? payload.deletedCategoryIds : []),
+          ...(Array.isArray(existing.deletedServiceCategoryIds) ? existing.deletedServiceCategoryIds : []),
+          ...(Array.isArray(existing.deletedCategoryIds) ? existing.deletedCategoryIds : []),
+        ]),
+      ];
+
+      const combinedDeletedServiceClassificationIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedServiceClassificationIds) ? payload.deletedServiceClassificationIds : []),
+          ...(Array.isArray(payload.deletedClassificationIds) ? payload.deletedClassificationIds : []),
+          ...(Array.isArray(existing.deletedServiceClassificationIds) ? existing.deletedServiceClassificationIds : []),
+          ...(Array.isArray(existing.deletedClassificationIds) ? existing.deletedClassificationIds : []),
+        ]),
+      ];
+
       // Handle companies
       let cleanCompanies: any[] = [];
       if (Array.isArray(payload.companies)) {
@@ -1000,6 +1055,38 @@ async function startServer() {
         (a: any) => a && a.id && !combinedDeletedVisaAppIds.includes(a.id)
       );
 
+      // Handle work pipeline stages: respect modifications and deletions strictly
+      let cleanStages: any[] = [];
+      if (Array.isArray(payload.stages)) {
+        cleanStages = payload.stages.filter((s: any) => s && s.id && !combinedDeletedStageIds.includes(s.id));
+      } else if (Array.isArray(existing.stages)) {
+        cleanStages = existing.stages.filter((s: any) => s && s.id && !combinedDeletedStageIds.includes(s.id));
+      }
+
+      // Handle service categories: respect modifications and deletions strictly
+      let cleanServiceCategories: any[] = [];
+      if (Array.isArray(payload.serviceCategories)) {
+        cleanServiceCategories = payload.serviceCategories.filter(
+          (s: any) => s && s.id && !combinedDeletedServiceCategoryIds.includes(s.id)
+        );
+      } else if (Array.isArray(existing.serviceCategories)) {
+        cleanServiceCategories = existing.serviceCategories.filter(
+          (s: any) => s && s.id && !combinedDeletedServiceCategoryIds.includes(s.id)
+        );
+      }
+
+      // Handle service classifications: respect modifications and deletions strictly
+      let cleanServiceClassifications: any[] = [];
+      if (Array.isArray(payload.serviceClassifications)) {
+        cleanServiceClassifications = payload.serviceClassifications.filter(
+          (c: any) => c && c.id && !combinedDeletedServiceClassificationIds.includes(c.id)
+        );
+      } else if (Array.isArray(existing.serviceClassifications)) {
+        cleanServiceClassifications = existing.serviceClassifications.filter(
+          (c: any) => c && c.id && !combinedDeletedServiceClassificationIds.includes(c.id)
+        );
+      }
+
       // Build merged object respecting deletions from client payload snapshot
       const merged = {
         ...existing,
@@ -1012,10 +1099,10 @@ async function startServer() {
         vendors: cleanVendors,
         transactions: Array.isArray(payload.transactions) ? payload.transactions : (existing.transactions || []),
         messages: Array.isArray(payload.messages) ? payload.messages : (existing.messages || []),
-        stages: Array.isArray(payload.stages) ? payload.stages : (existing.stages || []),
+        stages: cleanStages,
         workflows: Array.isArray(payload.workflows) ? payload.workflows : (existing.workflows || []),
-        serviceCategories: Array.isArray(payload.serviceCategories) ? payload.serviceCategories : (existing.serviceCategories || []),
-        serviceClassifications: Array.isArray(payload.serviceClassifications) ? payload.serviceClassifications : (existing.serviceClassifications || []),
+        serviceCategories: cleanServiceCategories,
+        serviceClassifications: cleanServiceClassifications,
         auditLogs: Array.isArray(payload.auditLogs) ? payload.auditLogs : (existing.auditLogs || []),
         notifications: Array.isArray(payload.notifications) ? payload.notifications : (existing.notifications || []),
         departments: Array.isArray(payload.departments) ? payload.departments : (existing.departments || []),
@@ -1031,6 +1118,11 @@ async function startServer() {
         deletedInvoiceIds: combinedDeletedInvoiceIds,
         deletedLeadIds: combinedDeletedLeadIds,
         deletedVendorIds: combinedDeletedVendorIds,
+        deletedStageIds: combinedDeletedStageIds,
+        deletedServiceCategoryIds: combinedDeletedServiceCategoryIds,
+        deletedCategoryIds: combinedDeletedServiceCategoryIds,
+        deletedServiceClassificationIds: combinedDeletedServiceClassificationIds,
+        deletedClassificationIds: combinedDeletedServiceClassificationIds,
         visaApplications: cleanVisaApps,
         visaCountryCatalog: cleanVisaCatalog,
         deletedVisaCountryCodes: combinedDeletedVisaCountryCodes,
