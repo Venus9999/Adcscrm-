@@ -8,6 +8,7 @@ import { sendEmailViaSmtp, verifySmtpConnection, getEffectiveSmtpConfig } from '
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STORE_FILE = path.join(DATA_DIR, 'crm-store.json');
+const VAULT_FILE = path.join(DATA_DIR, 'crm-store-vault.json');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 
 // Ensure persistent directories exist
@@ -16,6 +17,54 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 if (!fs.existsSync(BACKUPS_DIR)) {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+}
+
+// Upgrade Shield: Count critical records (clients, leads, invoices) in a JSON store
+const countCoreRecords = (filePath: string): number => {
+  try {
+    if (!fs.existsSync(filePath)) return 0;
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const d = JSON.parse(raw);
+    const clients = (d.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0);
+    const leads = (d.leads?.length || 0);
+    const invoices = (d.invoices?.length || 0);
+    return clients + leads + invoices;
+  } catch {
+    return 0;
+  }
+};
+
+// Startup Auto-Recovery: Prevent data wipe when application is upgraded or container redeployed
+try {
+  const storeCoreCount = countCoreRecords(STORE_FILE);
+  if (storeCoreCount > 0) {
+    // Current working store has records, keep persistent vault in sync
+    fs.copyFileSync(STORE_FILE, VAULT_FILE);
+  } else {
+    // Current store has 0 core records (e.g. fresh upgrade/deployment). Check vault and backups
+    const vaultCoreCount = countCoreRecords(VAULT_FILE);
+    if (vaultCoreCount > 0) {
+      console.info(`[Upgrade Shield] Restoring ${vaultCoreCount} core CRM records from persistent vault...`);
+      fs.copyFileSync(VAULT_FILE, STORE_FILE);
+    } else if (fs.existsSync(BACKUPS_DIR)) {
+      const backupFiles = fs.readdirSync(BACKUPS_DIR)
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => path.join(BACKUPS_DIR, f))
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+
+      for (const bFile of backupFiles) {
+        const bCount = countCoreRecords(bFile);
+        if (bCount > 0) {
+          console.info(`[Upgrade Shield] Restoring ${bCount} core CRM records from backup ${path.basename(bFile)}...`);
+          fs.copyFileSync(bFile, STORE_FILE);
+          fs.copyFileSync(bFile, VAULT_FILE);
+          break;
+        }
+      }
+    }
+  }
+} catch (e) {
+  console.warn('[Upgrade Shield] Startup store check notice:', e);
 }
 
 // Ensure public directory has the latest CRM store snapshot for static deployment and GitHub sync
@@ -750,13 +799,26 @@ async function startServer() {
         } else {
           data.visaApplications = [];
         }
-        const hasRecords =
+        const hasCoreRecords =
           (data.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) > 0 ||
           (data.leads?.length || 0) > 0 ||
-          (data.invoices?.length || 0) > 0 ||
-          (data.tasks?.length || 0) > 0;
-        const isCold = Boolean(data.isColdStart) && !hasRecords;
-        return res.json({ success: true, data, hasData: !isCold, isColdStart: isCold });
+          (data.invoices?.length || 0) > 0;
+        const hasRecords = hasCoreRecords || (data.tasks?.length || 0) > 0;
+        const isCold = Boolean(data.isColdStart) || !hasRecords;
+        return res.json({
+          success: true,
+          data,
+          hasData: hasRecords,
+          hasCoreRecords,
+          isColdStart: isCold,
+          counts: {
+            clients: (data.clients || []).length,
+            leads: (data.leads || []).length,
+            invoices: (data.invoices || []).length,
+            transactions: (data.transactions || []).length,
+            tasks: (data.tasks || []).length,
+          },
+        });
       }
       return res.json({ success: true, data: null, hasData: false, isColdStart: true });
     } catch (err: any) {
@@ -992,8 +1054,13 @@ async function startServer() {
       let mergedInvoices: any[] = [];
       if (Array.isArray(payload.invoices) && payload.invoices.length > 0) {
         mergedInvoices = mergeCollection(existing.invoices || [], payload.invoices);
-      } else if (Array.isArray(existing.invoices)) {
-        mergedInvoices = existing.invoices;
+      } else if (Array.isArray(existing.invoices) && existing.invoices.length > 0) {
+        const explicitlyDeleted = (existing.invoices || []).filter((i: any) => i && i.id && combinedDeletedInvoiceIds.includes(i.id));
+        if (explicitlyDeleted.length === existing.invoices.length && explicitlyDeleted.length > 0 && Array.isArray(payload.invoices)) {
+          mergedInvoices = [];
+        } else {
+          mergedInvoices = existing.invoices;
+        }
       }
       const cleanInvoices = mergedInvoices.filter(
         (i: any) => i && i.id && !combinedDeletedInvoiceIds.includes(i.id) && (!i.clientId || !combinedDeletedClientIds.includes(i.clientId))
@@ -1003,12 +1070,30 @@ async function startServer() {
       let mergedLeads: any[] = [];
       if (Array.isArray(payload.leads) && payload.leads.length > 0) {
         mergedLeads = mergeCollection(existing.leads || [], payload.leads);
-      } else if (Array.isArray(existing.leads)) {
-        mergedLeads = existing.leads;
+      } else if (Array.isArray(existing.leads) && existing.leads.length > 0) {
+        const explicitlyDeleted = (existing.leads || []).filter((ld: any) => ld && ld.id && combinedDeletedLeadIds.includes(ld.id));
+        if (explicitlyDeleted.length === existing.leads.length && explicitlyDeleted.length > 0 && Array.isArray(payload.leads)) {
+          mergedLeads = [];
+        } else {
+          mergedLeads = existing.leads;
+        }
       }
       const cleanLeads = mergedLeads.filter(
         (ld: any) => ld && ld.id && !combinedDeletedLeadIds.includes(ld.id)
       );
+
+      // Handle transactions: merge non-destructively
+      let mergedTransactions: any[] = [];
+      if (Array.isArray(payload.transactions) && payload.transactions.length > 0) {
+        mergedTransactions = mergeCollection(existing.transactions || [], payload.transactions);
+      } else if (Array.isArray(existing.transactions)) {
+        mergedTransactions = existing.transactions;
+      }
+
+      // Handle billingSettings: retain non-empty settings
+      const mergedBillingSettings = (payload.billingSettings && typeof payload.billingSettings === 'object' && Object.keys(payload.billingSettings).length > 0)
+        ? { ...(existing.billingSettings || {}), ...payload.billingSettings }
+        : (existing.billingSettings || payload.billingSettings || undefined);
 
       // Handle vendors: merge non-destructively and strictly filter out deleted vendors
       let mergedVendors: any[] = [];
@@ -1097,7 +1182,8 @@ async function startServer() {
         invoices: cleanInvoices,
         leads: cleanLeads,
         vendors: cleanVendors,
-        transactions: Array.isArray(payload.transactions) ? payload.transactions : (existing.transactions || []),
+        transactions: mergedTransactions,
+        billingSettings: mergedBillingSettings,
         messages: Array.isArray(payload.messages) ? payload.messages : (existing.messages || []),
         stages: cleanStages,
         workflows: Array.isArray(payload.workflows) ? payload.workflows : (existing.workflows || []),
@@ -1137,6 +1223,20 @@ async function startServer() {
       const jsonStr = JSON.stringify(merged, null, 2);
       fs.writeFileSync(tempFile, jsonStr, 'utf-8');
       fs.renameSync(tempFile, STORE_FILE);
+
+      // Upgrade Shield: Keep persistent vault in sync whenever snapshot has core records
+      const hasCoreRecordsNow =
+        (cleanClients.length > 0) ||
+        (cleanLeads.length > 0) ||
+        (cleanInvoices.length > 0);
+
+      if (hasCoreRecordsNow) {
+        try {
+          fs.writeFileSync(VAULT_FILE, jsonStr, 'utf-8');
+        } catch (eVault) {
+          console.warn('[Upgrade Shield] Persistent vault write notice:', eVault);
+        }
+      }
 
       // Mirror to public and dist directories for static deployment and GitHub sync
       try {
@@ -1226,6 +1326,132 @@ async function startServer() {
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       return res.json({ success: true, backups: files });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // GET /api/crm/vault/status - Inspect persistent vault and backup status
+  app.get('/api/crm/vault/status', (req, res) => {
+    try {
+      const storeCoreCount = countCoreRecords(STORE_FILE);
+      const vaultCoreCount = countCoreRecords(VAULT_FILE);
+      const backupsCount = fs.existsSync(BACKUPS_DIR)
+        ? fs.readdirSync(BACKUPS_DIR).filter((f) => f.endsWith('.json')).length
+        : 0;
+
+      let storeDetails: any = null;
+      if (fs.existsSync(STORE_FILE)) {
+        try {
+          const d = JSON.parse(fs.readFileSync(STORE_FILE, 'utf-8'));
+          storeDetails = {
+            clients: (d.clients || []).length,
+            leads: (d.leads || []).length,
+            invoices: (d.invoices || []).length,
+            transactions: (d.transactions || []).length,
+            tasks: (d.tasks || []).length,
+            lastUpdated: d.lastUpdated,
+          };
+        } catch {}
+      }
+
+      let vaultDetails: any = null;
+      if (fs.existsSync(VAULT_FILE)) {
+        try {
+          const vd = JSON.parse(fs.readFileSync(VAULT_FILE, 'utf-8'));
+          vaultDetails = {
+            clients: (vd.clients || []).length,
+            leads: (vd.leads || []).length,
+            invoices: (vd.invoices || []).length,
+            transactions: (vd.transactions || []).length,
+            tasks: (vd.tasks || []).length,
+            lastUpdated: vd.lastUpdated,
+          };
+        } catch {}
+      }
+
+      return res.json({
+        success: true,
+        upgradeShieldActive: true,
+        storeCoreCount,
+        vaultCoreCount,
+        backupsCount,
+        storeDetails,
+        vaultDetails,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // POST /api/crm/vault/restore - Manually or automatically restore CRM store from persistent vault
+  app.post('/api/crm/vault/restore', (req, res) => {
+    try {
+      let sourceFile: string | null = null;
+      if (fs.existsSync(VAULT_FILE) && countCoreRecords(VAULT_FILE) > 0) {
+        sourceFile = VAULT_FILE;
+      } else if (fs.existsSync(BACKUPS_DIR)) {
+        const backupFiles = fs.readdirSync(BACKUPS_DIR)
+          .filter((f) => f.endsWith('.json'))
+          .map((f) => path.join(BACKUPS_DIR, f))
+          .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+        for (const bFile of backupFiles) {
+          if (countCoreRecords(bFile) > 0) {
+            sourceFile = bFile;
+            break;
+          }
+        }
+      }
+
+      if (!sourceFile) {
+        return res.status(404).json({
+          success: false,
+          error: 'No populated backup or persistent vault found on the server to restore from.',
+        });
+      }
+
+      const raw = fs.readFileSync(sourceFile, 'utf-8');
+      const restoredData = JSON.parse(raw);
+      fs.writeFileSync(STORE_FILE, raw, 'utf-8');
+      fs.writeFileSync(VAULT_FILE, raw, 'utf-8');
+
+      // Mirror to public and dist
+      try {
+        fs.writeFileSync(path.join(process.cwd(), 'public', 'crm-store.json'), raw, 'utf-8');
+      } catch {}
+      try {
+        if (fs.existsSync(path.join(process.cwd(), 'dist'))) {
+          fs.writeFileSync(path.join(process.cwd(), 'dist', 'crm-store.json'), raw, 'utf-8');
+        }
+      } catch {}
+
+      // Broadcast update to all connected clients
+      const broadcastMsg = `data: ${JSON.stringify({
+        type: 'CRM_UPDATE',
+        lastUpdated: new Date().toISOString(),
+        data: restoredData,
+      })}\n\n`;
+
+      for (const client of sseClients) {
+        try {
+          client.write(broadcastMsg);
+        } catch {
+          sseClients.delete(client);
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: 'CRM database successfully restored from persistent vault',
+        restoredFrom: path.basename(sourceFile),
+        counts: {
+          clients: (restoredData.clients || []).length,
+          leads: (restoredData.leads || []).length,
+          invoices: (restoredData.invoices || []).length,
+          transactions: (restoredData.transactions || []).length,
+          tasks: (restoredData.tasks || []).length,
+        },
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
