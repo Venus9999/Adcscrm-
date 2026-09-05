@@ -35,6 +35,7 @@ import { useCRM } from '../../context/CRMContext';
 import { Lead, TaskItem, InternalNote } from '../../types/crm';
 import { ChangeLogView } from '../common/ChangeLogView';
 import { LeadDocumentsManager } from './LeadDocumentsManager';
+import { formatDateOnly, formatTimeOnly } from '../../utils/dateTimeFormat';
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -321,13 +322,20 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               )}
             </h2>
 
-            <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2">
+            <p className="text-xs text-slate-600 dark:text-slate-400 flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <span className="font-semibold text-blue-600 dark:text-blue-400">
                 {lead.serviceInterested || lead.category || 'General PRO Clearance'}
               </span>
               <span>&bull;</span>
               <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
                 Est: AED {(lead.estimatedValue || 0).toLocaleString()}
+              </span>
+              <span>&bull;</span>
+              <span className="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1 font-mono">
+                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                Gen: {formatDateOnly(lead.createdAt)}
+                <Clock className="w-3.5 h-3.5 text-blue-500 ml-1" />
+                {formatTimeOnly(lead.createdAt) || '10:00 AM'}
               </span>
             </p>
           </div>
@@ -626,6 +634,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                         {lead.createdByName || 'Admin'}
                       </span>
                     </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500">Generation Date & Time:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono flex items-center gap-1.5 text-[11px]">
+                        <Calendar className="w-3 h-3 text-blue-500" />
+                        {formatDateOnly(lead.createdAt)}
+                        <Clock className="w-3 h-3 text-blue-500 ml-1" />
+                        {formatTimeOnly(lead.createdAt) || '10:00 AM'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -718,9 +735,10 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Created:</span>
-                      <span className="text-slate-400 font-mono text-[11px]">
-                        {new Date(lead.createdAt).toLocaleDateString()}
+                      <span className="text-slate-500">Generation Date & Time:</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-mono text-[11px] flex items-center gap-1 font-semibold">
+                        <Calendar className="w-3 h-3 text-blue-500" />
+                        {formatDateOnly(lead.createdAt)} &bull; {formatTimeOnly(lead.createdAt) || '10:00 AM'}
                       </span>
                     </div>
                   </div>
@@ -1193,8 +1211,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
         {/* Modal Footer */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500">
-            Assigned Branch: <strong>{assignedCompany?.name || 'ADCS Main HQ'}</strong>
+          <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
+            <span>
+              Branch: <strong>{assignedCompany?.name || 'ADCS Main HQ'}</strong>
+            </span>
+            <span>&bull;</span>
+            <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-blue-500" />
+              Generated: {formatDateOnly(lead.createdAt)} at {formatTimeOnly(lead.createdAt) || '10:00 AM'}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button

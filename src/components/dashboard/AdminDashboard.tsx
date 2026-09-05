@@ -211,7 +211,13 @@ export const AdminDashboard: React.FC = () => {
                     className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-md border border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-2.5 truncate">
-                      <img src={emp.avatar} alt="" className="w-8 h-8 rounded-md object-cover" />
+                      {emp.avatar ? (
+                        <img src={emp.avatar} alt="" className="w-8 h-8 rounded-md object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-md bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          {emp.name ? emp.name[0] : 'E'}
+                        </div>
+                      )}
                       <div className="truncate">
                         <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{emp.name}</p>
                         <p className="text-[10px] text-slate-500 truncate">{emp.title}</p>

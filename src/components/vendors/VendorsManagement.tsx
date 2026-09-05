@@ -522,7 +522,13 @@ export const VendorsManagement: React.FC = () => {
                         className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between hover:border-blue-500/50 cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5">
-                          <img src={c.avatar} alt={c.fullName} className="w-7 h-7 rounded-lg object-cover" />
+                          {c.avatar ? (
+                            <img src={c.avatar} alt={c.fullName} className="w-7 h-7 rounded-lg object-cover" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                              {c.fullName ? c.fullName[0] : 'C'}
+                            </div>
+                          )}
                           <div>
                             <span className="font-bold text-slate-900 dark:text-white">{c.fullName}</span>
                             <span className="text-[10px] text-slate-400 block">{c.passportNo} &bull; {c.currentStageName}</span>

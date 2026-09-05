@@ -946,7 +946,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                   </div>
 
                   <div className="relative w-full h-[460px] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white shadow-inner">
-                    {getLiveNomodUrl() ? (
+                    {getLiveNomodUrl() && getLiveNomodUrl().trim().length > 0 ? (
                       <>
                         {isIframeLoading && (
                           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 text-white z-10 gap-3 p-6 text-center">
@@ -959,7 +959,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                         )}
                         <iframe
                           key={iframeKey}
-                          src={getLiveNomodUrl()}
+                          src={getLiveNomodUrl() || undefined}
                           onLoad={() => setIsIframeLoading(false)}
                           className="w-full h-full border-0"
                           title="Nomod Real-Time Checkout Frame"

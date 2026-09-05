@@ -272,23 +272,31 @@ async function startServer() {
     }
   });
 
-  // Helper: Sanitize title for Nomod API (strictly <= 50 chars required by Nomod API)
+  // Helper: Sanitize title for Nomod API (strictly <= 50 chars required by Nomod API, never empty)
   function cleanNomodLinkTitle(rawTitle: any, invoiceOrAppId?: string): string {
     if (!rawTitle || typeof rawTitle !== 'string') return 'ADCS Visa Payment';
-    let cleaned = rawTitle.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-    const invMatch = cleaned.match(/(INV-[0-9]{4}-[0-9]{4}|#[A-Za-z0-9-_]+)/i) ||
-      (invoiceOrAppId ? [null, invoiceOrAppId] : null);
-    const invTag = invMatch && invMatch[1] ? ` (${invMatch[1].replace(/^[#(]+|[)]+$/g, '')})` : '';
+    const cleaned = rawTitle.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    if (!cleaned) return 'ADCS Visa Payment';
 
-    if (cleaned.length > 50) {
-      let base = invMatch && invMatch[0] ? cleaned.replace(invMatch[0], '') : cleaned;
-      base = base.replace(/[()#+&/\\:]/g, ' ').replace(/\s+/g, ' ').trim();
-      const maxBase = Math.max(10, 48 - invTag.length);
-      base = base.substring(0, maxBase).trim();
-      cleaned = invTag ? `${base}${invTag}` : base;
+    let refTag = '';
+    if (invoiceOrAppId && typeof invoiceOrAppId === 'string') {
+      const cleanId = invoiceOrAppId.replace(/^[#(]+|[)]+$/g, '').trim();
+      if (cleanId) {
+        const shortRef = cleanId.length > 15 ? cleanId.slice(-12) : cleanId;
+        refTag = ` (${shortRef})`;
+      }
     }
 
-    return cleaned.substring(0, 48).trim() || 'ADCS Visa Payment';
+    const maxBaseLen = Math.max(10, 45 - refTag.length);
+    let base = cleaned.replace(/[()#[\]{}"'\\/]/g, ' ').replace(/\s+/g, ' ').trim();
+    base = base.substring(0, maxBaseLen).trim();
+
+    let finalTitle = refTag ? `${base}${refTag}` : base;
+    if (finalTitle.length > 48) {
+      finalTitle = finalTitle.substring(0, 48).trim();
+    }
+    finalTitle = finalTitle.replace(/[({\[]+$/, '').trim();
+    return finalTitle || 'ADCS Visa Payment';
   }
 
   // POST /api/nomod/create-payment-link - Generate a Nomod checkout link with live API key support
@@ -333,14 +341,15 @@ async function startServer() {
       let lastApiErrText = '';
 
       // Helper to post link to Nomod
-      const callNomodLinksApi = async (linkTitle: string) => {
+      const callNomodLinksApi = async (linkTitle: string, includeRedirects = true) => {
+        const sanitizedTitle = (linkTitle || 'ADCS Visa Payment').trim().substring(0, 48) || 'ADCS Visa Payment';
         const payloadToSend: any = {
-          title: linkTitle.substring(0, 48),
+          title: sanitizedTitle,
           amount: strAmount,
           currency: (currency || 'AED').toUpperCase(),
           items: [
             {
-              name: linkTitle.substring(0, 48),
+              name: sanitizedTitle,
               amount: strAmount,
               quantity: 1,
             },
@@ -353,7 +362,7 @@ async function startServer() {
           },
         };
 
-        if (origin.startsWith('http://') || origin.startsWith('https://')) {
+        if (includeRedirects && (origin.startsWith('http://') || origin.startsWith('https://'))) {
           payloadToSend.redirect_url = returnUrl || defaultRedirectUrl;
           payloadToSend.success_url = successUrl || defaultSuccessUrl;
         }
@@ -370,20 +379,28 @@ async function startServer() {
 
       // Primary attempt to call live Nomod REST API
       try {
-        let nomodRes = await callNomodLinksApi(serviceTitle);
+        let nomodRes = await callNomodLinksApi(serviceTitle, true);
 
         if (!nomodRes.ok) {
           lastApiErrText = await nomodRes.text();
           console.warn('Nomod live API initial attempt error response:', nomodRes.status, lastApiErrText);
 
-          // Retry with ultra-safe sanitized short title if initial attempt had any validation error
-          const fallbackTitle = `ADCS Visa Payment (${resolvedInvId || ref.slice(-8)})`.substring(0, 48);
-          const retryRes = await callNomodLinksApi(fallbackTitle);
+          // Retry attempt 2: with clean short title 'ADCS Visa Payment'
+          const retryRes = await callNomodLinksApi('ADCS Visa Payment', true);
           if (retryRes.ok) {
             nomodRes = retryRes;
           } else {
             lastApiErrText = await retryRes.text();
-            console.warn('Nomod live API retry error response:', retryRes.status, lastApiErrText);
+            console.warn('Nomod live API retry attempt 2 error response:', retryRes.status, lastApiErrText);
+
+            // Retry attempt 3: without custom redirect URLs in case URL length or query params caused rejection
+            const minimalRes = await callNomodLinksApi('ADCS Visa Payment', false);
+            if (minimalRes.ok) {
+              nomodRes = minimalRes;
+            } else {
+              lastApiErrText = await minimalRes.text();
+              console.warn('Nomod live API final retry error response:', minimalRes.status, lastApiErrText);
+            }
           }
         }
 

@@ -37,11 +37,14 @@ import {
   Eye,
   Paperclip,
   Upload,
+  Clock,
+  Download,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { Lead, LeadCategory, LeadSource, LeadStage, ServiceCategory } from '../../types/crm';
 import { LeadDetailModal } from './LeadDetailModal';
 import { QuickCreateServiceModal } from '../services/QuickCreateServiceModal';
+import { formatDateOnly, formatTimeOnly } from '../../utils/dateTimeFormat';
 
 export const LeadsManagement: React.FC = () => {
   const {
@@ -85,6 +88,7 @@ export const LeadsManagement: React.FC = () => {
   const [countryFilter, setCountryFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [currentLocationFilter, setCurrentLocationFilter] = useState<string>('all');
+  const [generationDateFilter, setGenerationDateFilter] = useState<string>('all');
   const [branchFilter, setBranchFilter] = useState<string>(selectedCompanyId || 'all');
   const [employeeFilter, setEmployeeFilter] = useState<string>(selectedEmployeeId || 'all');
 
@@ -155,6 +159,8 @@ export const LeadsManagement: React.FC = () => {
     assignedEmployeeIds: [] as string[],
     notes: '',
     followUpDate: new Date().toISOString().split('T')[0],
+    generationDate: new Date().toISOString().split('T')[0],
+    generationTime: new Date().toTimeString().substring(0, 5),
   });
 
   // Convert Modal Form State
@@ -361,6 +367,26 @@ export const LeadsManagement: React.FC = () => {
         Boolean(lead.assignedEmployeeIds && lead.assignedEmployeeIds.includes(employeeFilter)) ||
         lead.createdByUserId === employeeFilter;
 
+      let matchGenDate = true;
+      if (generationDateFilter !== 'all') {
+        const leadIso = (lead.createdAt || '').split('T')[0];
+        const todayIso = new Date().toISOString().split('T')[0];
+        if (generationDateFilter === 'today') {
+          matchGenDate = leadIso === todayIso;
+        } else if (generationDateFilter === 'yesterday') {
+          const yest = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+          matchGenDate = leadIso === yest;
+        } else if (generationDateFilter === 'this_week') {
+          const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+          matchGenDate = leadIso >= sevenDaysAgo;
+        } else if (generationDateFilter === 'this_month') {
+          const monthPrefix = todayIso.substring(0, 7);
+          matchGenDate = leadIso.startsWith(monthPrefix);
+        } else {
+          matchGenDate = leadIso === generationDateFilter;
+        }
+      }
+
       return Boolean(
         matchSearch &&
         matchStatus &&
@@ -372,7 +398,8 @@ export const LeadsManagement: React.FC = () => {
         matchCity &&
         matchCurrentLocation &&
         matchBranch &&
-        matchEmployee
+        matchEmployee &&
+        matchGenDate
       );
     });
   }, [
@@ -386,6 +413,7 @@ export const LeadsManagement: React.FC = () => {
     countryFilter,
     cityFilter,
     currentLocationFilter,
+    generationDateFilter,
     branchFilter,
     employeeFilter,
     companyMap,
@@ -460,6 +488,8 @@ export const LeadsManagement: React.FC = () => {
       assignedEmployeeIds: [currentUser.id],
       notes: '',
       followUpDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+      generationDate: new Date().toISOString().split('T')[0],
+      generationTime: new Date().toTimeString().substring(0, 5),
     });
     setInitialDocs([]);
     setShowAddModal(true);
@@ -475,6 +505,10 @@ export const LeadsManagement: React.FC = () => {
       : lead.assignedEmployeeId
       ? [lead.assignedEmployeeId]
       : [];
+
+    const leadDate = lead.createdAt ? new Date(lead.createdAt) : new Date();
+    const genDateStr = !isNaN(leadDate.getTime()) ? leadDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const genTimeStr = !isNaN(leadDate.getTime()) ? leadDate.toTimeString().substring(0, 5) : '10:00';
 
     setFormData({
       name: lead.name,
@@ -504,6 +538,8 @@ export const LeadsManagement: React.FC = () => {
       assignedEmployeeIds: initialEmpIds,
       notes: lead.notes || '',
       followUpDate: lead.followUpDate || '',
+      generationDate: genDateStr,
+      generationTime: genTimeStr,
     });
     setShowEditModal(true);
   };
@@ -533,7 +569,12 @@ export const LeadsManagement: React.FC = () => {
     const assignedUser = users.find((u) => u.id === primaryId);
     const targetComp = companies.find((c) => c.id === formData.companyId);
 
+    const genDateTime = formData.generationDate && formData.generationTime
+      ? new Date(`${formData.generationDate}T${formData.generationTime}:00`).toISOString()
+      : new Date().toISOString();
+
     addLead({
+      createdAt: genDateTime,
       name: formData.name,
       gender: formData.gender,
       companyName: formData.companyName,
@@ -585,7 +626,12 @@ export const LeadsManagement: React.FC = () => {
     const assignedUser = users.find((u) => u.id === primaryId);
     const targetComp = companies.find((c) => c.id === formData.companyId);
 
+    const genDateTime = formData.generationDate && formData.generationTime
+      ? new Date(`${formData.generationDate}T${formData.generationTime}:00`).toISOString()
+      : (selectedLead.createdAt || new Date().toISOString());
+
     updateLead(selectedLead.id, {
+      createdAt: genDateTime,
       name: formData.name,
       gender: formData.gender,
       companyName: formData.companyName,
@@ -650,6 +696,54 @@ export const LeadsManagement: React.FC = () => {
       setSelectedClientId(res.client.id);
       setActiveTab('clients');
     }
+  };
+
+  const handleExportCSV = () => {
+    if (!displayLeads || displayLeads.length === 0) return;
+    const headers = [
+      'Ref No',
+      'Prospect Name',
+      'Lead Generation Date',
+      'Lead Generation Time',
+      'Category',
+      'Service Interested',
+      'Estimated Value (AED)',
+      'Source / Channel',
+      'Priority',
+      'Status',
+      'Assigned Staff',
+      'Email',
+      'Phone',
+      'Country',
+      'City',
+    ];
+
+    const rows = displayLeads.map((l) => [
+      `"${l.refNo || ''}"`,
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${formatDateOnly(l.createdAt)}"`,
+      `"${formatTimeOnly(l.createdAt) || '10:00 AM'}"`,
+      `"${(l.category || '').replace(/"/g, '""')}"`,
+      `"${(l.serviceInterested || '').replace(/"/g, '""')}"`,
+      l.estimatedValue || 0,
+      `"${(l.source || '').replace(/"/g, '""')}"`,
+      `"${l.priority || ''}"`,
+      `"${l.status || ''}"`,
+      `"${(l.assignedEmployeeName || '').replace(/"/g, '""')}"`,
+      `"${(l.email || '').replace(/"/g, '""')}"`,
+      `"${(l.phone || '').replace(/"/g, '""')}"`,
+      `"${(l.country || '').replace(/"/g, '""')}"`,
+      `"${(l.city || '').replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `ADCS_Leads_Export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const getPriorityBadge = (priority: Lead['priority']) => {
@@ -750,6 +844,15 @@ export const LeadsManagement: React.FC = () => {
           </div>
 
           <button
+            onClick={handleExportCSV}
+            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all shadow-2xs"
+            title="Export Leads with Generation Date & Time to CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </button>
+
+          <button
             onClick={handleOpenAdd}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all"
           >
@@ -837,6 +940,7 @@ export const LeadsManagement: React.FC = () => {
                   setCurrentLocationFilter('all');
                   setBranchFilter('all');
                   setEmployeeFilter('all');
+                  setGenerationDateFilter('all');
                 }}
                 className="px-2.5 py-1.5 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-xl text-[11px] font-bold hover:bg-rose-100 transition-colors flex items-center gap-1"
               >
@@ -849,8 +953,8 @@ export const LeadsManagement: React.FC = () => {
           </div>
         </div>
 
-        {/* Granular Filter Row (Employee, Branch, Category, Job Type, Country, City, Location, Status, Priority, Source) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-9 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+        {/* Granular Filter Row (Employee, Branch, Category, Job Type, Country, City, Location, Status, Priority, Source, Generation Date) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-10 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/60">
           {/* Branch / Company */}
           <select
             value={branchFilter}
@@ -981,6 +1085,23 @@ export const LeadsManagement: React.FC = () => {
                 {src.name}
               </option>
             ))}
+          </select>
+
+          {/* 9. Generation Date Filter */}
+          <select
+            value={generationDateFilter}
+            onChange={(e) => setGenerationDateFilter(e.target.value)}
+            className={`w-full px-2 py-1.5 rounded-xl text-[11px] border font-medium ${
+              generationDateFilter !== 'all'
+                ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200 ring-1 ring-blue-400/40'
+                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            <option value="all">Generated (All Time)</option>
+            <option value="today">Generated Today</option>
+            <option value="yesterday">Generated Yesterday</option>
+            <option value="this_week">Generated Last 7 Days</option>
+            <option value="this_month">Generated This Month</option>
           </select>
         </div>
       </div>
@@ -1212,6 +1333,18 @@ export const LeadsManagement: React.FC = () => {
                             )}
                           </div>
 
+                          {/* Generation Date & Time */}
+                          <div className="mt-2 py-1 px-2 rounded-lg bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-700 dark:text-slate-300 font-mono">
+                            <span className="flex items-center gap-1 font-semibold">
+                              <Calendar className="w-3 h-3 text-blue-500 shrink-0" />
+                              <span>{formatDateOnly(lead.createdAt)}</span>
+                            </span>
+                            <span className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
+                              <Clock className="w-3 h-3 text-blue-500 shrink-0" />
+                              <span>{formatTimeOnly(lead.createdAt) || '10:00 AM'}</span>
+                            </span>
+                          </div>
+
                           {/* Action Buttons */}
                           <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-1">
                             <div className="flex items-center gap-1">
@@ -1302,6 +1435,7 @@ export const LeadsManagement: React.FC = () => {
                     />
                   </th>
                   <th className="p-3.5">Ref & Prospect</th>
+                  <th className="p-3.5">Generated Date & Time</th>
                   <th className="p-3.5">Location & Current</th>
                   <th className="p-3.5">Category & Job Type</th>
                   <th className="p-3.5">Tasks & Notes</th>
@@ -1315,7 +1449,7 @@ export const LeadsManagement: React.FC = () => {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {displayLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-8 text-center text-slate-400">
+                    <td colSpan={11} className="p-8 text-center text-slate-400">
                       No prospective leads match the current filters.
                     </td>
                   </tr>
@@ -1360,6 +1494,16 @@ export const LeadsManagement: React.FC = () => {
                             {lead.name}
                           </button>
                           {lead.companyName && <div className="text-[10px] text-slate-500">{lead.companyName}</div>}
+                        </td>
+                        <td className="p-3.5 whitespace-nowrap">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span>{formatDateOnly(lead.createdAt)}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1 mt-0.5 font-mono font-medium">
+                            <Clock className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span>{formatTimeOnly(lead.createdAt) || '10:00 AM'}</span>
+                          </div>
                         </td>
                         <td className="p-3.5">
                           <div className="space-y-1">
@@ -1844,6 +1988,45 @@ export const LeadsManagement: React.FC = () => {
                 </div>
               </div>
 
+              {/* Lead Generation Date & Time */}
+              <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 rounded-xl border border-blue-200/80 dark:border-blue-800/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-blue-950 dark:text-blue-200 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>Lead Generation Date & Time *</span>
+                  </label>
+                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-semibold">
+                    Required Record Timestamp
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      Generation Date
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.generationDate}
+                      onChange={(e) => setFormData({ ...formData, generationDate: e.target.value })}
+                      className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-200 dark:border-blue-700 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      Generation Time
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={formData.generationTime}
+                      onChange={(e) => setFormData({ ...formData, generationTime: e.target.value })}
+                      className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-200 dark:border-blue-700 font-medium font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Inquiry Notes & Details</label>
                 <textarea
@@ -2265,6 +2448,70 @@ export const LeadsManagement: React.FC = () => {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Priority</label>
+                  <select
+                    value={formData.priority ?? ''}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Follow-Up Date</label>
+                  <input
+                    type="date"
+                    value={formData.followUpDate ?? ''}
+                    onChange={(e) => setFormData({ ...formData, followUpDate: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+              </div>
+
+              {/* Lead Generation Date & Time */}
+              <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 rounded-xl border border-blue-200/80 dark:border-blue-800/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-blue-950 dark:text-blue-200 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>Lead Generation Date & Time *</span>
+                  </label>
+                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-semibold">
+                    Original Inquiry Timestamp
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      Generation Date
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.generationDate}
+                      onChange={(e) => setFormData({ ...formData, generationDate: e.target.value })}
+                      className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-200 dark:border-blue-700 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      Generation Time
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={formData.generationTime}
+                      onChange={(e) => setFormData({ ...formData, generationTime: e.target.value })}
+                      className="w-full p-2 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-200 dark:border-blue-700 font-medium font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 

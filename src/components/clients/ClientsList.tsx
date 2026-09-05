@@ -12,6 +12,7 @@ import {
   Eye,
   Building2,
   Calendar,
+  Clock,
   FileCheck2,
   DollarSign,
   Phone,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { Client } from '../../types/crm';
+import { formatDateOnly, formatTimeOnly } from '../../utils/dateTimeFormat';
 
 interface ClientsListProps {
   onOpenAddClient: () => void;
@@ -391,6 +393,7 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                     />
                   </th>
                   <th className="py-3 px-5">Client / Reference</th>
+                  <th className="py-3 px-5">Registration Date & Time</th>
                   <th className="py-3 px-5">Nationality & IDs</th>
                   <th className="py-3 px-5">Active Service</th>
                   <th className="py-3 px-5">Current Work Stage</th>
@@ -401,7 +404,7 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {displayClients.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                    <td colSpan={8} className="py-8 text-center text-slate-400">
                       No clients found matching the selected filters.
                     </td>
                   </tr>
@@ -437,11 +440,17 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                         </td>
                         <td className="py-3.5 px-5">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={client.avatar}
-                              alt=""
-                              className="w-9 h-9 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
-                            />
+                            {client.avatar ? (
+                              <img
+                                src={client.avatar}
+                                alt=""
+                                className="w-9 h-9 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-md bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                {client.fullName ? client.fullName[0] : 'C'}
+                              </div>
+                            )}
                             <div>
                               <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                                 <span>{client.fullName || (client as any).name || 'Client'}</span>
@@ -451,6 +460,17 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                               </div>
                               <p className="text-[11px] text-slate-500 mt-0.5">{client.email || 'No email provided'}</p>
                             </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-5 whitespace-nowrap">
+                          <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                            <span>{formatDateOnly(client.createdAt)}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 font-mono">
+                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{formatTimeOnly(client.createdAt) || '10:00 AM'}</span>
                           </div>
                         </td>
 
@@ -527,7 +547,13 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                 <div>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <img src={client.avatar} alt="" className="w-11 h-11 rounded-md object-cover shrink-0" />
+                      {client.avatar ? (
+                        <img src={client.avatar} alt="" className="w-11 h-11 rounded-md object-cover shrink-0" />
+                      ) : (
+                        <div className="w-11 h-11 rounded-md bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                          {client.fullName ? client.fullName[0] : 'C'}
+                        </div>
+                      )}
                       <div>
                         <h3 className="font-bold text-sm text-slate-900 dark:text-white">{client.fullName || (client as any).name || 'Client'}</h3>
                         <p className="text-xs text-slate-500">{client.nationality || 'United Arab Emirates'}</p>
@@ -554,6 +580,13 @@ export const ClientsList: React.FC<ClientsListProps> = ({ onOpenAddClient, onOpe
                     <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                       <span>Passport:</span>
                       <span className="font-mono text-slate-700 dark:text-slate-300">{client.passportNo || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 pt-1 border-t border-dashed border-slate-200 dark:border-slate-800">
+                      <span>Registered:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] flex items-center gap-1 font-mono">
+                        <Calendar className="w-3 h-3 text-blue-500" />
+                        {formatDateOnly(client.createdAt)} • {formatTimeOnly(client.createdAt) || '10:00 AM'}
+                      </span>
                     </div>
                   </div>
                 </div>

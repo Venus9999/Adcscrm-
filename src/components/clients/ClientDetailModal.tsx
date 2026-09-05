@@ -43,6 +43,7 @@ import { Client, DocumentItem, Invoice, InvoiceLineItem, WorkStage, Transaction,
 import { ChangeLogView } from '../common/ChangeLogView';
 import { QuickCreateServiceModal } from '../services/QuickCreateServiceModal';
 import { NomodCheckoutModal } from '../payment/NomodCheckoutModal';
+import { formatDateOnly, formatTimeOnly } from '../../utils/dateTimeFormat';
 
 interface ClientDetailModalProps {
   clientId: string | null;
@@ -826,6 +827,13 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                 <span>{client.nationality || 'UAE Resident'}</span>
                 <span>&bull;</span>
                 <span>{company ? company.name : 'Master Group'}</span>
+                <span>&bull;</span>
+                <span className="text-sky-300 font-medium flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                  Reg: {formatDateOnly(client.createdAt)}
+                  <Clock className="w-3.5 h-3.5 text-sky-400 ml-1" />
+                  {formatTimeOnly(client.createdAt) || '10:00 AM'}
+                </span>
                 {client.vendorName && (
                   <>
                     <span>&bull;</span>
@@ -1077,6 +1085,15 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <span className="text-slate-400">Assigned Branch Admin:</span>
                     <p className="font-semibold text-slate-900 dark:text-white mt-0.5">
                       {users.find((u) => u.id === client.assignedAdminId)?.name || 'Admin'}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60">
+                    <span className="text-blue-600 dark:text-blue-400 block text-[11px] font-semibold">Client Registration Date & Time:</span>
+                    <p className="font-bold text-slate-900 dark:text-white mt-0.5 flex items-center gap-1.5 font-mono text-xs">
+                      <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                      <span>{formatDateOnly(client.createdAt)}</span>
+                      <Clock className="w-3.5 h-3.5 text-blue-500 ml-1" />
+                      <span>{formatTimeOnly(client.createdAt) || '10:00 AM'}</span>
                     </p>
                   </div>
                   <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
@@ -1568,6 +1585,17 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">{inv.serviceName}</p>
+                      <div className="text-[11px] text-slate-500 font-mono mt-1 flex items-center gap-2">
+                        <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+                          <Calendar className="w-3 h-3 text-blue-500" />
+                          {formatDateOnly(inv.issueDate || inv.createdAt)}
+                        </span>
+                        <span>&bull;</span>
+                        <span className="flex items-center gap-1 text-slate-500">
+                          <Clock className="w-3 h-3 text-blue-500" />
+                          {formatTimeOnly(inv.createdAt) || '10:00 AM'}
+                        </span>
+                      </div>
                       <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-3">
                         <span>Total: AED {(inv.grandTotal ?? 0).toLocaleString()}</span>
                         <span>&bull;</span>

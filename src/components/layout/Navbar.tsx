@@ -836,11 +836,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setShowRoleDropdown(!showRoleDropdown)}
               className="flex items-center gap-2.5 p-1.5 px-2 rounded-md bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
             >
-              <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
-                className="w-7 h-7 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700"
-              />
+              {currentUser.avatar ? (
+                <img
+                  src={currentUser.avatar}
+                  alt={currentUser.name}
+                  className="w-7 h-7 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-md bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                  {currentUser.name ? currentUser.name[0] : 'U'}
+                </div>
+              )}
               <div className="text-left hidden lg:block">
                 <div className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight">
                   {currentUser.name}
@@ -884,7 +890,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }`}
                         >
                           <div className="flex items-center gap-2.5 truncate">
-                            <img src={user.avatar} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
+                            {user.avatar ? (
+                              <img src={user.avatar} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
+                            ) : (
+                              <div className="w-7 h-7 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs shrink-0">
+                                {user.name ? user.name[0] : 'U'}
+                              </div>
+                            )}
                             <div className="truncate">
                               <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
                               <p className="text-[10px] text-slate-500 truncate">{user.title}</p>
@@ -904,7 +916,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ) : (
                   <div className="p-3 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2.5">
-                      <img src={currentUser.avatar} alt="" className="w-9 h-9 rounded-md object-cover shrink-0 ring-1 ring-slate-200 dark:ring-slate-700" />
+                      {currentUser.avatar ? (
+                        <img src={currentUser.avatar} alt="" className="w-9 h-9 rounded-md object-cover shrink-0 ring-1 ring-slate-200 dark:ring-slate-700" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-md bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                          {currentUser.name ? currentUser.name[0] : 'U'}
+                        </div>
+                      )}
                       <div className="truncate">
                         <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{currentUser.name}</p>
                         <p className="text-[11px] text-slate-500 truncate">{currentUser.email}</p>

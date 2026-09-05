@@ -1,6 +1,7 @@
 import React from 'react';
-import { Printer, X, Building2, CheckCircle2 } from 'lucide-react';
+import { Printer, X, Building2, CheckCircle2, Clock, Calendar } from 'lucide-react';
 import { Invoice, InvoiceBillingSettings, CRMBranding } from '../../types/crm';
+import { formatTimeOnly, formatDateOnly } from '../../utils/dateTimeFormat';
 
 interface InvoicePrintModalProps {
   invoice: Invoice;
@@ -102,8 +103,13 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 Tax Invoice / فاتورة ضريبية
               </div>
               <div className="text-xl font-bold text-blue-600 font-mono">{invoice.invoiceNumber}</div>
-              <p className="text-xs text-slate-500 mt-1">Issue Date: <strong>{invoice.issueDate}</strong></p>
-              <p className="text-xs text-slate-500">Due Date: <strong>{invoice.dueDate}</strong></p>
+              <p className="text-xs text-slate-500 mt-1">
+                Issue Date: <strong>{formatDateOnly(invoice.issueDate || invoice.createdAt)}</strong>
+              </p>
+              <p className="text-xs text-slate-500">
+                Issue Time: <strong>{formatTimeOnly(invoice.createdAt) || '10:00 AM'}</strong>
+              </p>
+              <p className="text-xs text-slate-500">Due Date: <strong>{formatDateOnly(invoice.dueDate)}</strong></p>
               {invoice.receiptNumber && (
                 <p className="text-xs text-emerald-600 font-mono font-semibold mt-0.5">
                   Receipt: {invoice.receiptNumber}

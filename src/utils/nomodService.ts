@@ -50,24 +50,32 @@ export interface NomodPaymentResult {
 }
 
 /**
- * Sanitizes title to strictly conform to Nomod REST API rules (must be <= 50 characters)
+ * Sanitizes title to strictly conform to Nomod REST API rules (must be <= 50 characters, never empty)
  */
 export function sanitizeNomodTitle(rawTitle: any, invoiceOrAppId?: string): string {
   if (!rawTitle || typeof rawTitle !== 'string') return 'ADCS Visa Payment';
-  let cleaned = rawTitle.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
-  const invMatch = cleaned.match(/(INV-[0-9]{4}-[0-9]{4}|#[A-Za-z0-9-_]+)/i) ||
-    (invoiceOrAppId ? [null, invoiceOrAppId] : null);
-  const invTag = invMatch && invMatch[1] ? ` (${invMatch[1].replace(/^[#(]+|[)]+$/g, '')})` : '';
+  const cleaned = rawTitle.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  if (!cleaned) return 'ADCS Visa Payment';
 
-  if (cleaned.length > 50) {
-    let base = invMatch && invMatch[0] ? cleaned.replace(invMatch[0], '') : cleaned;
-    base = base.replace(/[()#+&/\\:]/g, ' ').replace(/\s+/g, ' ').trim();
-    const maxBase = Math.max(10, 48 - invTag.length);
-    base = base.substring(0, maxBase).trim();
-    cleaned = invTag ? `${base}${invTag}` : base;
+  let refTag = '';
+  if (invoiceOrAppId && typeof invoiceOrAppId === 'string') {
+    const cleanId = invoiceOrAppId.replace(/^[#(]+|[)]+$/g, '').trim();
+    if (cleanId) {
+      const shortRef = cleanId.length > 15 ? cleanId.slice(-12) : cleanId;
+      refTag = ` (${shortRef})`;
+    }
   }
 
-  return cleaned.substring(0, 48).trim() || 'ADCS Visa Payment';
+  const maxBaseLen = Math.max(10, 45 - refTag.length);
+  let base = cleaned.replace(/[()#[\]{}"'\\/]/g, ' ').replace(/\s+/g, ' ').trim();
+  base = base.substring(0, maxBaseLen).trim();
+
+  let finalTitle = refTag ? `${base}${refTag}` : base;
+  if (finalTitle.length > 48) {
+    finalTitle = finalTitle.substring(0, 48).trim();
+  }
+  finalTitle = finalTitle.replace(/[({\[]+$/, '').trim();
+  return finalTitle || 'ADCS Visa Payment';
 }
 
 /**

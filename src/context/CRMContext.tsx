@@ -252,7 +252,7 @@ interface CRMContextType {
   deleteTransaction: (id: string) => void;
 
   // Leads & Pipeline & Category / Source / Stage Management
-  addLead: (lead: Omit<Lead, 'id' | 'refNo' | 'createdAt' | 'updatedAt'>) => Lead;
+  addLead: (lead: Omit<Lead, 'id' | 'refNo' | 'createdAt' | 'updatedAt'> & { createdAt?: string }) => Lead;
   updateLead: (id: string, updates: Partial<Lead>) => void;
   deleteLead: (id: string) => void;
   addLeadTask: (leadId: string, task: Omit<TaskItem, 'id' | 'createdAt' | 'comments'>) => void;
@@ -6178,18 +6178,127 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
 
       // Match client if clientId was not supplied or needs linking
-      if (!newInv.clientId) {
-        const matchedClient = (clients || []).find((c) => isInvoiceForClient(newInv, c));
-        if (matchedClient) {
-          newInv.clientId = matchedClient.id;
-        }
+      let matchedClient = (clients || []).find((c) => (newInv.clientId && c.id === newInv.clientId) || isInvoiceForClient(newInv, c));
+
+      let autoCreatedClient: Client | null = null;
+      if (matchedClient) {
+        newInv.clientId = matchedClient.id;
+      } else {
+        // Automatically create persistent client record in Client Directory for walk-in client
+        const clientName = (newInv.clientName || 'Walk-in Client').trim();
+        const nameParts = clientName.split(' ');
+        const firstName = nameParts[0] || 'Walk-in';
+        const lastName = nameParts.slice(1).join(' ') || 'Client';
+        const newClientId = (newInv.clientId && !newInv.clientId.startsWith('client-walkin-'))
+          ? newInv.clientId
+          : `cli-${Date.now()}`;
+        newInv.clientId = newClientId;
+
+        const prefix = newInv.companyId === 'comp-2' ? 'AUH' : 'DXB';
+        const clientRefNo = `${prefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        const nowIso = new Date().toISOString();
+
+        const walkinService: ClientService = {
+          id: `srv-${Date.now()}`,
+          clientId: newClientId,
+          serviceId: newInv.serviceId || `cat-${Date.now()}`,
+          serviceName: newInv.serviceName || 'Direct Consultation & Processing Service',
+          category: 'Corporate PRO & Legal Clearance',
+          price: newInv.subtotal || 0,
+          governmentFees: newInv.governmentFees || 0,
+          advancePaid: newInv.amountPaid || 0,
+          balance: newInv.balanceAmount !== undefined ? newInv.balanceAmount : Math.max(0, (newInv.grandTotal || 0) - (newInv.amountPaid || 0)),
+          invoiceId: newInv.id,
+          invoiceNumber: newInv.invoiceNumber,
+          status: newInv.status === 'paid' ? 'completed' : 'active',
+          currentStageId: 'stage-1',
+          currentStageName: 'Application Processing',
+          assignedEmployeeId: currentUser.id,
+          assignedEmployeeName: currentUser.name,
+          startDate: newInv.issueDate || nowIso.split('T')[0],
+          targetCompletionDate: newInv.dueDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+          requiredDocs: [],
+          stageHistory: [
+            {
+              id: `sh-${Date.now()}`,
+              fromStage: 'Walk-in Registration',
+              toStage: 'Application Processing',
+              remarks: `Client automatically registered in Client Directory via Walk-in Invoice #${newInv.invoiceNumber}`,
+              timestamp: nowIso,
+              updatedByUserId: currentUser.id,
+              updatedByUserName: currentUser.name,
+              updatedByUserRole: currentUser.role,
+            },
+          ],
+          referenceNumber: `SRV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        };
+
+        const totalAmount = Number(newInv.grandTotal) || 0;
+        const paidAmount = Number(newInv.amountPaid) || 0;
+        const outstandingAmount = newInv.balanceAmount !== undefined ? Number(newInv.balanceAmount) : Math.max(0, totalAmount - paidAmount);
+        const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+          outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid';
+
+        autoCreatedClient = {
+          id: newClientId,
+          refNo: clientRefNo,
+          fileNumber: `FILE-${Date.now().toString(36).toUpperCase()}`,
+          firstName,
+          lastName,
+          fullName: clientName,
+          email: newInv.clientEmail || 'walkin@example.com',
+          mobile: newInv.clientPhone || '+971 50 000 0000',
+          phone: newInv.clientPhone || '+971 50 000 0000',
+          whatsapp: newInv.clientPhone || '+971 50 000 0000',
+          nationality: 'United Arab Emirates',
+          dob: '1990-01-01',
+          gender: 'Male',
+          passportNo: newInv.clientPassport || '',
+          passportExpiry: '',
+          emiratesId: '',
+          emiratesIdExpiry: '',
+          residentialAddress: newInv.clientAddress || 'Dubai, UAE',
+          companyId: newInv.companyId || 'comp-1',
+          companyName: newInv.companyName || 'ADCS Clearing LLC',
+          category: 'Walk-in Client',
+          type: 'Individual',
+          status: 'active',
+          pricingTier: 'b2c',
+          referredBy: 'Direct / Walk-in',
+          assignedAdminId: currentUser.id,
+          assignedEmployeeIds: [currentUser.id],
+          assignedEmployeeName: currentUser.name,
+          services: [walkinService],
+          currentStageId: 'stage-1',
+          currentStageName: 'Application Processing',
+          paymentStatus,
+          totalAmount,
+          paidAmount,
+          outstandingAmount,
+          avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          notes: [
+            {
+              id: `note-${Date.now()}`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+              userRole: currentUser.role,
+              text: `Client profile automatically registered in Client Directory upon generating Walk-in Invoice #${newInv.invoiceNumber}.`,
+              createdAt: nowIso,
+              type: 'system',
+            },
+          ],
+          calls: [],
+          tags: ['Walk-in', 'Auto-Registered', 'Direct Invoice'],
+        };
       }
 
       const nextInvoices = [newInv, ...(invoices || [])];
       setInvoices(nextInvoices);
 
       // Update client financial amounts and services
-      const nextClients = (clients || []).map((c) => {
+      let nextClients = (clients || []).map((c) => {
         if (isInvoiceForClient(newInv, c)) {
           const clientInvs = nextInvoices.filter((i) => isInvoiceForClient(i, c));
           const newTotal = clientInvs.reduce((sum, i) => sum + (Number(i.grandTotal) || 0), 0);
@@ -6257,6 +6366,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         return c;
       });
+
+      if (autoCreatedClient) {
+        nextClients = [autoCreatedClient, ...nextClients];
+        setCompanies((prev) =>
+          prev.map((comp) =>
+            comp.id === autoCreatedClient?.companyId
+              ? { ...comp, totalClientsCount: (comp.totalClientsCount || 0) + 1 }
+              : comp
+          )
+        );
+      }
+
       setClients(nextClients);
 
       hasUserEditedRef.current = true;
@@ -7597,7 +7718,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createdByName: currentUser.name,
         id: `lead-${Date.now()}`,
         refNo,
-        createdAt: new Date().toISOString(),
+        createdAt: (leadData as any).createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
@@ -8230,7 +8351,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           userName: currentUser.name,
           userRole: currentUser.role,
           userAvatar: currentUser.avatar,
-          text: `[Converted from Lead #${lead.refNo}] ${lead.notes}`,
+          text: `[Converted from Lead #${lead.refNo}] Lead Generation Date & Time: ${lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}.${lead.notes ? ` Inquiry Notes: ${lead.notes}` : ''}`,
           taggedUserIds: [],
           createdAt: new Date().toISOString(),
         });

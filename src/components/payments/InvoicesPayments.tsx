@@ -25,6 +25,7 @@ import {
   Settings,
   Sparkles,
   Percent,
+  Calendar,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { Invoice, InvoiceLineItem, Transaction, TransactionType, PaymentMethodType, ServiceCategory } from '../../types/crm';
@@ -32,6 +33,7 @@ import { InvoicePrintModal } from './InvoicePrintModal';
 import { BillingSettingsModal } from './BillingSettingsModal';
 import { NomodCheckoutModal } from '../payment/NomodCheckoutModal';
 import { QuickCreateServiceModal } from '../services/QuickCreateServiceModal';
+import { formatDateOnly, formatTimeOnly, formatDateTime } from '../../utils/dateTimeFormat';
 
 export const InvoicesPayments: React.FC = () => {
   const {
@@ -561,7 +563,13 @@ export const InvoicesPayments: React.FC = () => {
     setInvCustomCompanyName('');
     setInvCustomServiceName('');
 
-    setInvSuccessBanner(`Invoice ${generated.invoiceNumber} for AED ${grandTotal.toLocaleString()} generated successfully!`);
+    if (invClientMode === 'custom') {
+      setInvSuccessBanner(
+        `Invoice ${generated.invoiceNumber} for AED ${grandTotal.toLocaleString()} generated & Walk-in Client "${billedClientName}" automatically added to Client Directory!`
+      );
+    } else {
+      setInvSuccessBanner(`Invoice ${generated.invoiceNumber} for AED ${grandTotal.toLocaleString()} generated successfully!`);
+    }
     setTimeout(() => setInvSuccessBanner(null), 6000);
   };
 
@@ -873,6 +881,7 @@ export const InvoicesPayments: React.FC = () => {
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="py-3 px-4">Invoice No.</th>
+                  <th className="py-3 px-4">Date & Time</th>
                   <th className="py-3 px-4">Client Dossier</th>
                   <th className="py-3 px-4">Service Description</th>
                   <th className="py-3 px-4">Grand Total</th>
@@ -884,7 +893,7 @@ export const InvoicesPayments: React.FC = () => {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {displayInvoices.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
                       <FileText className="w-10 h-10 mx-auto mb-2 opacity-40" />
                       <p className="font-semibold text-sm">No tax invoices found</p>
                       <p className="text-xs text-slate-500">Create an invoice to start billing client dossiers</p>
@@ -895,6 +904,16 @@ export const InvoicesPayments: React.FC = () => {
                     <tr key={inv.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                       <td className="py-3.5 px-4 font-mono font-bold text-blue-600 dark:text-blue-400">
                         {inv.invoiceNumber}
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <span>{formatDateOnly(inv.issueDate || inv.createdAt)}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 font-mono">
+                          <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{formatTimeOnly(inv.createdAt) || '10:00 AM'}</span>
+                        </div>
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900 dark:text-white">{inv.clientName}</div>
@@ -1251,6 +1270,10 @@ export const InvoicesPayments: React.FC = () => {
                           className="w-full p-2 bg-white dark:bg-slate-900 rounded-lg text-xs border border-slate-200 dark:border-slate-700"
                         />
                       </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-[11px] text-emerald-800 dark:text-emerald-300 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Auto-Registration: A full record for this walk-in client will be automatically created in the Client Directory with services & financials linked.</span>
                     </div>
                   </div>
                 )}

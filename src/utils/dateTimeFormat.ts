@@ -84,3 +84,14 @@ export function ensureDateTimeString(dateInput?: string | null): string {
   }
   return trimmed;
 }
+
+export function formatInvoiceDateTime(inv: { issueDate?: string; createdAt?: string } | null | undefined): string {
+  if (!inv) return '—';
+  if (inv.createdAt) {
+    return formatDateTime(inv.createdAt);
+  }
+  if (inv.issueDate) {
+    return formatDateOnly(inv.issueDate);
+  }
+  return '—';
+}

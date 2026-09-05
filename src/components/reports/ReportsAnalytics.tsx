@@ -213,7 +213,13 @@ export const ReportsAnalytics: React.FC = () => {
                     <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <img src={emp.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          {emp.avatar ? (
+                            <img src={emp.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                              {emp.name ? emp.name[0] : 'E'}
+                            </div>
+                          )}
                           <div>
                             <span className="font-bold text-slate-900 dark:text-white">{emp.name}</span>
                             <p className="text-[11px] text-slate-500">{emp.title}</p>
