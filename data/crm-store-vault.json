@@ -1576,7 +1576,7 @@
   ],
   "hasCustomModifications": false,
   "isColdStart": false,
-  "lastUpdated": "2026-09-05T14:04:12.672Z",
+  "lastUpdated": "2026-09-05T14:25:51.766Z",
   "leadCategories": [
     {
       "id": "cat-golden-visa",
@@ -3828,5 +3828,5 @@
     "createdBy": "Gurpreet Singh Kataria (master)",
     "version": "4.0"
   },
-  "revision": 6
+  "revision": 7
 }

@@ -16,7 +16,10 @@ if (isProduction) {
   process.env.NODE_ENV = 'production';
 }
 
-const PORT = parseInt(process.env.PORT || '', 10) || (isProduction ? 8080 : 3000);
+// Determine target port: In AI Studio's managed container, nginx is already bound to 8080 and proxies to 3000.
+// In standalone Cloud Run / Docker containers, the app binds directly to PORT (default 8080).
+const isAiStudioEnv = Boolean(process.env.APPLET_ID || process.env.NGINX_PORT || process.env.CONTROL_PLANE_PORT || process.env.DEFAULT_APP_PORT);
+const TARGET_PORT = isAiStudioEnv ? 3000 : (parseInt(process.env.PORT || '', 10) || 8080);
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STORE_FILE = path.join(DATA_DIR, 'crm-store.json');
 const VAULT_FILE = path.join(DATA_DIR, 'crm-store-vault.json');
@@ -2304,22 +2307,34 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`ADCS CRM Enterprise Server active on http://0.0.0.0:${PORT} [mode: ${isProduction ? 'production' : 'development'}]`);
-  });
-
-  server.on('error', (err: any) => {
-    console.error(`[Server Listen Error on port ${PORT}]:`, err);
-    process.exit(1);
-  });
-
-  process.on('SIGTERM', () => {
-    console.info('[Process] Received SIGTERM signal, shutting down server gracefully...');
-    server.close(() => {
-      console.info('[Process] Server closed successfully.');
-      process.exit(0);
+  const tryListen = (portToTry: number, fallbackPort?: number) => {
+    const srv = app.listen(portToTry, '0.0.0.0', () => {
+      console.log(`ADCS CRM Enterprise Server active on http://0.0.0.0:${portToTry} [mode: ${isProduction ? 'production' : 'development'}]`);
     });
-  });
+
+    srv.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE' && fallbackPort && fallbackPort !== portToTry) {
+        console.warn(`[Port Listen] Port ${portToTry} is already in use. Falling back to port ${fallbackPort}...`);
+        tryListen(fallbackPort);
+      } else {
+        console.error(`[Server Listen Error on port ${portToTry}]:`, err);
+        process.exit(1);
+      }
+    });
+
+    process.on('SIGTERM', () => {
+      console.info('[Process] Received SIGTERM signal, shutting down server gracefully...');
+      srv.close(() => {
+        console.info('[Process] Server closed successfully.');
+        process.exit(0);
+      });
+    });
+
+    return srv;
+  };
+
+  const alternatePort = TARGET_PORT === 3000 ? 8080 : 3000;
+  tryListen(TARGET_PORT, alternatePort);
 }
 
 process.on('uncaughtException', (err) => {
