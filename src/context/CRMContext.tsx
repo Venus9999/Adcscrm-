@@ -1190,8 +1190,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch {}
   }, []);
 
-  // Helper to check if remote is strictly newer than local timestamp
-  const isRemoteStrictlyNewer = (remoteIso?: string, localIso?: string): boolean => {
+  // Helper to check if remote is strictly newer than local timestamp or revision
+  const isRemoteStrictlyNewer = (remoteIso?: string, localIso?: string, remoteRev?: number): boolean => {
+    if (typeof remoteRev === 'number' && remoteRev > 0 && lastAppliedRevisionRef.current > 0) {
+      if (remoteRev > lastAppliedRevisionRef.current) return true;
+      if (remoteRev < lastAppliedRevisionRef.current) return false;
+    }
     if (!remoteIso) return false;
     const r = new Date(remoteIso).getTime();
     if (isNaN(r)) return false;
@@ -1786,8 +1790,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return true;
   }, []);
 
+  const processRemoteUpdateRef = useRef<(remoteData: any, source: 'firestore' | 'server') => boolean>(() => false);
   const isHydratingFromRemoteRef = useRef(false);
   const lastAppliedRemoteIsoRef = useRef<string>('');
+  const lastAppliedRevisionRef = useRef<number>(0);
   const isLocalDebounceSavingRef = useRef(false);
   const hasUserEditedRef = useRef(false);
 
@@ -1802,13 +1808,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         bc.onmessage = (event) => {
           if (event.data?.type === 'CRM_TAB_UPDATE' && event.data?.snapshot) {
             const snap = event.data.snapshot;
-            if (!isLocalDebounceSavingRef.current && snap.lastUpdated) {
-              if (isRemoteStrictlyNewer(snap.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-                lastAppliedRemoteIsoRef.current = snap.lastUpdated;
-                hydrateStateFromSnapshot(snap);
-                setLastServerSyncTime(new Date().toLocaleTimeString());
-                setServerSyncStatus('synced');
-              }
+            if (!isHydratingFromRemoteRef.current) {
+              processRemoteUpdateRef.current(snap, 'server');
             }
           }
         };
@@ -1820,7 +1821,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       broadcastChannelRef.current?.close();
     };
-  }, [hydrateStateFromSnapshot, isRemoteStrictlyNewer]);
+  }, []);
 
   // Unified synchronization dispatcher to Cloud Firestore & Server Storage
   const syncSnapshot = useCallback((snapshot: any) => {
@@ -1830,7 +1831,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(snapshot),
-    }).catch(() => {});
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.savedAt) lastAppliedRemoteIsoRef.current = data.savedAt;
+        if (data?.revision) lastAppliedRevisionRef.current = data.revision;
+      })
+      .catch(() => {});
   }, []);
 
   // Synchronize active currentUser session whenever user record or branch assignment changes in state
@@ -2277,15 +2284,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         remoteData.clients = remoteData.clients.filter((c: any) => c && c.id !== 'client-test-1');
       }
 
-      // If this client is actively in-flight saving, do not interrupt
-      if (isLocalDebounceSavingRef.current) return false;
-
-      // Check freshness: only accept remote updates that are strictly newer than last applied
-      if (remoteData.lastUpdated && lastAppliedRemoteIsoRef.current) {
-        if (!isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-          return true;
-        }
-      }
+      // If active network POST is currently sending, allow it to complete first
+      if (isSavingToServer) return false;
 
       const localSnap = getCurrentLocalSnapshot();
       let localTotalRecords =
@@ -2345,10 +2345,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const isTransactionsSame = JSON.stringify(activeLocalSnap.transactions || []) === JSON.stringify(remoteData.transactions || []);
           const isTasksSame = JSON.stringify(activeLocalSnap.tasks || []) === JSON.stringify(remoteData.tasks || []);
           const isLeadsSame = JSON.stringify(activeLocalSnap.leads || []) === JSON.stringify(remoteData.leads || []);
+          const isDocsSame = JSON.stringify(activeLocalSnap.documents || []) === JSON.stringify(remoteData.documents || []);
 
-          if (isClientsSame && isInvoicesSame && isTransactionsSame && isTasksSame && isLeadsSame) {
-            // Data is identical: advance timestamp without re-triggering React renders
-            lastAppliedRemoteIsoRef.current = remoteData.lastUpdated || lastAppliedRemoteIsoRef.current;
+          if (isClientsSame && isInvoicesSame && isTransactionsSame && isTasksSame && isLeadsSame && isDocsSame) {
+            // Data is identical: advance timestamp and revision without re-triggering React renders
+            if (remoteData.lastUpdated) lastAppliedRemoteIsoRef.current = remoteData.lastUpdated;
+            if (remoteData.revision) lastAppliedRevisionRef.current = remoteData.revision;
             return true;
           }
         } catch {}
@@ -2360,6 +2362,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (conflict) {
           console.info('Automatic non-destructive merge executed between local state and', source, conflict.diffSummary);
           mergeSnapshots(activeLocalSnap, remoteData);
+          if (remoteData.lastUpdated) lastAppliedRemoteIsoRef.current = remoteData.lastUpdated;
+          if (remoteData.revision) lastAppliedRevisionRef.current = remoteData.revision;
           return true;
         }
       }
@@ -2369,6 +2373,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // is authoritative. Seamlessly hydrate the entire state so all screens update in real time!
       isHydratingFromRemoteRef.current = true;
       lastAppliedRemoteIsoRef.current = remoteData.lastUpdated || new Date().toISOString();
+      if (remoteData.revision) lastAppliedRevisionRef.current = remoteData.revision;
       hydrateStateFromSnapshot({ ...remoteData, forceReset: true });
 
       try {
@@ -2396,8 +2401,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     },
-    [getCurrentLocalSnapshot, detectSnapshotConflict, isRemoteStrictlyNewer, hydrateStateFromSnapshot, syncSnapshot, mergeSnapshots]
+    [isSavingToServer, getCurrentLocalSnapshot, detectSnapshotConflict, hydrateStateFromSnapshot, syncSnapshot, mergeSnapshots]
   );
+  processRemoteUpdateRef.current = processRemoteUpdate;
 
   // Robust multi-system initialization: Cloud Firestore -> Server Disk -> Local Storage -> IndexedDB
   useEffect(() => {
@@ -2551,10 +2557,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // 4. Live subscription for real-time cloud updates across systems and browsers
     const unsubscribeCloud = subscribeToCloudCRMData((cloudSnapshot) => {
       if (!cloudSnapshot) return;
-      if (!isLocalDebounceSavingRef.current && !isHydratingFromRemoteRef.current && cloudSnapshot.lastUpdated) {
-        if (isRemoteStrictlyNewer(cloudSnapshot.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-          processRemoteUpdate(cloudSnapshot, 'firestore');
-        }
+      if (!isHydratingFromRemoteRef.current) {
+        processRemoteUpdate(cloudSnapshot, 'firestore');
       }
     });
 
@@ -2568,10 +2572,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const parsedEvent = JSON.parse(event.data);
             if (parsedEvent?.type === 'CRM_UPDATE' && parsedEvent.data) {
               const remoteData = parsedEvent.data;
-              if (!isLocalDebounceSavingRef.current && !isHydratingFromRemoteRef.current && remoteData.lastUpdated) {
-                if (isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current)) {
-                  processRemoteUpdate(remoteData, 'server');
-                }
+              if (!isHydratingFromRemoteRef.current) {
+                processRemoteUpdate(remoteData, 'server');
               }
             }
           } catch {}
@@ -2584,7 +2586,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // 5. Active high-frequency synchronization for multi-device, multi-browser real-time consistency
     const checkRemoteSync = async () => {
-      if (isLocalDebounceSavingRef.current || isHydratingFromRemoteRef.current) return;
+      if (isHydratingFromRemoteRef.current) return;
 
       let serverCheckSucceeded = false;
       // 5a. Check server status if server API exists
@@ -2594,8 +2596,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const statusJson = await statusRes.json();
           if (statusJson.success) {
             serverCheckSucceeded = true;
-            if (statusJson.hasData && statusJson.lastUpdated && !statusJson.isColdStart) {
-              const isServerNewer = isRemoteStrictlyNewer(statusJson.lastUpdated, lastAppliedRemoteIsoRef.current);
+            if (statusJson.hasData && !statusJson.isColdStart) {
+              const isServerNewer =
+                (statusJson.revision && statusJson.revision > lastAppliedRevisionRef.current) ||
+                isRemoteStrictlyNewer(statusJson.lastUpdated, lastAppliedRemoteIsoRef.current) ||
+                !lastAppliedRemoteIsoRef.current;
               if (isServerNewer) {
                 const serverRes = await fetch('/api/crm/data', { cache: 'no-store' });
                 if (serverRes.ok && serverRes.headers.get('content-type')?.includes('application/json')) {
@@ -2615,10 +2620,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         try {
           const cloudRes = await loadCRMDataFromCloud();
           if (cloudRes.success && cloudRes.hasData && cloudRes.data?.lastUpdated) {
-            const isCloudNewer = isRemoteStrictlyNewer(cloudRes.data.lastUpdated, lastAppliedRemoteIsoRef.current);
-            if (isCloudNewer) {
-              processRemoteUpdate(cloudRes.data, 'firestore');
-            }
+            processRemoteUpdate(cloudRes.data, 'firestore');
           }
         } catch {}
       }
@@ -2812,6 +2814,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (serverRes.ok) {
             const serverJson = await serverRes.json();
             serverOk = Boolean(serverJson?.success);
+            if (serverJson?.savedAt) {
+              lastAppliedRemoteIsoRef.current = serverJson.savedAt;
+            }
+            if (serverJson?.revision) {
+              lastAppliedRevisionRef.current = serverJson.revision;
+            }
           }
         } catch {}
 
@@ -2827,15 +2835,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setServerSyncStatus('offline');
       } finally {
         setIsSavingToServer(false);
-        // Keep brief grace period so local state isn't overwritten by any stale network responses
+        hasUserEditedRef.current = false;
         setTimeout(() => {
           isLocalDebounceSavingRef.current = false;
-        }, 800);
+        }, 300);
       }
     }, 250);
 
+    const watchdog = setTimeout(() => {
+      isLocalDebounceSavingRef.current = false;
+      setIsSavingToServer(false);
+    }, 2500);
+
     return () => {
       clearTimeout(timer);
+      clearTimeout(watchdog);
     };
   }, [
     dataLoaded,
@@ -2866,19 +2880,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     billingSettings,
   ]);
 
-  // Adjust selectedCompanyId if user changes and is branch-locked
+  // Adjust selectedCompanyId and reset employee filter if user changes
   useEffect(() => {
+    setSelectedEmployeeId('all');
     if (currentUser.role === 'admin' || currentUser.role === 'employee' || currentUser.role === 'client') {
       if (currentUser.companyId) {
         setSelectedCompanyId(currentUser.companyId);
       }
+    } else if (currentUser.role === 'master') {
+      setSelectedCompanyId('all');
     }
     // If client logs in, automatically select their client profile
     if (currentUser.role === 'client') {
       const match = clients.find((c) => c.email.toLowerCase() === currentUser.email.toLowerCase() || c.id === 'client-1');
       if (match) setSelectedClientId(match.id);
     }
-  }, [currentUser, clients]);
+  }, [currentUser.id, currentUser.role, currentUser.companyId, clients]);
 
   // Record Audit Log Helper
   const recordAuditLog = useCallback(
@@ -4464,8 +4481,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
       }
 
+      const effectiveCompanyId =
+        clientData.companyId ||
+        (selectedCompanyId !== 'all' ? selectedCompanyId : currentUser.companyId || (companies && companies[0]?.id) || 'comp-1');
       const newId = `client-${Date.now()}`;
-      const prefix = clientData.companyId === 'comp-2' ? 'AUH' : 'DXB';
+      const prefix = effectiveCompanyId === 'comp-2' ? 'AUH' : 'DXB';
       const refNo = `${prefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`;
 
       let servicesList: ClientService[] = [];
@@ -4475,7 +4495,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       let generatedInvoice: Invoice | undefined = undefined;
       const initialNotes: InternalNote[] = [];
 
-      const companyObj = companies.find((c) => c.id === clientData.companyId);
+      const companyObj = companies.find((c) => c.id === effectiveCompanyId);
       const companyName = companyObj?.name || 'ADCS Corporate Gateway LLC';
 
       if (initialServiceId) {
@@ -4714,6 +4734,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const newClient: Client = {
         ...clientData,
+        companyId: effectiveCompanyId,
         id: newId,
         refNo,
         assignedEmployeeIds: empIds,
@@ -4733,8 +4754,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
 
       hasUserEditedRef.current = true;
-      const nowIso = new Date().toISOString();
-      lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
       let nextClientsList: Client[] = [];
@@ -4761,6 +4780,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
+          const nowIso = new Date().toISOString();
           parsed.clients = nextClientsList;
           parsed.lastUpdated = nowIso;
           parsed.hasCustomModifications = true;
@@ -7706,8 +7726,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const assignedUsers = (users || []).filter((u) => u && empIds.includes(u.id));
       const primaryUser = assignedUsers[0];
 
+      const effectiveCompanyId =
+        leadData.companyId ||
+        (selectedCompanyId !== 'all' ? selectedCompanyId : currentUser.companyId || (companies && companies[0]?.id) || 'comp-1');
+
       const newLead: Lead = {
         ...leadData,
+        companyId: effectiveCompanyId,
         gender: leadData.gender || 'Male',
         assignedEmployeeIds: empIds,
         assignedEmployeeId: primaryUser?.id || leadData.assignedEmployeeId || '',
@@ -7723,8 +7748,6 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
 
       hasUserEditedRef.current = true;
-      const nowIso = new Date().toISOString();
-      lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
       setLeads((prev) => [newLead, ...prev]);
@@ -11897,30 +11920,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return Boolean(isSelf);
       }
 
-      // Strict company-level isolation for non-global admin
+      // Effective branch / company
       const effectiveCompanyId = c.companyId || (companies && companies[0]?.id) || 'comp-1';
+
+      // Company scope restriction: Master has global access. Admin and Employee see records in their accessible companies or assigned to/created by them.
       if (!isGlobalAdmin) {
         const inComp = accessibleCompanyIdSet.has(effectiveCompanyId);
         const isAssigned =
           (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
           (c as any).assignedEmployeeId === currentUser?.id ||
-          c.assignedAdminId === currentUser?.id;
+          c.assignedAdminId === currentUser?.id ||
+          (c as any).createdByUserId === currentUser?.id;
         if (!inComp && !isAssigned) return false;
       }
 
       if (selectedCompanyId !== 'all' && effectiveCompanyId !== selectedCompanyId) return false;
 
-      if (isEmployeeRole) {
-        const isAssigned =
-          (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(currentUser?.id)) ||
-          (c as any).assignedEmployeeId === currentUser?.id ||
-          c.assignedAdminId === currentUser?.id ||
-          (c as any).createdByUserId === currentUser?.id ||
-          (c.services && c.services.some((s) => s.assignedEmployeeId === currentUser?.id));
-        return Boolean(isAssigned);
-      }
-
-      // If an explicit employee/officer filter is active (selected by Admin/Master in Navbar or page filter)
+      // If an explicit employee/officer filter is active (selected by user in Navbar or page filter)
       if (selectedEmployeeId !== 'all') {
         const isAssigned =
           (c.assignedEmployeeIds && c.assignedEmployeeIds.includes(selectedEmployeeId)) ||
@@ -11933,7 +11949,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [clients, isClientRole, isEmployeeRole, isGlobalAdmin, currentUser, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
+  }, [clients, isClientRole, isGlobalAdmin, currentUser, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet, companies]);
 
   const selfClientProfile = React.useMemo(() => {
     if (!isClientRole) return null;
@@ -11991,26 +12007,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return Boolean(isMatch);
       }
 
-      // Company scope restriction
+      const effectiveCompanyId = i.companyId || linkedClient?.companyId || (companies && companies[0]?.id) || 'comp-1';
+
+      // Company scope restriction: Master has global access. Admin and Employee see records in accessible companies or linked to their activity.
       if (!isGlobalAdmin) {
-        const inComp = (i.companyId && accessibleCompanyIdSet.has(i.companyId)) || (linkedClient?.companyId && accessibleCompanyIdSet.has(linkedClient.companyId));
-        if (!inComp) return false;
-      }
-
-      if (selectedCompanyId !== 'all' && i.companyId !== selectedCompanyId) return false;
-
-      if (isEmployeeRole) {
-        const isIssuer = i.issuedByUserId === currentUser?.id;
+        const inComp = accessibleCompanyIdSet.has(effectiveCompanyId);
         const isAssigned =
+          i.issuedByUserId === currentUser?.id ||
+          (i as any).assignedEmployeeId === currentUser?.id ||
+          (i as any).createdByUserId === currentUser?.id ||
           (linkedClient &&
             ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
               (linkedClient as any).assignedEmployeeId === currentUser?.id ||
-              linkedClient.assignedAdminId === currentUser?.id ||
-              (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === currentUser?.id)))) ||
-          (i as any).assignedEmployeeId === currentUser?.id ||
-          (i as any).createdByUserId === currentUser?.id;
-        return Boolean(isIssuer || isAssigned);
+              linkedClient.assignedAdminId === currentUser?.id));
+        if (!inComp && !isAssigned) return false;
       }
+
+      if (selectedCompanyId !== 'all' && effectiveCompanyId !== selectedCompanyId) return false;
 
       if (selectedEmployeeId !== 'all') {
         const isIssuer = i.issuedByUserId === selectedEmployeeId;
@@ -12026,7 +12039,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [invoices, clients, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
+  }, [invoices, clients, currentUser, isClientRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet, companies]);
 
   const filteredTasks = React.useMemo(() => {
     return (tasks || []).filter((t) => {
@@ -12041,18 +12054,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
 
-      // Company scope restriction
+      const linkedClient = (clients || []).find((c) => c && c.id === t.clientId);
+      const effectiveCompanyId = t.companyId || linkedClient?.companyId || (companies && companies[0]?.id) || 'comp-1';
+
+      // Company scope restriction: Master has global access. Admin and Employee see records in accessible companies or assigned to/created by them.
       if (!isGlobalAdmin) {
-        const linkedClient = (clients || []).find((c) => c && c.id === t.clientId);
-        const inComp = (t.companyId && accessibleCompanyIdSet.has(t.companyId)) || (linkedClient?.companyId && accessibleCompanyIdSet.has(linkedClient.companyId));
-        const isAssigned = t.assignedEmployeeId === currentUser?.id || (t as any).createdByUserId === currentUser?.id;
-        if (!inComp && !isAssigned) return false;
-      }
-
-      if (selectedCompanyId !== 'all' && t.companyId && t.companyId !== selectedCompanyId) return false;
-
-      if (isEmployeeRole) {
-        const linkedClient = (clients || []).find((c) => c && c.id === t.clientId);
+        const inComp = accessibleCompanyIdSet.has(effectiveCompanyId);
         const isAssigned =
           t.assignedEmployeeId === currentUser?.id ||
           ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(currentUser?.id)) ||
@@ -12061,20 +12068,26 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(currentUser?.id)) ||
               (linkedClient as any).assignedEmployeeId === currentUser?.id ||
               linkedClient.assignedAdminId === currentUser?.id));
-        return Boolean(isAssigned);
+        if (!inComp && !isAssigned) return false;
       }
+
+      if (selectedCompanyId !== 'all' && effectiveCompanyId !== selectedCompanyId) return false;
 
       if (selectedEmployeeId !== 'all') {
         return (
           t.assignedEmployeeId === selectedEmployeeId ||
           ((t as any).assignedEmployeeIds && (t as any).assignedEmployeeIds.includes(selectedEmployeeId)) ||
-          (t as any).createdByUserId === selectedEmployeeId
+          (t as any).createdByUserId === selectedEmployeeId ||
+          (linkedClient &&
+            ((linkedClient.assignedEmployeeIds && linkedClient.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+              (linkedClient as any).assignedEmployeeId === selectedEmployeeId ||
+              linkedClient.assignedAdminId === selectedEmployeeId))
         );
       }
 
       return true;
     });
-  }, [tasks, clients, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
+  }, [tasks, clients, currentUser, isClientRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet, companies]);
 
   const filteredDocuments = React.useMemo(() => {
     return (documents || []).filter((d) => {
@@ -12090,16 +12103,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
 
-      // Company scope restriction
+      const effectiveCompanyId = (d as any).companyId || client?.companyId || (companies && companies[0]?.id) || 'comp-1';
+
+      // Company scope restriction: Master has global access. Admin and Employee see records in accessible companies or uploaded/assigned to them.
       if (!isGlobalAdmin) {
-        const inComp = (client?.companyId && accessibleCompanyIdSet.has(client.companyId)) || ((d as any).companyId && accessibleCompanyIdSet.has((d as any).companyId));
-        const isUploader = d.uploadedByUserId === currentUser?.id;
-        if (!inComp && !isUploader) return false;
-      }
-
-      if (selectedCompanyId !== 'all' && client && client.companyId !== selectedCompanyId) return false;
-
-      if (isEmployeeRole) {
+        const inComp = accessibleCompanyIdSet.has(effectiveCompanyId);
         const isUploader = d.uploadedByUserId === currentUser?.id;
         const isAssigned =
           client &&
@@ -12107,8 +12115,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             (client as any).assignedEmployeeId === currentUser?.id ||
             client.assignedAdminId === currentUser?.id ||
             (client.services && client.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
-        return Boolean(isUploader || isAssigned);
+        if (!inComp && !isUploader && !isAssigned) return false;
       }
+
+      if (selectedCompanyId !== 'all' && effectiveCompanyId !== selectedCompanyId) return false;
 
       if (selectedEmployeeId !== 'all') {
         const isUploader = d.uploadedByUserId === selectedEmployeeId;
@@ -12123,45 +12133,40 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [documents, clients, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
+  }, [documents, clients, currentUser, isClientRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet, companies]);
 
   const filteredLeads = React.useMemo(() => {
     return (leads || []).filter((l) => {
       if (!l) return false;
       if (isClientRole) return false;
 
-      // Company scope restriction
+      const effectiveCompanyId = l.companyId || (companies && companies[0]?.id) || 'comp-1';
+
+      // Company scope restriction: Master has global access. Admin and Employee see records in accessible companies or assigned to/created by them.
       if (!isGlobalAdmin) {
-        const inComp = l.companyId ? accessibleCompanyIdSet.has(l.companyId) : false;
-        const isAssigned =
-          l.assignedEmployeeId === currentUser?.id ||
-          (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(currentUser?.id)) ||
-          l.createdByUserId === currentUser?.id;
-        if (!inComp && !isAssigned) return false;
-      }
-
-      if (selectedCompanyId !== 'all' && l.companyId !== selectedCompanyId) return false;
-
-      if (isEmployeeRole) {
+        const inComp = accessibleCompanyIdSet.has(effectiveCompanyId);
         const isAssigned =
           l.assignedEmployeeId === currentUser?.id ||
           (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(currentUser?.id)) ||
           (l as any).assignedToStaffId === currentUser?.id ||
           l.createdByUserId === currentUser?.id;
-        return Boolean(isAssigned);
+        if (!inComp && !isAssigned) return false;
       }
+
+      if (selectedCompanyId !== 'all' && effectiveCompanyId !== selectedCompanyId) return false;
 
       if (selectedEmployeeId !== 'all') {
         const matchEmp =
           l.assignedEmployeeId === selectedEmployeeId ||
           (l.assignedEmployeeIds && l.assignedEmployeeIds.includes(selectedEmployeeId)) ||
+          (l as any).assignedToStaffId === selectedEmployeeId ||
           l.createdByUserId === selectedEmployeeId;
         return Boolean(matchEmp);
       }
 
       return true;
     });
-  }, [leads, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
+  }, [leads, currentUser, isClientRole, isGlobalAdmin, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet, companies]);
 
   const filteredTransactions = React.useMemo(() => {
     return (transactions || []).filter((tx) => {
@@ -12177,15 +12182,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
 
-      // Company scope restriction
+      const effectiveCompanyId = tx.companyId || linkedClient?.companyId || (companies && companies[0]?.id) || 'comp-1';
+
+      // Company scope restriction: Master has global access. Admin and Employee see records in accessible companies or recorded/assigned to them.
       if (!isGlobalAdmin) {
-        const inComp = (tx.companyId && accessibleCompanyIdSet.has(tx.companyId)) || (linkedClient?.companyId && accessibleCompanyIdSet.has(linkedClient.companyId));
-        if (!inComp) return false;
-      }
-
-      if (selectedCompanyId !== 'all' && tx.companyId !== selectedCompanyId) return false;
-
-      if (isEmployeeRole) {
+        const inComp = accessibleCompanyIdSet.has(effectiveCompanyId);
         const isRecorder = tx.recordedByUserId === currentUser?.id;
         const isAssigned =
           linkedClient &&
@@ -12193,8 +12194,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             (linkedClient as any).assignedEmployeeId === currentUser?.id ||
             linkedClient.assignedAdminId === currentUser?.id ||
             (linkedClient.services && linkedClient.services.some((s) => s.assignedEmployeeId === currentUser?.id)));
-        return Boolean(isRecorder || isAssigned);
+        if (!inComp && !isRecorder && !isAssigned) return false;
       }
+
+      if (selectedCompanyId !== 'all' && effectiveCompanyId !== selectedCompanyId) return false;
 
       if (selectedEmployeeId !== 'all') {
         const isRecorder = tx.recordedByUserId === selectedEmployeeId;
@@ -12208,7 +12211,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return true;
     });
-  }, [transactions, clients, currentUser, isClientRole, isEmployeeRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet]);
+  }, [transactions, clients, currentUser, isClientRole, isGlobalAdmin, selfClientProfile, selectedCompanyId, selectedEmployeeId, accessibleCompanyIdSet, companies]);
 
   // Calculate Expiring Documents Radar (Passports, Emirates IDs, Visas, Trade Licenses)
   const expiringDocuments = React.useMemo(() => {
@@ -12330,23 +12333,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return Boolean(isClientApp);
       }
 
-      if (selectedCompanyId !== 'all' && vsa.companyId && vsa.companyId !== selectedCompanyId) return false;
+      const linkedClient = (clients || []).find((c) => c && c.id === vsa.clientId);
+      const effectiveCompanyId = vsa.companyId || linkedClient?.companyId || (companies && companies[0]?.id) || 'comp-1';
 
-      if (isEmployeeRole) {
+      if (!isGlobalAdmin) {
+        const inComp = accessibleCompanyIdSet.has(effectiveCompanyId);
         const isAssigned =
           vsa.assignedOfficerId === currentUser?.id ||
           (vsa as any).assignedEmployeeId === currentUser?.id ||
+          (vsa as any).createdByUserId === currentUser?.id ||
           (filteredClients || []).some((c) => c && c.id === vsa.clientId);
-        return Boolean(isAssigned);
+        if (!inComp && !isAssigned) return false;
       }
 
+      if (selectedCompanyId !== 'all' && effectiveCompanyId !== selectedCompanyId) return false;
+
       if (selectedEmployeeId !== 'all') {
-        return vsa.assignedOfficerId === selectedEmployeeId;
+        return (
+          vsa.assignedOfficerId === selectedEmployeeId ||
+          (vsa as any).assignedEmployeeId === selectedEmployeeId ||
+          (vsa as any).createdByUserId === selectedEmployeeId
+        );
       }
 
       return true;
     });
-  }, [visaApplications, selectedCompanyId, selectedEmployeeId, isEmployeeRole, isClientRole, currentUser, filteredClients, selfClientProfile]);
+  }, [visaApplications, clients, companies, accessibleCompanyIdSet, isGlobalAdmin, selectedCompanyId, selectedEmployeeId, isClientRole, currentUser, filteredClients, selfClientProfile]);
 
   const sanitizedUsers = React.useMemo(() => {
     if (currentUser.role === 'master' || currentUser.role === 'admin') {

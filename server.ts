@@ -920,6 +920,7 @@ async function startServer() {
           success: true,
           hasData: metrics.hasData,
           isColdStart,
+          revision: Number(data.revision) || 1,
           lastUpdated: isColdStart ? null : (data.lastUpdated || null),
           score: metrics.score,
           totalRecords: metrics.totalRecords,
@@ -1595,7 +1596,8 @@ async function startServer() {
         deletedVisaServiceIds: combinedDeletedVisaServiceIds,
         deletedVisaAppIds: combinedDeletedVisaAppIds,
         isColdStart: false,
-        lastUpdated: payload.lastUpdated || new Date().toISOString(),
+        revision: (Number(existing.revision) || 0) + 1,
+        lastUpdated: new Date().toISOString(),
       };
 
       // Write to temp file then rename for atomic safe write
@@ -1662,6 +1664,7 @@ async function startServer() {
       const broadcastMsg = `data: ${JSON.stringify({
         type: 'CRM_UPDATE',
         lastUpdated: merged.lastUpdated,
+        revision: merged.revision,
         data: merged,
       })}\n\n`;
 
@@ -1676,6 +1679,7 @@ async function startServer() {
       return res.json({
         success: true,
         savedAt: merged.lastUpdated,
+        revision: merged.revision,
         clientsCount: merged.clients?.length || 0,
         documentsCount: merged.documents?.length || 0,
         leadsCount: merged.leads?.length || 0,
