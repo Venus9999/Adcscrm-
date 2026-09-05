@@ -1547,20 +1547,35 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         .filter((c: any) => c && c.id && c.id !== 'client-test-1' && !deletedClientIds.includes(c.id))
         .map((c: any) => {
           const clientEmail = (c.email || '').toLowerCase().trim();
+          const clientName = (c.fullName || c.name || '').toLowerCase().trim();
           const userInvoices = parsedInvoices.filter(
             (inv: any) =>
               inv &&
               (inv.clientId === c.id ||
-                (inv.clientEmail && inv.clientEmail.toLowerCase().trim() === clientEmail))
+                (inv.clientEmail && clientEmail && inv.clientEmail.toLowerCase().trim() === clientEmail) ||
+                (inv.clientName && clientName && inv.clientName.toLowerCase().trim() === clientName))
           );
-          let totalAmount = c.totalAmount || 0;
-          let outstandingAmount = c.outstandingAmount || 0;
+          
+          const computedTotal = userInvoices.length > 0
+            ? userInvoices.reduce((s: number, inv: any) => s + (Number(inv.grandTotal) || 0), 0)
+            : (typeof c.totalAmount === 'number' ? c.totalAmount : 0);
+          const computedPaid = userInvoices.length > 0
+            ? userInvoices.reduce((s: number, inv: any) => s + (Number(inv.amountPaid) || 0), 0)
+            : (typeof c.paidAmount === 'number' ? c.paidAmount : 0);
+          const computedOutstanding = userInvoices.length > 0
+            ? userInvoices.reduce((s: number, inv: any) => s + Math.max(0, Number(inv.balanceAmount || 0)), 0)
+            : (typeof c.outstandingAmount === 'number' ? c.outstandingAmount : Math.max(0, computedTotal - computedPaid));
+          const computedStatus =
+            computedOutstanding === 0 && computedTotal > 0
+              ? 'paid'
+              : computedOutstanding > 0
+              ? (computedPaid > 0 ? 'partially_paid' : 'unpaid')
+              : (c.paymentStatus || 'unpaid');
+
           let services = Array.isArray(c.services) ? c.services : [];
 
           // If client has no real invoices and their balance is the hardcoded 4700 legacy balance, reset to clean slate
-          if (userInvoices.length === 0 && (totalAmount === 4700 || outstandingAmount === 4700)) {
-            totalAmount = 0;
-            outstandingAmount = 0;
+          if (userInvoices.length === 0 && (computedTotal === 4700 || computedOutstanding === 4700)) {
             services = services.filter((s: any) => s && s.serviceId !== 'srv-residency-visa');
           }
 
@@ -1576,9 +1591,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             passportNo: c.passportNo || c.passportNumber || '',
             currentStageId: c.currentStageId || 'stage-1',
             currentStageName: c.currentStageName || 'New Inquiry',
-            paymentStatus: c.paymentStatus || (outstandingAmount === 0 && totalAmount > 0 ? 'paid' : outstandingAmount > 0 && totalAmount > outstandingAmount ? 'partially_paid' : 'unpaid'),
-            totalAmount,
-            outstandingAmount,
+            paymentStatus: computedStatus,
+            totalAmount: computedTotal,
+            paidAmount: computedPaid,
+            outstandingAmount: computedOutstanding,
             services,
             notes: Array.isArray(c.notes) ? c.notes : [],
             tags: Array.isArray(c.tags) ? c.tags : [],
@@ -1787,10 +1803,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (event.data?.type === 'CRM_TAB_UPDATE' && event.data?.snapshot) {
             const snap = event.data.snapshot;
             if (!isLocalDebounceSavingRef.current && snap.lastUpdated) {
-              lastAppliedRemoteIsoRef.current = snap.lastUpdated;
-              hydrateStateFromSnapshot(snap);
-              setLastServerSyncTime(new Date().toLocaleTimeString());
-              setServerSyncStatus('synced');
+              if (isRemoteStrictlyNewer(snap.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+                lastAppliedRemoteIsoRef.current = snap.lastUpdated;
+                hydrateStateFromSnapshot(snap);
+                setLastServerSyncTime(new Date().toLocaleTimeString());
+                setServerSyncStatus('synced');
+              }
             }
           }
         };
@@ -1802,7 +1820,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       broadcastChannelRef.current?.close();
     };
-  }, [hydrateStateFromSnapshot]);
+  }, [hydrateStateFromSnapshot, isRemoteStrictlyNewer]);
 
   // Unified synchronization dispatcher to Cloud Firestore & Server Storage
   const syncSnapshot = useCallback((snapshot: any) => {
@@ -2262,13 +2280,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // If this client is actively in-flight saving, do not interrupt
       if (isLocalDebounceSavingRef.current) return false;
 
-      // Check timestamps: if remote timestamp matches last applied, already up to date
-      if (
-        remoteData.lastUpdated &&
-        lastAppliedRemoteIsoRef.current &&
-        remoteData.lastUpdated === lastAppliedRemoteIsoRef.current
-      ) {
-        return true;
+      // Check freshness: only accept remote updates that are strictly newer than last applied
+      if (remoteData.lastUpdated && lastAppliedRemoteIsoRef.current) {
+        if (!isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+          return true;
+        }
       }
 
       const localSnap = getCurrentLocalSnapshot();
@@ -2311,8 +2327,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Protection against completely cold/empty remote wiping populated local state on startup
       if (
         localTotalRecords > 0 &&
-        remoteTotalRecords === 0 &&
-        (remoteData.isColdStart || !remoteData.lastUpdated)
+        remoteTotalRecords === 0
       ) {
         console.info('Preserving local CRM data: remote snapshot is completely empty/cold. Seeding server disk & cloud.');
         if (activeLocalSnap !== localSnap) {
@@ -2320,6 +2335,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         syncSnapshot(activeLocalSnap);
         return false;
+      }
+
+      // Structural equality check: if key collections are already identical, skip re-hydration to prevent UI blinking
+      if (localTotalRecords === remoteTotalRecords && localTotalRecords > 0) {
+        try {
+          const isClientsSame = JSON.stringify(activeLocalSnap.clients || []) === JSON.stringify(remoteData.clients || []);
+          const isInvoicesSame = JSON.stringify(activeLocalSnap.invoices || []) === JSON.stringify(remoteData.invoices || []);
+          const isTransactionsSame = JSON.stringify(activeLocalSnap.transactions || []) === JSON.stringify(remoteData.transactions || []);
+          const isTasksSame = JSON.stringify(activeLocalSnap.tasks || []) === JSON.stringify(remoteData.tasks || []);
+          const isLeadsSame = JSON.stringify(activeLocalSnap.leads || []) === JSON.stringify(remoteData.leads || []);
+
+          if (isClientsSame && isInvoicesSame && isTransactionsSame && isTasksSame && isLeadsSame) {
+            // Data is identical: advance timestamp without re-triggering React renders
+            lastAppliedRemoteIsoRef.current = remoteData.lastUpdated || lastAppliedRemoteIsoRef.current;
+            return true;
+          }
+        } catch {}
       }
 
       // If user in this browser has unsaved edits, check for conflict
@@ -2467,8 +2499,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         try {
           const cloudResult = await loadCRMDataFromCloud();
           if (active && cloudResult.success && cloudResult.hasData && cloudResult.data && !cloudResult.data.isColdStart) {
-            const applied = processRemoteUpdate(cloudResult.data, 'firestore');
-            if (applied) cloudLoaded = true;
+            if (!serverLoaded || isRemoteStrictlyNewer(cloudResult.data.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+              const applied = processRemoteUpdate(cloudResult.data, 'firestore');
+              if (applied) cloudLoaded = true;
+            }
           }
         } catch (cloudErr) {
           console.warn('Cloud sync load fallback notice:', cloudErr);
@@ -2518,7 +2552,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const unsubscribeCloud = subscribeToCloudCRMData((cloudSnapshot) => {
       if (!cloudSnapshot) return;
       if (!isLocalDebounceSavingRef.current && !isHydratingFromRemoteRef.current && cloudSnapshot.lastUpdated) {
-        processRemoteUpdate(cloudSnapshot, 'firestore');
+        if (isRemoteStrictlyNewer(cloudSnapshot.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+          processRemoteUpdate(cloudSnapshot, 'firestore');
+        }
       }
     });
 
@@ -2532,8 +2568,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const parsedEvent = JSON.parse(event.data);
             if (parsedEvent?.type === 'CRM_UPDATE' && parsedEvent.data) {
               const remoteData = parsedEvent.data;
-              if (!isLocalDebounceSavingRef.current && !isHydratingFromRemoteRef.current) {
-                processRemoteUpdate(remoteData, 'server');
+              if (!isLocalDebounceSavingRef.current && !isHydratingFromRemoteRef.current && remoteData.lastUpdated) {
+                if (isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+                  processRemoteUpdate(remoteData, 'server');
+                }
               }
             }
           } catch {}
@@ -2548,21 +2586,23 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const checkRemoteSync = async () => {
       if (isLocalDebounceSavingRef.current || isHydratingFromRemoteRef.current) return;
 
+      let serverCheckSucceeded = false;
       // 5a. Check server status if server API exists
       try {
         const statusRes = await fetch('/api/crm/status', { cache: 'no-store' });
         if (statusRes.ok && statusRes.headers.get('content-type')?.includes('application/json')) {
           const statusJson = await statusRes.json();
-          if (statusJson.success && statusJson.hasData && statusJson.lastUpdated && !statusJson.isColdStart) {
-            const isTimestampDifferent = statusJson.lastUpdated !== lastAppliedRemoteIsoRef.current;
-            const isServerNewer = isRemoteStrictlyNewer(statusJson.lastUpdated, lastAppliedRemoteIsoRef.current);
-            if (isServerNewer || (isTimestampDifferent && !hasUserEditedRef.current)) {
-              const serverRes = await fetch('/api/crm/data', { cache: 'no-store' });
-              if (serverRes.ok && serverRes.headers.get('content-type')?.includes('application/json')) {
-                const serverJson = await serverRes.json();
-                if (serverJson.success && serverJson.hasData && serverJson.data && !serverJson.data.isColdStart) {
-                  processRemoteUpdate(serverJson.data, 'server');
-                  return;
+          if (statusJson.success) {
+            serverCheckSucceeded = true;
+            if (statusJson.hasData && statusJson.lastUpdated && !statusJson.isColdStart) {
+              const isServerNewer = isRemoteStrictlyNewer(statusJson.lastUpdated, lastAppliedRemoteIsoRef.current);
+              if (isServerNewer) {
+                const serverRes = await fetch('/api/crm/data', { cache: 'no-store' });
+                if (serverRes.ok && serverRes.headers.get('content-type')?.includes('application/json')) {
+                  const serverJson = await serverRes.json();
+                  if (serverJson.success && serverJson.hasData && serverJson.data && !serverJson.data.isColdStart) {
+                    processRemoteUpdate(serverJson.data, 'server');
+                  }
                 }
               }
             }
@@ -2570,21 +2610,22 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch {}
 
-      // 5b. Fallback check for Cloud Firestore
-      try {
-        const cloudRes = await loadCRMDataFromCloud();
-        if (cloudRes.success && cloudRes.hasData && cloudRes.data?.lastUpdated) {
-          const isCloudNewer = isRemoteStrictlyNewer(cloudRes.data.lastUpdated, lastAppliedRemoteIsoRef.current);
-          const isTimestampDifferent = cloudRes.data.lastUpdated !== lastAppliedRemoteIsoRef.current;
-          if (isCloudNewer || (isTimestampDifferent && !hasUserEditedRef.current)) {
-            processRemoteUpdate(cloudRes.data, 'firestore');
+      // 5b. Fallback check for Cloud Firestore ONLY when server API is unavailable
+      if (!serverCheckSucceeded) {
+        try {
+          const cloudRes = await loadCRMDataFromCloud();
+          if (cloudRes.success && cloudRes.hasData && cloudRes.data?.lastUpdated) {
+            const isCloudNewer = isRemoteStrictlyNewer(cloudRes.data.lastUpdated, lastAppliedRemoteIsoRef.current);
+            if (isCloudNewer) {
+              processRemoteUpdate(cloudRes.data, 'firestore');
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
     };
 
-    // Fast polling every 2.5 seconds ensures all admins and staff see live updates across any browser and device
-    const pollInterval = setInterval(checkRemoteSync, 2500);
+    // Polling interval: 5-second background heartbeat; SSE handles instant push updates
+    const pollInterval = setInterval(checkRemoteSync, 5000);
     const handleFocus = () => {
       checkRemoteSync();
     };
@@ -10755,6 +10796,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const invId = targetInvoice?.id || (outcome.invoiceId && !targetApp ? outcome.invoiceId : targetApp?.invoiceId || `inv-nomod-${Date.now()}`);
         const invNumber = targetInvoice?.invoiceNumber || `INV-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+        const finalAmountPaid = targetInvoice
+          ? Math.min(targetInvoice.grandTotal, (targetInvoice.amountPaid || 0) + totalAmt)
+          : totalAmt;
+        const finalBalance = targetInvoice
+          ? Math.max(0, targetInvoice.grandTotal - finalAmountPaid)
+          : 0;
+
         updatedInvoice = {
           ...(targetInvoice || {
             id: invId,
@@ -10780,9 +10828,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             dueDate: timestamp.split('T')[0],
             createdAt: timestamp,
           }),
-          status: 'paid',
-          amountPaid: totalAmt,
-          balanceAmount: 0,
+          status: finalBalance === 0 ? 'paid' : 'partially_paid',
+          amountPaid: finalBalance === 0 && targetInvoice ? targetInvoice.grandTotal : finalAmountPaid,
+          balanceAmount: finalBalance,
           paidDate: timestamp.split('T')[0],
           paymentMethod: 'Nomod',
           nomodPaymentId: outcome.paymentId,
@@ -10799,7 +10847,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           notes: `Settled via Nomod Gateway API. Auth Code: ${outcome.authCode || 'APPROVED'}. Ref: ${ref}`,
         };
 
-        const nextInvoices = [updatedInvoice!, ...invoices.filter((i) => i.id !== invId)];
+        const nextInvoices = invoices.some((i) => i.id === invId)
+          ? invoices.map((i) => (i.id === invId ? updatedInvoice! : i))
+          : [updatedInvoice!, ...invoices];
         setInvoices(nextInvoices);
 
         // Record Transaction in Ledger
@@ -10926,34 +10976,31 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(parsedDel));
           }
 
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.invoices = nextInvoices;
-            parsed.clients = nextClients;
-            parsed.transactions = nextTransactions;
-            if (targetApp && updatedApp) {
-              parsed.visaApplications = nextVisaApps;
-            }
-            parsed.deletedInvoiceIds = (parsed.deletedInvoiceIds || []).filter((id: string) => id !== invId);
-            parsed.lastUpdated = timestamp;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+          const currentLocal = getCurrentLocalSnapshot();
+          const fullSnapshot: any = {
+            ...currentLocal,
+            invoices: nextInvoices,
+            clients: nextClients,
+            transactions: nextTransactions,
+            ...(targetApp && updatedApp ? { visaApplications: nextVisaApps } : {}),
+            deletedInvoiceIds: (currentLocal.deletedInvoiceIds || []).filter((id: string) => id !== invId),
+            lastUpdated: timestamp,
+            hasCustomModifications: true,
+          };
 
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(fullSnapshot));
+          localStorage.setItem(CRM_VAULT_STORAGE_KEY, JSON.stringify(fullSnapshot));
+          saveToIndexedDbVault('current_working_state', fullSnapshot).catch(() => {});
 
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+              type: 'CRM_TAB_UPDATE',
+              snapshot: fullSnapshot,
+            });
           }
+
+          hasUserEditedRef.current = false;
+          syncSnapshot(fullSnapshot);
         } catch {}
 
         // Notification

@@ -272,6 +272,25 @@ async function startServer() {
     }
   });
 
+  // Helper: Sanitize title for Nomod API (strictly <= 50 chars required by Nomod API)
+  function cleanNomodLinkTitle(rawTitle: any, invoiceOrAppId?: string): string {
+    if (!rawTitle || typeof rawTitle !== 'string') return 'ADCS Visa Payment';
+    let cleaned = rawTitle.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    const invMatch = cleaned.match(/(INV-[0-9]{4}-[0-9]{4}|#[A-Za-z0-9-_]+)/i) ||
+      (invoiceOrAppId ? [null, invoiceOrAppId] : null);
+    const invTag = invMatch && invMatch[1] ? ` (${invMatch[1].replace(/^[#(]+|[)]+$/g, '')})` : '';
+
+    if (cleaned.length > 50) {
+      let base = invMatch && invMatch[0] ? cleaned.replace(invMatch[0], '') : cleaned;
+      base = base.replace(/[()#+&/\\:]/g, ' ').replace(/\s+/g, ' ').trim();
+      const maxBase = Math.max(10, 48 - invTag.length);
+      base = base.substring(0, maxBase).trim();
+      cleaned = invTag ? `${base}${invTag}` : base;
+    }
+
+    return cleaned.substring(0, 48).trim() || 'ADCS Visa Payment';
+  }
+
   // POST /api/nomod/create-payment-link - Generate a Nomod checkout link with live API key support
   app.post('/api/nomod/create-payment-link', async (req, res) => {
     try {
@@ -294,13 +313,15 @@ async function startServer() {
 
       const numAmount = Number(amount || 0);
       const strAmount = numAmount.toFixed(2);
-      const serviceTitle = title || 'ADCS Corporate Visa Processing Payment';
+      const resolvedAppId = applicationId || metadata?.applicationId || '';
+      const resolvedInvId = invoiceId || metadata?.invoiceId || '';
+
+      // Nomod strictly rejects any title longer than 50 characters (HTTP 400 link_invalid_title)
+      const serviceTitle = cleanNomodLinkTitle(title || 'ADCS Visa Processing Payment', resolvedInvId || resolvedAppId);
 
       const proto = (req.headers['x-forwarded-proto'] as string) || (req.protocol === 'https' ? 'https' : (req.headers.host && !req.headers.host.includes('localhost') ? 'https' : 'http'));
       const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || '';
       const origin = req.headers.origin || (host ? `${proto}://${host}` : '') || '';
-      const resolvedAppId = applicationId || metadata?.applicationId || '';
-      const resolvedInvId = invoiceId || metadata?.invoiceId || '';
 
       const defaultSuccessUrl = `${origin}/?nomod_return=1&nomod_status=approved&ref=${encodeURIComponent(ref)}&amount=${encodeURIComponent(strAmount)}&app_id=${encodeURIComponent(resolvedAppId)}&inv_id=${encodeURIComponent(resolvedInvId)}`;
       const defaultFailureUrl = `${origin}/?nomod_return=1&nomod_status=rejected&ref=${encodeURIComponent(ref)}&amount=${encodeURIComponent(strAmount)}&app_id=${encodeURIComponent(resolvedAppId)}&inv_id=${encodeURIComponent(resolvedInvId)}&reason=declined`;
@@ -309,16 +330,17 @@ async function startServer() {
 
       let liveData: any = null;
       let officialUrl = '';
+      let lastApiErrText = '';
 
-      // Call live Nomod REST API using authentic X-API-KEY header
-      try {
+      // Helper to post link to Nomod
+      const callNomodLinksApi = async (linkTitle: string) => {
         const payloadToSend: any = {
-          title: serviceTitle.substring(0, 100),
+          title: linkTitle.substring(0, 48),
           amount: strAmount,
           currency: (currency || 'AED').toUpperCase(),
           items: [
             {
-              name: serviceTitle.substring(0, 80),
+              name: linkTitle.substring(0, 48),
               amount: strAmount,
               quantity: 1,
             },
@@ -331,13 +353,12 @@ async function startServer() {
           },
         };
 
-        // Only include redirect/success URLs if we have a valid absolute HTTP/HTTPS origin
         if (origin.startsWith('http://') || origin.startsWith('https://')) {
           payloadToSend.redirect_url = returnUrl || defaultRedirectUrl;
           payloadToSend.success_url = successUrl || defaultSuccessUrl;
         }
 
-        const nomodRes = await fetch('https://api.nomod.com/v1/links', {
+        return await fetch('https://api.nomod.com/v1/links', {
           method: 'POST',
           headers: {
             'X-API-KEY': apiKey,
@@ -345,10 +366,30 @@ async function startServer() {
           },
           body: JSON.stringify(payloadToSend),
         });
+      };
+
+      // Primary attempt to call live Nomod REST API
+      try {
+        let nomodRes = await callNomodLinksApi(serviceTitle);
+
+        if (!nomodRes.ok) {
+          lastApiErrText = await nomodRes.text();
+          console.warn('Nomod live API initial attempt error response:', nomodRes.status, lastApiErrText);
+
+          // Retry with ultra-safe sanitized short title if initial attempt had any validation error
+          const fallbackTitle = `ADCS Visa Payment (${resolvedInvId || ref.slice(-8)})`.substring(0, 48);
+          const retryRes = await callNomodLinksApi(fallbackTitle);
+          if (retryRes.ok) {
+            nomodRes = retryRes;
+          } else {
+            lastApiErrText = await retryRes.text();
+            console.warn('Nomod live API retry error response:', retryRes.status, lastApiErrText);
+          }
+        }
 
         if (nomodRes.ok) {
           liveData = await nomodRes.json();
-          // Strictly accept only authentic Nomod payment URLs returned by Nomod API (short code slug, never UUID)
+          // Strictly accept only authentic Nomod payment URLs returned by Nomod API (short code slug)
           if (liveData && typeof liveData.url === 'string' && liveData.url.startsWith('https://pay.nomodapp.com/en/l/')) {
             const slug = liveData.url.split('/l/')[1] || '';
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
@@ -356,15 +397,12 @@ async function startServer() {
               officialUrl = liveData.url;
             }
           }
-        } else {
-          const errText = await nomodRes.text();
-          console.warn('Nomod live API error response:', nomodRes.status, errText);
         }
       } catch (nomodApiErr) {
-        console.warn('Nomod live API network error, falling back to secure proxy link:', nomodApiErr);
+        console.warn('Nomod live API network error:', nomodApiErr);
       }
 
-      // Construct high-reliability CRM Hosted Checkout link with full application and invoice context
+      // If live Nomod API created the link, use it directly!
       const paymentId = liveData?.id || `nomod_live_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const searchParams = new URLSearchParams({
         ref: liveData?.reference_id || ref,
@@ -379,7 +417,7 @@ async function startServer() {
       });
       const crmHostedUrl = `${origin}/pay/${paymentId}?${searchParams.toString()}`;
 
-      // Set the authentic official Nomod live checkout URL as primary link if live API succeeded, otherwise use CRM hosted checkout
+      // Strictly return the authentic live Nomod checkout link
       const primaryLink = officialUrl || crmHostedUrl;
 
       return res.json({
@@ -1300,6 +1338,22 @@ async function startServer() {
       }
       const safeDeletedClientIds = combinedDeletedClientIds.filter((id) => !activeClientIdSet.has(id));
 
+      // Handle invoices: merge non-destructively and strictly filter out deleted invoices or invoices belonging to deleted clients
+      let mergedInvoices: any[] = [];
+      if (Array.isArray(payload.invoices) && payload.invoices.length > 0) {
+        mergedInvoices = mergeCollection(existing.invoices || [], payload.invoices);
+      } else if (Array.isArray(existing.invoices) && existing.invoices.length > 0) {
+        const explicitlyDeleted = (existing.invoices || []).filter((i: any) => i && i.id && safeDeletedInvoiceIds.includes(i.id));
+        if (explicitlyDeleted.length === existing.invoices.length && explicitlyDeleted.length > 0 && Array.isArray(payload.invoices)) {
+          mergedInvoices = [];
+        } else {
+          mergedInvoices = existing.invoices;
+        }
+      }
+      const cleanInvoices = mergedInvoices.filter(
+        (i: any) => i && i.id && !safeDeletedInvoiceIds.includes(i.id) && (!i.clientId || !safeDeletedClientIds.includes(i.clientId))
+      );
+
       // Handle clients: merge non-destructively and strictly filter out deleted clients
       let mergedClients: any[] = [];
       if (Array.isArray(payload.clients) && payload.clients.length > 0) {
@@ -1313,9 +1367,45 @@ async function startServer() {
           mergedClients = existing.clients;
         }
       }
-      const cleanClients = mergedClients.filter(
-        (c: any) => c && c.id && c.id !== 'client-test-1' && !safeDeletedClientIds.includes(c.id)
-      );
+      const cleanClients = mergedClients
+        .filter((c: any) => c && c.id && c.id !== 'client-test-1' && !safeDeletedClientIds.includes(c.id))
+        .map((c: any) => {
+          const clientInvs = (cleanInvoices || []).filter((inv: any) =>
+            inv && (inv.clientId === c.id || (inv.clientName && c.fullName && inv.clientName.trim().toLowerCase() === c.fullName.trim().toLowerCase()))
+          );
+          const computedTotal = clientInvs.length > 0
+            ? clientInvs.reduce((s: number, inv: any) => s + (Number(inv.grandTotal) || 0), 0)
+            : (typeof c.totalAmount === 'number' ? c.totalAmount : 0);
+          const computedPaid = clientInvs.length > 0
+            ? clientInvs.reduce((s: number, inv: any) => s + (Number(inv.amountPaid) || 0), 0)
+            : (typeof c.paidAmount === 'number' ? c.paidAmount : 0);
+          const computedOutstanding = clientInvs.length > 0
+            ? clientInvs.reduce((s: number, inv: any) => s + Math.max(0, Number(inv.balanceAmount || 0)), 0)
+            : (typeof c.outstandingAmount === 'number' ? c.outstandingAmount : Math.max(0, computedTotal - computedPaid));
+          const computedStatus =
+            computedOutstanding === 0 && computedTotal > 0
+              ? 'paid'
+              : computedOutstanding > 0
+              ? (computedPaid > 0 ? 'partially_paid' : 'unpaid')
+              : (c.paymentStatus || 'unpaid');
+
+          return {
+            ...c,
+            fullName: c.fullName || c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Client',
+            companyId: c.companyId || (payload.companies?.[0]?.id || existing.companies?.[0]?.id || 'comp-1'),
+            refNo: c.refNo || `CL-${c.id?.replace('client-', '') || '001'}`,
+            nationality: c.nationality || 'United Arab Emirates',
+            emiratesId: c.emiratesId || '',
+            mobile: c.mobile || c.phone || '',
+            email: c.email || '',
+            currentStageId: c.currentStageId || 'stage-1',
+            currentStageName: c.currentStageName || 'New Inquiry',
+            paymentStatus: computedStatus,
+            totalAmount: computedTotal,
+            paidAmount: computedPaid,
+            outstandingAmount: computedOutstanding,
+          };
+        });
 
       // Handle documents: merge non-destructively and strictly filter out deleted documents or documents belonging to deleted clients
       let mergedDocs: any[] = [];
@@ -1337,22 +1427,6 @@ async function startServer() {
       }
       const cleanTasks = mergedTasks.filter(
         (t: any) => t && t.id && !combinedDeletedTaskIds.includes(t.id) && (!t.clientId || !safeDeletedClientIds.includes(t.clientId))
-      );
-
-      // Handle invoices: merge non-destructively and strictly filter out deleted invoices or invoices belonging to deleted clients
-      let mergedInvoices: any[] = [];
-      if (Array.isArray(payload.invoices) && payload.invoices.length > 0) {
-        mergedInvoices = mergeCollection(existing.invoices || [], payload.invoices);
-      } else if (Array.isArray(existing.invoices) && existing.invoices.length > 0) {
-        const explicitlyDeleted = (existing.invoices || []).filter((i: any) => i && i.id && safeDeletedInvoiceIds.includes(i.id));
-        if (explicitlyDeleted.length === existing.invoices.length && explicitlyDeleted.length > 0 && Array.isArray(payload.invoices)) {
-          mergedInvoices = [];
-        } else {
-          mergedInvoices = existing.invoices;
-        }
-      }
-      const cleanInvoices = mergedInvoices.filter(
-        (i: any) => i && i.id && !safeDeletedInvoiceIds.includes(i.id) && (!i.clientId || !safeDeletedClientIds.includes(i.clientId))
       );
 
       // Handle leads: merge non-destructively and strictly filter out deleted leads
