@@ -16,10 +16,6 @@ if (isProduction) {
   process.env.NODE_ENV = 'production';
 }
 
-// Determine target port: In AI Studio's managed container, nginx is already bound to 8080 and proxies to 3000.
-// In standalone Cloud Run / Docker containers, the app binds directly to PORT (default 8080).
-const isAiStudioEnv = Boolean(process.env.APPLET_ID || process.env.NGINX_PORT || process.env.CONTROL_PLANE_PORT || process.env.DEFAULT_APP_PORT);
-const TARGET_PORT = isAiStudioEnv ? 3000 : (parseInt(process.env.PORT || '', 10) || 8080);
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STORE_FILE = path.join(DATA_DIR, 'crm-store.json');
 const VAULT_FILE = path.join(DATA_DIR, 'crm-store-vault.json');
@@ -2307,34 +2303,61 @@ async function startServer() {
     });
   }
 
-  const tryListen = (portToTry: number, fallbackPort?: number) => {
-    const srv = app.listen(portToTry, '0.0.0.0', () => {
-      console.log(`ADCS CRM Enterprise Server active on http://0.0.0.0:${portToTry} [mode: ${isProduction ? 'production' : 'development'}]`);
-    });
+  const activeServers: any[] = [];
 
-    srv.on('error', (err: any) => {
-      if (err.code === 'EADDRINUSE' && fallbackPort && fallbackPort !== portToTry) {
-        console.warn(`[Port Listen] Port ${portToTry} is already in use. Falling back to port ${fallbackPort}...`);
-        tryListen(fallbackPort);
-      } else {
-        console.error(`[Server Listen Error on port ${portToTry}]:`, err);
-        process.exit(1);
-      }
-    });
-
-    process.on('SIGTERM', () => {
-      console.info('[Process] Received SIGTERM signal, shutting down server gracefully...');
-      srv.close(() => {
-        console.info('[Process] Server closed successfully.');
-        process.exit(0);
+  const bindPort = (port: number, isPrimary: boolean) => {
+    try {
+      const srv = app.listen(port, '0.0.0.0', () => {
+        console.log(`[CRM Server] Active and listening on http://0.0.0.0:${port} [mode: ${isProduction ? 'production' : 'development'}, primary: ${isPrimary}]`);
       });
-    });
 
-    return srv;
+      srv.on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+          console.warn(`[Port Listen] Port ${port} is currently in use (${isPrimary ? 'primary listener' : 'secondary listener'}).`);
+          if (isPrimary && port !== 8080) {
+            console.info('[Port Listen] Fallback: ensuring port 8080 is bound for Cloud Run health checks...');
+            bindPort(8080, true);
+          }
+        } else {
+          console.error(`[Server Error on port ${port}]:`, err);
+        }
+      });
+
+      activeServers.push(srv);
+      return srv;
+    } catch (e) {
+      console.warn(`[Port Listen] Could not bind port ${port}:`, e);
+      return null;
+    }
   };
 
-  const alternatePort = TARGET_PORT === 3000 ? 8080 : 3000;
-  tryListen(TARGET_PORT, alternatePort);
+  // Port Resolution:
+  // In Google Cloud Run / Docker containers, PORT=8080 is injected and health-checked.
+  // In AI Studio managed container, nginx forwards to 3000.
+  // We bind BOTH ports to guarantee health checks pass regardless of environment.
+  const envPort = parseInt(process.env.PORT || '', 10);
+  const isAiStudio = Boolean(process.env.APPLET_ID);
+
+  if (isAiStudio) {
+    bindPort(3000, true);
+    bindPort(8080, false);
+  } else {
+    const primaryPort = envPort || 8080;
+    bindPort(primaryPort, true);
+    if (primaryPort !== 3000) {
+      bindPort(3000, false);
+    }
+  }
+
+  process.on('SIGTERM', () => {
+    console.info('[Process] Received SIGTERM signal, shutting down server listeners gracefully...');
+    for (const srv of activeServers) {
+      try {
+        srv.close();
+      } catch {}
+    }
+    process.exit(0);
+  });
 }
 
 process.on('uncaughtException', (err) => {
