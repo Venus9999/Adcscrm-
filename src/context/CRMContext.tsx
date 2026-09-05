@@ -1195,9 +1195,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!remoteIso) return false;
     const r = new Date(remoteIso).getTime();
     if (isNaN(r)) return false;
-    if (!localIso) return false;
+    if (!localIso) return true;
     const l = new Date(localIso).getTime();
-    if (isNaN(l)) return false;
+    if (isNaN(l)) return true;
     return r > l;
   };
 
@@ -1561,8 +1561,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           };
         });
       setClients((prev) => {
-        if (parsed.forceReset && cleanClients.length > 0) return cleanClients;
-        if (parsed.forceReset && cleanClients.length === 0 && (prev || []).length > 0) return prev;
+        if (parsed.forceReset) return cleanClients;
         const map = new Map<string, Client>();
         (prev || []).forEach((c) => {
           if (c && c.id && c.id !== 'client-test-1' && !deletedClientIds.includes(c.id)) {
@@ -1583,8 +1582,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (d: any) => d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))
       );
       setDocuments((prev) => {
-        if (parsed.forceReset && cleanDocs.length > 0) return cleanDocs;
-        if (parsed.forceReset && cleanDocs.length === 0 && (prev || []).length > 0) return prev;
+        if (parsed.forceReset) return cleanDocs;
         const map = new Map<string, DocumentItem>();
         (prev || []).forEach((d) => {
           if (d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))) {
@@ -1605,8 +1603,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (t: any) => t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
       );
       setTasks((prev) => {
-        if (parsed.forceReset && cleanTasks.length > 0) return cleanTasks;
-        if (parsed.forceReset && cleanTasks.length === 0 && (prev || []).length > 0) return prev;
+        if (parsed.forceReset) return cleanTasks;
         const map = new Map<string, TaskItem>();
         (prev || []).forEach((t) => {
           if (t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))) {
@@ -1627,8 +1624,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (i: any) => i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
       );
       setInvoices((prev) => {
-        if (parsed.forceReset && cleanInvoices.length > 0) return cleanInvoices;
-        if (parsed.forceReset && cleanInvoices.length === 0 && (prev || []).length > 0) return prev;
+        if (parsed.forceReset) return cleanInvoices;
         const map = new Map<string, Invoice>();
         (prev || []).forEach((i) => {
           if (i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))) {
@@ -1658,8 +1654,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (ld: any) => ld && ld.id && !deletedLeadIds.includes(ld.id)
       );
       setLeads((prev) => {
-        if (parsed.forceReset && cleanLeads.length > 0) return cleanLeads;
-        if (parsed.forceReset && cleanLeads.length === 0 && (prev || []).length > 0) return prev;
+        if (parsed.forceReset) return cleanLeads;
         const map = new Map<string, Lead>();
         (prev || []).forEach((l) => {
           if (l && l.id && !deletedLeadIds.includes(l.id)) {
@@ -1676,16 +1671,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
     }
     if (parsed.leadCategories && Array.isArray(parsed.leadCategories)) {
-      setLeadCategories((prev) => mergeEntitiesById(prev, parsed.leadCategories, INITIAL_LEAD_CATEGORIES));
+      setLeadCategories((prev) => (parsed.forceReset ? parsed.leadCategories : mergeEntitiesById(prev, parsed.leadCategories, INITIAL_LEAD_CATEGORIES)));
     }
     if (parsed.leadSources && Array.isArray(parsed.leadSources)) {
-      setLeadSources((prev) => mergeEntitiesById(prev, parsed.leadSources, INITIAL_LEAD_SOURCES));
+      setLeadSources((prev) => (parsed.forceReset ? parsed.leadSources : mergeEntitiesById(prev, parsed.leadSources, INITIAL_LEAD_SOURCES)));
     }
     if (parsed.leadStages && Array.isArray(parsed.leadStages)) {
-      setLeadStages((prev) => mergeEntitiesById(prev, parsed.leadStages, INITIAL_LEAD_STAGES));
+      setLeadStages((prev) => (parsed.forceReset ? parsed.leadStages : mergeEntitiesById(prev, parsed.leadStages, INITIAL_LEAD_STAGES)));
     }
     if (parsed.transactions && Array.isArray(parsed.transactions)) {
-      setTransactions((prev) => mergeEntitiesById(prev, parsed.transactions, []));
+      setTransactions((prev) => (parsed.forceReset ? parsed.transactions : mergeEntitiesById(prev, parsed.transactions, [])));
     }
 
     if (parsed.visaApplications !== undefined) {
@@ -1973,6 +1968,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (localSnap: any, remoteSnap: any, source: 'firestore' | 'server'): ConflictInfo | null => {
       if (!remoteSnap || typeof remoteSnap !== 'object') return null;
 
+      // If the local user has NOT made uncommitted edits in this browser session,
+      // there is NEVER a conflict: incoming remote changes must be seamlessly and automatically applied!
+      if (!hasUserEditedRef.current) {
+        return null;
+      }
+
       const localClients = Array.isArray(localSnap?.clients) ? localSnap.clients : [];
       const remoteClients = Array.isArray(remoteSnap?.clients) ? remoteSnap.clients : [];
       const localLeads = Array.isArray(localSnap?.leads) ? localSnap.leads : [];
@@ -1982,46 +1983,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const localInvoices = Array.isArray(localSnap?.invoices) ? localSnap.invoices : [];
       const remoteInvoices = Array.isArray(remoteSnap?.invoices) ? remoteSnap.invoices : [];
 
-      const localTotal = localClients.length + localLeads.length + localTasks.length + localInvoices.length;
-      const remoteTotal = remoteClients.length + remoteLeads.length + remoteTasks.length + remoteInvoices.length;
-
-      // Fresh cold start (no records locally): accept remote cleanly
-      if (localTotal === 0 && !hasUserEditedRef.current) {
-        return null;
-      }
-
-      // If remote is empty or near-empty while local has real records:
-      // NOT a conflict to prompt user with; protected automatically by seed/preserve flow
-      if (remoteTotal <= 1 && localTotal > 1) {
-        return null;
-      }
-
       const localIso = localSnap?.lastUpdated || '';
       const remoteIso = remoteSnap?.lastUpdated || '';
       if (localIso && remoteIso && localIso === remoteIso) {
         return null;
       }
 
-      const clientCountDiff = Math.abs(localClients.length - remoteClients.length);
-      const leadCountDiff = Math.abs(localLeads.length - remoteLeads.length);
-      const invoiceCountDiff = Math.abs(localInvoices.length - remoteInvoices.length);
-      const taskCountDiff = Math.abs(localTasks.length - remoteTasks.length);
-
-      const hasSignificantCountDiff = clientCountDiff > 0 || leadCountDiff > 0 || invoiceCountDiff > 0 || taskCountDiff > 0;
-      const hasUnsavedEdits = hasUserEditedRef.current;
-
-      // Trigger conflict modal if user has un-synced edits and remote updated, or if record counts differ
-      if (
-        (hasUnsavedEdits && isRemoteStrictlyNewer(remoteIso, localIso)) ||
-        (hasSignificantCountDiff && localTotal > 0 && remoteTotal > 0 && localIso !== remoteIso)
-      ) {
-        let description = 'Discrepancy detected between your local working state and the database.';
-        if (hasSignificantCountDiff) {
-          description = `Local browser has ${localClients.length} client(s), ${localLeads.length} lead(s), ${localInvoices.length} invoice(s). Remote ${source === 'firestore' ? 'Firestore' : 'Server'} has ${remoteClients.length} client(s), ${remoteLeads.length} lead(s), ${remoteInvoices.length} invoice(s).`;
-        } else if (hasUnsavedEdits) {
-          description = 'You have unsaved local edits that conflict with an update from the database.';
-        }
-
+      // Only trigger conflict if user has unsaved local edits and remote has newer updates
+      if (hasUserEditedRef.current && isRemoteStrictlyNewer(remoteIso, localIso)) {
         return {
           source,
           remoteSnapshot: remoteSnap,
@@ -2038,7 +2007,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             remoteInvoicesCount: remoteInvoices.length,
             localLastUpdated: localIso,
             remoteLastUpdated: remoteIso,
-            description,
+            description: 'You have unsaved local edits that conflict with an update from the database.',
           },
         };
       }
@@ -2266,6 +2235,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         remoteData.clients = remoteData.clients.filter((c: any) => c && c.id !== 'client-test-1');
       }
 
+      // If this client is actively in-flight saving, do not interrupt
+      if (isLocalDebounceSavingRef.current) return false;
+
+      // Check timestamps: if remote timestamp matches last applied, already up to date
+      if (
+        remoteData.lastUpdated &&
+        lastAppliedRemoteIsoRef.current &&
+        remoteData.lastUpdated === lastAppliedRemoteIsoRef.current
+      ) {
+        return true;
+      }
+
       const localSnap = getCurrentLocalSnapshot();
       let localTotalRecords =
         (localSnap.clients?.filter((c: any) => c && c.id !== 'client-test-1')?.length || 0) +
@@ -2303,15 +2284,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (Array.isArray(remoteData.documents) ? remoteData.documents.length : 0) +
         (Array.isArray(remoteData.visaApplications) ? remoteData.visaApplications.length : 0);
 
-      // CRITICAL FIX FOR VANISHING DATA:
-      // If local state has real records, but remote snapshot is cold-start, empty,
-      // or missing records (e.g. 0-1 records), NEVER wipe local state!
-      // Instead, preserve local state and seed the remote server database and cloud!
+      // Protection against completely cold/empty remote wiping populated local state on startup
       if (
         localTotalRecords > 0 &&
-        (remoteData.isColdStart || remoteTotalRecords === 0 || (localTotalRecords > remoteTotalRecords && remoteTotalRecords <= 1))
+        remoteTotalRecords === 0 &&
+        (remoteData.isColdStart || !remoteData.lastUpdated)
       ) {
-        console.info('Preserving local CRM data: remote snapshot is cold or incomplete. Seeding server disk & cloud.');
+        console.info('Preserving local CRM data: remote snapshot is completely empty/cold. Seeding server disk & cloud.');
         if (activeLocalSnap !== localSnap) {
           hydrateStateFromSnapshot(activeLocalSnap);
         }
@@ -2319,32 +2298,47 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return false;
       }
 
-      // Check for conflict: automatically merge both local and remote instead of repeatedly interrupting the user
-      const conflict = detectSnapshotConflict(activeLocalSnap, remoteData, source);
-      if (conflict) {
-        console.info('Automatic non-destructive merge executed between local state and', source, conflict.diffSummary);
-        mergeSnapshots(activeLocalSnap, remoteData);
-        return true;
+      // If user in this browser has unsaved edits, check for conflict
+      if (hasUserEditedRef.current) {
+        const conflict = detectSnapshotConflict(activeLocalSnap, remoteData, source);
+        if (conflict) {
+          console.info('Automatic non-destructive merge executed between local state and', source, conflict.diffSummary);
+          mergeSnapshots(activeLocalSnap, remoteData);
+          return true;
+        }
       }
 
-      // If remote is strictly newer or local has zero records, hydrate safely
-      if (isRemoteStrictlyNewer(remoteData.lastUpdated, lastAppliedRemoteIsoRef.current) || localTotalRecords === 0) {
-        lastAppliedRemoteIsoRef.current = remoteData.lastUpdated || new Date().toISOString();
-        hydrateStateFromSnapshot(remoteData);
-        setTimeout(() => {
-          try {
-            const mergedSnap = getCurrentLocalSnapshot();
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedSnap));
-            localStorage.setItem(CRM_VAULT_STORAGE_KEY, JSON.stringify(mergedSnap));
-            saveToIndexedDbVault('current_working_state', mergedSnap).catch(() => {});
-          } catch {}
-        }, 100);
-        setLastServerSyncTime(new Date().toLocaleTimeString());
-        setServerSyncStatus('synced');
-        return true;
+      // AUTOMATIC LIVE APPLICATION:
+      // When the user has no unsaved edits, remote database data from server or cloud
+      // is authoritative. Seamlessly hydrate the entire state so all screens update in real time!
+      isHydratingFromRemoteRef.current = true;
+      lastAppliedRemoteIsoRef.current = remoteData.lastUpdated || new Date().toISOString();
+      hydrateStateFromSnapshot({ ...remoteData, forceReset: true });
+
+      try {
+        const snapJson = JSON.stringify(remoteData);
+        localStorage.setItem(LOCAL_STORAGE_KEY, snapJson);
+        localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapJson);
+        saveToIndexedDbVault('current_working_state', remoteData).catch(() => {});
+      } catch {}
+
+      setLastServerSyncTime(new Date().toLocaleTimeString());
+      setServerSyncStatus('synced');
+
+      if (broadcastChannelRef.current) {
+        try {
+          broadcastChannelRef.current.postMessage({
+            type: 'CRM_TAB_UPDATE',
+            snapshot: remoteData,
+          });
+        } catch {}
       }
 
-      return false;
+      setTimeout(() => {
+        isHydratingFromRemoteRef.current = false;
+      }, 50);
+
+      return true;
     },
     [getCurrentLocalSnapshot, detectSnapshotConflict, isRemoteStrictlyNewer, hydrateStateFromSnapshot, syncSnapshot, mergeSnapshots]
   );
@@ -2467,7 +2461,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 (parsed.tasks?.length || 0) +
                 (parsed.invoices?.length || 0) +
                 (parsed.transactions?.length || 0);
-              if (localTotal > 0 && (!serverLoaded || !cloudLoaded)) {
+              if (localTotal > 0 && !serverLoaded && !cloudLoaded) {
                 console.info('Seeding server disk with local CRM working state on startup...');
                 saveCRMDataToCloud(parsed, true).catch(() => {});
                 fetch('/api/crm/data', {
@@ -2536,7 +2530,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (statusRes.ok && statusRes.headers.get('content-type')?.includes('application/json')) {
           const statusJson = await statusRes.json();
           if (statusJson.success && statusJson.hasData && statusJson.lastUpdated && !statusJson.isColdStart) {
-            if (isRemoteStrictlyNewer(statusJson.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+            const isTimestampDifferent = statusJson.lastUpdated !== lastAppliedRemoteIsoRef.current;
+            const isServerNewer = isRemoteStrictlyNewer(statusJson.lastUpdated, lastAppliedRemoteIsoRef.current);
+            if (isServerNewer || (isTimestampDifferent && !hasUserEditedRef.current)) {
               const serverRes = await fetch('/api/crm/data', { cache: 'no-store' });
               if (serverRes.ok && serverRes.headers.get('content-type')?.includes('application/json')) {
                 const serverJson = await serverRes.json();
@@ -2554,7 +2550,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const cloudRes = await loadCRMDataFromCloud();
         if (cloudRes.success && cloudRes.hasData && cloudRes.data?.lastUpdated) {
-          if (isRemoteStrictlyNewer(cloudRes.data.lastUpdated, lastAppliedRemoteIsoRef.current)) {
+          const isCloudNewer = isRemoteStrictlyNewer(cloudRes.data.lastUpdated, lastAppliedRemoteIsoRef.current);
+          const isTimestampDifferent = cloudRes.data.lastUpdated !== lastAppliedRemoteIsoRef.current;
+          if (isCloudNewer || (isTimestampDifferent && !hasUserEditedRef.current)) {
             processRemoteUpdate(cloudRes.data, 'firestore');
           }
         }
@@ -2755,8 +2753,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (cloudOk || serverOk) {
           setServerSyncStatus('synced');
           setLastServerSyncTime(new Date().toLocaleTimeString());
+          hasUserEditedRef.current = false;
         } else {
           setServerSyncStatus('synced'); // Local storage is intact
+          hasUserEditedRef.current = false;
         }
       } catch {
         setServerSyncStatus('offline');
