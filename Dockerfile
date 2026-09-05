@@ -11,13 +11,16 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=8080
 
 COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/server.ts ./server.ts
 
-EXPOSE 3000
+RUN mkdir -p /app/data /app/data/backups
+
+EXPOSE 8080
 CMD ["node", "dist/server.cjs"]

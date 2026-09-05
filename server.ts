@@ -16,7 +16,7 @@ if (isProduction) {
   process.env.NODE_ENV = 'production';
 }
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = parseInt(process.env.PORT || '', 10) || (isProduction ? 8080 : 3000);
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STORE_FILE = path.join(DATA_DIR, 'crm-store.json');
 const VAULT_FILE = path.join(DATA_DIR, 'crm-store-vault.json');
@@ -2290,7 +2290,23 @@ async function startServer() {
   server.on('error', (err: any) => {
     console.error(`[Server Listen Error on port ${PORT}]:`, err);
   });
+
+  process.on('SIGTERM', () => {
+    console.info('[Process] Received SIGTERM signal, shutting down server gracefully...');
+    server.close(() => {
+      console.info('[Process] Server closed successfully.');
+      process.exit(0);
+    });
+  });
 }
+
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Process] Unhandled rejection at:', promise, 'reason:', reason);
+});
 
 startServer().catch(err => {
   console.error('Failed to boot CRM server:', err);
