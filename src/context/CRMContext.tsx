@@ -454,6 +454,55 @@ export const CRM_APP_VERSION_KEY = 'adcs_crm_app_version';
 
 // Safe storage reader: Dynamically probes ALL known and historical localStorage keys across version upgrades
 export const readSafeStorageSnapshot = (): any => {
+  // 1. Try active primary working storage first
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const primaryRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (primaryRaw) {
+        const parsed = JSON.parse(primaryRaw);
+        if (parsed && typeof parsed === 'object') {
+          const data = (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.clients) && !Array.isArray(parsed.leads) && !Array.isArray(parsed.invoices))
+            ? parsed.data
+            : parsed;
+          delete (data as any).data;
+          const totalRecords =
+            (Array.isArray(data.clients) ? data.clients.filter((c: any) => c && c.id !== 'client-test-1').length : 0) +
+            (Array.isArray(data.leads) ? data.leads.length : 0) +
+            (Array.isArray(data.invoices) ? data.invoices.length : 0) +
+            (Array.isArray(data.transactions) ? data.transactions.length : 0) +
+            (Array.isArray(data.tasks) ? data.tasks.length : 0) +
+            (Array.isArray(data.documents) ? data.documents.length : 0);
+          if (totalRecords > 0 || data.hasCustomModifications) {
+            return data;
+          }
+        }
+      }
+
+      // 2. Try persistent vault storage
+      const vaultRaw = localStorage.getItem(CRM_VAULT_STORAGE_KEY);
+      if (vaultRaw) {
+        const parsed = JSON.parse(vaultRaw);
+        if (parsed && typeof parsed === 'object') {
+          const data = (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.clients) && !Array.isArray(parsed.leads) && !Array.isArray(parsed.invoices))
+            ? parsed.data
+            : parsed;
+          delete (data as any).data;
+          const totalRecords =
+            (Array.isArray(data.clients) ? data.clients.filter((c: any) => c && c.id !== 'client-test-1').length : 0) +
+            (Array.isArray(data.leads) ? data.leads.length : 0) +
+            (Array.isArray(data.invoices) ? data.invoices.length : 0) +
+            (Array.isArray(data.transactions) ? data.transactions.length : 0) +
+            (Array.isArray(data.tasks) ? data.tasks.length : 0) +
+            (Array.isArray(data.documents) ? data.documents.length : 0);
+          if (totalRecords > 0 || data.hasCustomModifications) {
+            return data;
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 3. Fallback scan across legacy backup keys if primary storages are empty
   const discoveredKeys = new Set<string>([
     LOCAL_STORAGE_KEY,
     CRM_VAULT_STORAGE_KEY,
@@ -488,8 +537,11 @@ export const readSafeStorageSnapshot = (): any => {
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object') continue;
 
-      // Extract inner data if payload was wrapped in a snapshot container
-      const data = parsed.data && typeof parsed.data === 'object' ? parsed.data : parsed;
+      // Extract inner data only if payload was wrapped in an envelope without root collections
+      const data = (parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.clients) && !Array.isArray(parsed.leads) && !Array.isArray(parsed.invoices))
+        ? parsed.data
+        : parsed;
+      delete (data as any).data;
 
       const clientsCount = Array.isArray(data.clients)
         ? data.clients.filter((c: any) => c && c.id !== 'client-test-1').length
@@ -504,7 +556,12 @@ export const readSafeStorageSnapshot = (): any => {
       const companiesCount = Array.isArray(data.companies) ? data.companies.length : 0;
       const stagesCount = Array.isArray(data.stages) ? data.stages.length : 0;
 
+      const keyBonus = (key === LOCAL_STORAGE_KEY ? 10000 : 0) + (key === CRM_VAULT_STORAGE_KEY ? 5000 : 0);
+      const revisionBonus = (Number(data.revision) || 0) * 50;
+
       const score =
+        keyBonus +
+        revisionBonus +
         clientsCount * 25 +
         leadsCount * 15 +
         invoicesCount * 15 +
@@ -526,6 +583,7 @@ export const readSafeStorageSnapshot = (): any => {
   // If we found a populated snapshot, ensure LOCAL_STORAGE_KEY & CRM_VAULT_STORAGE_KEY have it
   if (bestSnapshot && maxScore > 0) {
     try {
+      delete (bestSnapshot as any).data;
       const snapJson = JSON.stringify(bestSnapshot);
       localStorage.setItem(LOCAL_STORAGE_KEY, snapJson);
       localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapJson);
@@ -2012,6 +2070,42 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     visaCountryCatalog,
   ]);
 
+  // Robust immediate persistence helper that writes synchronously to localStorage, vault, IndexedDB, and dispatches to server
+  const persistAndSyncImmediate = useCallback(
+    (partialUpdates: Record<string, any>) => {
+      try {
+        hasUserEditedRef.current = true;
+        isLocalDebounceSavingRef.current = true;
+        const base = getCurrentLocalSnapshot();
+        const nowIso = new Date().toISOString();
+        const nextRevision = Math.max(Number(base.revision) || 0, Number(lastAppliedRevisionRef.current) || 0) + 1;
+        const snap = {
+          ...base,
+          ...partialUpdates,
+          hasCustomModifications: true,
+          lastUpdated: nowIso,
+          revision: nextRevision,
+        };
+        delete (snap as any).data;
+        lastAppliedRemoteIsoRef.current = nowIso;
+        lastAppliedRevisionRef.current = nextRevision;
+        const snapStr = JSON.stringify(snap);
+        localStorage.setItem(LOCAL_STORAGE_KEY, snapStr);
+        localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapStr);
+        saveToIndexedDbVault('current_working_state', snap).catch(() => {});
+        if (broadcastChannelRef.current) {
+          broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: snap });
+        }
+        syncSnapshot(snap);
+        return snap;
+      } catch (err) {
+        console.error('persistAndSyncImmediate error:', err);
+        return null;
+      }
+    },
+    [getCurrentLocalSnapshot, syncSnapshot]
+  );
+
   // Conflict Detection Engine: compares local working state against incoming remote database snapshot
   const detectSnapshotConflict = useCallback(
     (localSnap: any, remoteSnap: any, source: 'firestore' | 'server'): ConflictInfo | null => {
@@ -2880,6 +2974,30 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     billingSettings,
   ]);
 
+  // Guaranteed flush on window unload or browser refresh
+  useEffect(() => {
+    const handleUnloadFlush = () => {
+      try {
+        const snap = getCurrentLocalSnapshot();
+        delete (snap as any).data;
+        const payloadStr = JSON.stringify(snap);
+        localStorage.setItem(LOCAL_STORAGE_KEY, payloadStr);
+        localStorage.setItem(CRM_VAULT_STORAGE_KEY, payloadStr);
+        if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+          const blob = new Blob([payloadStr], { type: 'application/json' });
+          navigator.sendBeacon('/api/crm/data', blob);
+        }
+      } catch {}
+    };
+
+    window.addEventListener('beforeunload', handleUnloadFlush);
+    window.addEventListener('pagehide', handleUnloadFlush);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnloadFlush);
+      window.removeEventListener('pagehide', handleUnloadFlush);
+    };
+  }, [getCurrentLocalSnapshot]);
+
   // Adjust selectedCompanyId and reset employee filter if user changes
   useEffect(() => {
     setSelectedEmployeeId('all');
@@ -3629,12 +3747,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createdAt: nowIso,
       };
 
-      // 1. Update departments
-      let nextDepts: Department[] = [];
-      setDepartments((prev) => {
-        nextDepts = [...prev, newDept];
-        return nextDepts;
-      });
+      const nextDepts = [...(departments || []), newDept];
+      setDepartments(nextDepts);
 
       // 2. Synchronize assigned users & HOD
       const staffToAssign = new Set<string>([
@@ -3643,53 +3757,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...(newDept.deputyHeadId ? [newDept.deputyHeadId] : []),
       ]);
 
-      setUsers((prevUsers) => {
-        let nextUsers = prevUsers;
-        if (staffToAssign.size > 0) {
-          nextUsers = prevUsers.map((u) => {
-            if (staffToAssign.has(u.id)) {
-              return {
-                ...u,
-                department: newDept.name,
-              };
-            }
-            return u;
-          });
-        }
-
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.departments = nextDepts.length > 0 ? nextDepts : [...(parsed.departments || []), newDept];
-            parsed.users = nextUsers;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
+      let nextUsers = users;
+      if (staffToAssign.size > 0) {
+        nextUsers = (users || []).map((u) => {
+          if (staffToAssign.has(u.id)) {
+            return {
+              ...u,
+              department: newDept.name,
+            };
           }
-        } catch {}
+          return u;
+        });
+        setUsers(nextUsers);
+      }
 
-        return nextUsers;
+      persistAndSyncImmediate({
+        departments: nextDepts,
+        users: staffToAssign.size > 0 ? nextUsers : undefined,
       });
 
       recordAuditLog('Department Created', 'Settings', `Created department "${newDept.name}" (${newDept.code}) with ${staffToAssign.size} assigned staff`);
       return newDept;
     },
-    [currentUser, recordAuditLog]
+    [currentUser, departments, users, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateDepartment = useCallback(
@@ -3701,104 +3791,68 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
-      let oldDeptName = '';
-      let targetDeptName = '';
-      let oldStaffIds: string[] = [];
-      let newStaffIds: string[] | undefined = undefined;
-      let nextDepts: Department[] = [];
+      const found = (departments || []).find((d) => d.id === id);
+      const oldDeptName = found?.name || '';
+      const oldStaffIds = found?.assignedStaffIds || [];
+      const targetDeptName = updates.name || oldDeptName;
+      const newStaffIds = updates.assignedStaffIds;
 
-      setDepartments((prev) => {
-        const found = prev.find((d) => d.id === id);
-        if (found) {
-          oldDeptName = found.name;
-          oldStaffIds = found.assignedStaffIds || [];
+      const nextDepts = (departments || []).map((d) => {
+        if (d.id === id) {
+          const cleanUpdates: Partial<Department> = {};
+          (Object.keys(updates) as Array<keyof Department>).forEach((key) => {
+            if (updates[key] !== undefined) {
+              (cleanUpdates as any)[key] = updates[key];
+            }
+          });
+          return {
+            ...d,
+            ...cleanUpdates,
+            id: d.id,
+            createdAt: d.createdAt,
+          };
         }
-        targetDeptName = updates.name || oldDeptName;
-        if (updates.assignedStaffIds !== undefined) {
-          newStaffIds = updates.assignedStaffIds;
-        }
-
-        nextDepts = prev.map((d) => {
-          if (d.id === id) {
-            const cleanUpdates: Partial<Department> = {};
-            (Object.keys(updates) as Array<keyof Department>).forEach((key) => {
-              if (updates[key] !== undefined) {
-                (cleanUpdates as any)[key] = updates[key];
-              }
-            });
-            return {
-              ...d,
-              ...cleanUpdates,
-              id: d.id,
-              createdAt: d.createdAt,
-            };
-          }
-          return d;
-        });
-        return nextDepts;
+        return d;
       });
+      setDepartments(nextDepts);
 
       // Synchronize assigned users
-      setUsers((prevUsers) => {
-        const effectiveDeptName = targetDeptName || oldDeptName;
-        const nextUsers = prevUsers.map((u) => {
-          // If department name was renamed, update anyone with the old name
-          if (oldDeptName && oldDeptName !== effectiveDeptName && u.department === oldDeptName) {
+      const effectiveDeptName = targetDeptName || oldDeptName;
+      const nextUsers = (users || []).map((u) => {
+        // If department name was renamed, update anyone with the old name
+        if (oldDeptName && oldDeptName !== effectiveDeptName && u.department === oldDeptName) {
+          return { ...u, department: effectiveDeptName };
+        }
+
+        // If staff roster was modified
+        if (newStaffIds !== undefined) {
+          const isAssignedNow =
+            newStaffIds.includes(u.id) ||
+            updates.headOfDepartmentId === u.id ||
+            updates.deputyHeadId === u.id;
+          const wasAssignedPreviously = oldStaffIds.includes(u.id);
+
+          if (isAssignedNow) {
             return { ...u, department: effectiveDeptName };
+          } else if (wasAssignedPreviously && u.department === oldDeptName) {
+            return { ...u, department: 'Operations' };
           }
+        } else if (updates.headOfDepartmentId === u.id || updates.deputyHeadId === u.id) {
+          return { ...u, department: effectiveDeptName };
+        }
 
-          // If staff roster was modified
-          if (newStaffIds !== undefined) {
-            const isAssignedNow =
-              newStaffIds.includes(u.id) ||
-              updates.headOfDepartmentId === u.id ||
-              updates.deputyHeadId === u.id;
-            const wasAssignedPreviously = oldStaffIds.includes(u.id);
+        return u;
+      });
+      setUsers(nextUsers);
 
-            if (isAssignedNow) {
-              return { ...u, department: effectiveDeptName };
-            } else if (wasAssignedPreviously && u.department === oldDeptName) {
-              return { ...u, department: 'Operations' };
-            }
-          } else if (updates.headOfDepartmentId === u.id || updates.deputyHeadId === u.id) {
-            return { ...u, department: effectiveDeptName };
-          }
-
-          return u;
-        });
-
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.departments = nextDepts;
-            parsed.users = nextUsers;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
-          }
-        } catch {}
-
-        return nextUsers;
+      persistAndSyncImmediate({
+        departments: nextDepts,
+        users: nextUsers,
       });
 
       recordAuditLog('Department Updated', 'Settings', `Updated department ID ${id} (${targetDeptName})`);
     },
-    [currentUser, recordAuditLog]
+    [currentUser, departments, users, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteDepartment = useCallback(
@@ -3810,52 +3864,28 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
-      let deletedDeptName = '';
-      let nextDepts: Department[] = [];
+      const target = (departments || []).find((d) => d && d.id === id);
+      const deletedDeptName = target?.name || '';
+      if (target) {
+        recordAuditLog('Department Deleted', 'Settings', `Deleted department "${target.name}" (${target.code})`);
+      }
+      const nextDepts = (departments || []).filter((d) => d && d.id !== id);
+      setDepartments(nextDepts);
 
-      setDepartments((prev) => {
-        const target = (prev || []).find((d) => d && d.id === id);
-        if (target) {
-          deletedDeptName = target.name;
-          recordAuditLog('Department Deleted', 'Settings', `Deleted department "${target.name}" (${target.code})`);
+      const nextUsers = (users || []).map((u) => {
+        if (deletedDeptName && u.department === deletedDeptName) {
+          return { ...u, department: 'Operations' };
         }
-        nextDepts = (prev || []).filter((d) => d && d.id !== id);
-        return nextDepts;
+        return u;
       });
+      setUsers(nextUsers);
 
-      setUsers((prevUsers) => {
-        const nextUsers = prevUsers.map((u) => {
-          if (deletedDeptName && u.department === deletedDeptName) {
-            return { ...u, department: 'Operations' };
-          }
-          return u;
-        });
-
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.departments = nextDepts;
-            parsed.users = nextUsers;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-          }
-        } catch {}
-
-        return nextUsers;
+      persistAndSyncImmediate({
+        departments: nextDepts,
+        users: nextUsers,
       });
     },
-    [currentUser, recordAuditLog]
+    [currentUser, departments, users, recordAuditLog, persistAndSyncImmediate]
   );
 
   // Frontend Client Self-Registration
@@ -4059,65 +4089,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(ACTIVE_USER_PROFILE_KEY, JSON.stringify(newUser));
         localStorage.setItem('adcs_crm_active_tab', 'client_portal');
 
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        let snapshotToSave: any;
-        if (saved) {
-          snapshotToSave = JSON.parse(saved);
-          snapshotToSave.users = [newUser, ...(snapshotToSave.users || [])];
-          snapshotToSave.clients = [newClient, ...(snapshotToSave.clients || [])];
-          snapshotToSave.companies = (snapshotToSave.companies || companies).map((c: any) =>
-            c.id === targetCompanyId ? { ...c, totalClientsCount: (c.totalClientsCount || 0) + 1 } : c
-          );
-          snapshotToSave.notifications = [notif, ...(snapshotToSave.notifications || [])];
-          snapshotToSave.auditLogs = [newLog, ...(snapshotToSave.auditLogs || [])];
-          snapshotToSave.lastUpdated = nowIso;
-          snapshotToSave.hasCustomModifications = true;
-        } else {
-          snapshotToSave = {
-            currentUserId: userId,
-            companies: companies.map((c) =>
-              c.id === targetCompanyId ? { ...c, totalClientsCount: (c.totalClientsCount || 0) + 1 } : c
-            ),
-            vendors,
-            users: [newUser, ...users],
-            roles,
-            stages,
-            workflows,
-            serviceCategories,
-            clients: [newClient, ...clients],
-            documents,
-            tasks,
-            invoices,
-            messages,
-            auditLogs: [newLog, ...auditLogs],
-            notifications: [notif, ...notifications],
-            leads,
-            leadCategories,
-            leadSources,
-            leadStages,
-            transactions,
-            crmBranding,
-            billingSettings,
-            lastUpdated: nowIso,
-            hasCustomModifications: true,
-          };
-        }
+        const updatedCompanies = (companies || []).map((c) =>
+          c.id === targetCompanyId ? { ...c, totalClientsCount: (c.totalClientsCount || 0) + 1 } : c
+        );
 
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(snapshotToSave));
-
-        if (broadcastChannelRef.current) {
-          broadcastChannelRef.current.postMessage({
-            type: 'CRM_TAB_UPDATE',
-            snapshot: snapshotToSave,
-          });
-        }
-
-        saveCRMDataToCloud(snapshotToSave, true).catch(() => {});
-        fetch('/api/crm/data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(snapshotToSave),
-        }).catch(() => {});
+        persistAndSyncImmediate({
+          currentUserId: userId,
+          users: [newUser, ...(users || [])],
+          clients: [newClient, ...(clients || [])],
+          companies: updatedCompanies,
+          notifications: [notif, ...(notifications || [])],
+          auditLogs: [newLog, ...(auditLogs || [])],
+        });
       } catch (e) {
         console.error('Registration persistence error:', e);
       }
@@ -4329,7 +4312,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ],
       };
 
-      // If client attached documents, register them
+      let nextDocs = documents;
       if (attachedDocs && attachedDocs.length > 0) {
         const newDocItems: DocumentItem[] = attachedDocs.map((doc, idx) => ({
           id: `doc-${Date.now()}-${idx}`,
@@ -4348,42 +4331,43 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           uploadedAt: new Date().toISOString(),
           version: 1,
         }));
-        setDocuments((prev) => [...newDocItems, ...prev]);
+        nextDocs = [...newDocItems, ...(documents || [])];
+        setDocuments(nextDocs);
       }
 
-      setInvoices((prev) => [newInvoice, ...prev]);
+      const nextInvoices = [newInvoice, ...(invoices || [])];
+      setInvoices(nextInvoices);
 
-      setClients((prev) =>
-        prev.map((c) => {
-          if (c.id === targetClient!.id) {
-            const updatedServices = [...(c.services || []), newClientService];
-            const updatedTotal = c.totalAmount + grandTotal;
-            const updatedOutstanding = c.outstandingAmount + grandTotal;
-            const updatedNotes: InternalNote[] = [
-              {
-                id: `note-${Date.now()}`,
-                userId: currentUser.id,
-                userName: currentUser.name,
-                userRole: currentUser.role,
-                text: `📋 Applied for "${srvCat.name}". Generated Tax Invoice #${invNumber} (Total: AED ${grandTotal.toLocaleString()}). Required docs: ${srvCat.requiredDocuments.join(', ')}`,
-                createdAt: new Date().toISOString(),
-              },
-              ...(c.notes || []),
-            ];
+      const nextClients = (clients || []).map((c) => {
+        if (c.id === targetClient!.id) {
+          const updatedServices = [...(c.services || []), newClientService];
+          const updatedTotal = c.totalAmount + grandTotal;
+          const updatedOutstanding = c.outstandingAmount + grandTotal;
+          const updatedNotes: InternalNote[] = [
+            {
+              id: `note-${Date.now()}`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+              userRole: currentUser.role,
+              text: `📋 Applied for "${srvCat.name}". Generated Tax Invoice #${invNumber} (Total: AED ${grandTotal.toLocaleString()}). Required docs: ${srvCat.requiredDocuments.join(', ')}`,
+              createdAt: new Date().toISOString(),
+            },
+            ...(c.notes || []),
+          ];
 
-            return {
-              ...c,
-              services: updatedServices,
-              totalAmount: updatedTotal,
-              outstandingAmount: updatedOutstanding,
-              paymentStatus: c.paidAmount >= updatedTotal ? 'paid' : c.paidAmount > 0 ? 'partially_paid' : 'unpaid',
-              notes: updatedNotes,
-              updatedAt: new Date().toISOString(),
-            };
-          }
-          return c;
-        })
-      );
+          return {
+            ...c,
+            services: updatedServices,
+            totalAmount: updatedTotal,
+            outstandingAmount: updatedOutstanding,
+            paymentStatus: (c.paidAmount >= updatedTotal ? 'paid' : c.paidAmount > 0 ? 'partially_paid' : 'unpaid') as 'paid' | 'partially_paid' | 'unpaid',
+            notes: updatedNotes,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return c;
+      });
+      setClients(nextClients);
 
       // Notification to admins and assigned staff
       const notif: NotificationItem = {
@@ -4397,7 +4381,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         read: false,
         timestamp: new Date().toISOString(),
       };
-      setNotifications((prev) => [notif, ...prev]);
+      const nextNotifications = [notif, ...(notifications || [])];
+      setNotifications(nextNotifications);
+
+      persistAndSyncImmediate({
+        clients: nextClients,
+        invoices: nextInvoices,
+        documents: nextDocs,
+        notifications: nextNotifications,
+      });
 
       recordAuditLog(
         'Client Applied for Service',
@@ -4415,7 +4407,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return { success: true, service: newClientService, invoice: newInvoice };
     },
-    [serviceCategories, clients, currentUser, selectedClientId, companies, recordAuditLog]
+    [serviceCategories, clients, currentUser, selectedClientId, companies, documents, invoices, notifications, recordAuditLog, persistAndSyncImmediate]
   );
 
   // Duplicate Client Detection
@@ -4776,24 +4768,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
 
       // Immediate synchronous persistence to localStorage and real-time cloud/server dispatch
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const nowIso = new Date().toISOString();
-          parsed.clients = nextClientsList;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          if (Array.isArray(parsed.deletedClientIds)) {
-            parsed.deletedClientIds = parsed.deletedClientIds.filter((cid: string) => cid !== newId);
-          }
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        clients: nextClientsList,
+        invoices: generatedInvoice ? [generatedInvoice, ...(invoices || [])] : (invoices || []),
+      });
 
       recordAuditLog(
         'Client Created',
@@ -4888,20 +4866,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
 
       // Immediate synchronous persistence to localStorage and real-time cloud/server dispatch
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.clients = nextClientsList;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        clients: nextClientsList,
+      });
 
       if (generatedChangeLog) {
         recordAuditLog(
@@ -4978,38 +4945,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (selectedClientId === id) setSelectedClientId(null);
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.clients = nextClients;
-          parsed.documents = nextDocs;
-          parsed.tasks = nextTasks;
-          parsed.invoices = nextInvoices;
-          parsed.deletedClientIds = nextDeletedClientIds;
-          parsed.deletedDocumentIds = nextDeletedDocIds;
-          parsed.deletedTaskIds = nextDeletedTaskIds;
-          parsed.deletedInvoiceIds = nextDeletedInvoiceIds;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({
-              type: 'CRM_TAB_UPDATE',
-              snapshot: parsed,
-            });
-          }
-
-          deleteClientFromCloud(id).catch(() => {});
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        clients: nextClients,
+        documents: nextDocs,
+        tasks: nextTasks,
+        invoices: nextInvoices,
+        deletedClientIds: nextDeletedClientIds,
+        deletedDocumentIds: nextDeletedDocIds,
+        deletedTaskIds: nextDeletedTaskIds,
+        deletedInvoiceIds: nextDeletedInvoiceIds,
+      });
 
       recordAuditLog('Client Deleted', 'Clients', `Deleted client ${client.fullName} and related records`);
     },
@@ -5535,31 +5480,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         id: `stage-${Date.now()}`,
       };
 
-      setStages((prev) => {
-        const next = [...prev, newStage];
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.stages = next;
-            if (Array.isArray(parsed.deletedStageIds)) {
-              parsed.deletedStageIds = parsed.deletedStageIds.filter((id: string) => id !== newStage.id);
-            }
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-            }
-            syncSnapshot(parsed);
-          }
-        } catch {}
-        return next;
+      const nextStages = [...(stages || []), newStage];
+      setStages(nextStages);
+
+      persistAndSyncImmediate({
+        stages: nextStages,
       });
 
       recordAuditLog('Stage Added', 'Stages', `Created custom work stage: ${stage.name}`);
     },
-    [currentUser.role, recordAuditLog, syncSnapshot, triggerPreConfigSnapshot]
+    [currentUser.role, stages, recordAuditLog, persistAndSyncImmediate, triggerPreConfigSnapshot]
   );
 
   const updateStage = useCallback(
@@ -5573,28 +5503,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
-      setStages((prev) => {
-        const next = prev.map((s) => (s.id === stageId ? { ...s, ...updates } : s));
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.stages = next;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-            }
-            syncSnapshot(parsed);
-          }
-        } catch {}
-        return next;
+      const nextStages = (stages || []).map((s) => (s.id === stageId ? { ...s, ...updates } : s));
+      setStages(nextStages);
+
+      persistAndSyncImmediate({
+        stages: nextStages,
       });
 
       recordAuditLog('Stage Updated', 'Stages', `Updated stage config for ${stageId}`);
     },
-    [currentUser.role, recordAuditLog, syncSnapshot, triggerPreConfigSnapshot]
+    [currentUser.role, stages, recordAuditLog, persistAndSyncImmediate, triggerPreConfigSnapshot]
   );
 
   const deleteStage = useCallback(
@@ -5617,32 +5535,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(DELETED_STAGES_STORAGE_KEY, JSON.stringify(updatedDeletedStageIds));
       } catch {}
 
-      const stage = stages.find((s) => s.id === stageId);
-      setStages((prev) => {
-        const next = (prev || []).filter((s) => s && s.id !== stageId);
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.stages = next;
-            parsed.deletedStageIds = [
-              ...new Set([...(Array.isArray(parsed.deletedStageIds) ? parsed.deletedStageIds : []), stageId, ...updatedDeletedStageIds])
-            ];
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-            }
-            syncSnapshot(parsed);
-          }
-        } catch {}
-        return next;
+      const stage = (stages || []).find((s) => s.id === stageId);
+      const nextStages = (stages || []).filter((s) => s && s.id !== stageId);
+      setStages(nextStages);
+
+      persistAndSyncImmediate({
+        stages: nextStages,
+        deletedStageIds: updatedDeletedStageIds,
       });
 
       recordAuditLog('Stage Deleted', 'Stages', `Deleted work stage: ${stage?.name || stageId}`);
     },
-    [currentUser.role, stages, recordAuditLog, syncSnapshot, triggerPreConfigSnapshot]
+    [currentUser.role, stages, recordAuditLog, persistAndSyncImmediate, triggerPreConfigSnapshot]
   );
 
   // Role Management
@@ -5658,40 +5562,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createdAt: nowIso,
       };
 
-      let nextRoles: RoleDefinition[] = [];
-      setRoles((prev) => {
-        nextRoles = [...prev, newRole];
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.roles = nextRoles;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+      const nextRoles = [...(roles || []), newRole];
+      setRoles(nextRoles);
 
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
-          }
-        } catch {}
-        return nextRoles;
+      persistAndSyncImmediate({
+        roles: nextRoles,
       });
 
       recordAuditLog('Role Created', 'Users', `Created custom role "${newRole.name}" (${newRole.code})`);
       return newRole;
     },
-    [recordAuditLog]
+    [roles, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateRole = useCallback(
@@ -5700,74 +5581,47 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
-      let nextRoles: RoleDefinition[] = [];
-      setRoles((prev) => {
-        nextRoles = prev.map((r) => {
-          if (r.id === id) {
-            const cleanUpdates: Partial<RoleDefinition> = {};
-            (Object.keys(updates) as Array<keyof RoleDefinition>).forEach((key) => {
-              if (updates[key] !== undefined) {
-                (cleanUpdates as any)[key] = updates[key];
-              }
-            });
-            return {
-              ...r,
-              ...cleanUpdates,
-              id: r.id,
-              createdAt: r.createdAt,
-              permissions: cleanUpdates.permissions !== undefined ? { ...r.permissions, ...cleanUpdates.permissions } : r.permissions,
-            };
-          }
-          return r;
-        });
-        return nextRoles;
+      const nextRoles = (roles || []).map((r) => {
+        if (r.id === id) {
+          const cleanUpdates: Partial<RoleDefinition> = {};
+          (Object.keys(updates) as Array<keyof RoleDefinition>).forEach((key) => {
+            if (updates[key] !== undefined) {
+              (cleanUpdates as any)[key] = updates[key];
+            }
+          });
+          return {
+            ...r,
+            ...cleanUpdates,
+            id: r.id,
+            createdAt: r.createdAt,
+            permissions: cleanUpdates.permissions !== undefined ? { ...r.permissions, ...cleanUpdates.permissions } : r.permissions,
+          };
+        }
+        return r;
       });
+      setRoles(nextRoles);
 
       // Synchronize permissions and roleType to all users assigned to this custom role
-      setUsers((prevUsers) => {
-        const nextUsers = prevUsers.map((u) => {
-          if (u.customRoleId === id) {
-            return {
-              ...u,
-              role: updates.roleType || u.role,
-              permissions: updates.permissions ? { ...u.permissions, ...updates.permissions } : u.permissions,
-            };
-          }
-          return u;
-        });
+      const nextUsers = (users || []).map((u) => {
+        if (u.customRoleId === id) {
+          return {
+            ...u,
+            role: updates.roleType || u.role,
+            permissions: updates.permissions ? { ...u.permissions, ...updates.permissions } : u.permissions,
+          };
+        }
+        return u;
+      });
+      setUsers(nextUsers);
 
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.roles = nextRoles;
-            parsed.users = nextUsers;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
-          }
-        } catch {}
-
-        return nextUsers;
+      persistAndSyncImmediate({
+        roles: nextRoles,
+        users: nextUsers,
       });
 
       recordAuditLog('Role Updated', 'Users', `Updated configuration for role ID ${id}`);
     },
-    [recordAuditLog]
+    [roles, users, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteRole = useCallback(
@@ -5780,52 +5634,30 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
-      let nextRoles: RoleDefinition[] = [];
-      setRoles((prev) => {
-        nextRoles = (prev || []).filter((r) => r && r.id !== id);
-        return nextRoles;
-      });
+      const nextRoles = (roles || []).filter((r) => r && r.id !== id);
+      setRoles(nextRoles);
 
       // Unlink users with this customRoleId
-      setUsers((prevUsers) => {
-        const nextUsers = prevUsers.map((u) => {
-          if (u.customRoleId === id) {
-            return {
-              ...u,
-              customRoleId: undefined,
-              role: role?.roleType || 'employee',
-            };
-          }
-          return u;
-        });
+      const nextUsers = (users || []).map((u) => {
+        if (u.customRoleId === id) {
+          return {
+            ...u,
+            customRoleId: undefined,
+            role: role?.roleType || 'employee',
+          };
+        }
+        return u;
+      });
+      setUsers(nextUsers);
 
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.roles = nextRoles;
-            parsed.users = nextUsers;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-          }
-        } catch {}
-
-        return nextUsers;
+      persistAndSyncImmediate({
+        roles: nextRoles,
+        users: nextUsers,
       });
 
       recordAuditLog('Role Deleted', 'Users', `Deleted custom role: ${role?.name || id}`);
     },
-    [roles, recordAuditLog]
+    [roles, users, recordAuditLog, persistAndSyncImmediate]
   );
 
   // Upload Document
@@ -5841,33 +5673,39 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         version: 1,
       };
 
-      setDocuments((prev) => [newDoc, ...prev]);
+      const nextDocs = [newDoc, ...(documents || [])];
+      setDocuments(nextDocs);
 
       // Update client requiredDocs status if serviceId matches
+      let nextClientsList = clients || [];
       if (docData.clientId) {
-        setClients((prev) =>
-          prev.map((c) => {
-            if (c.id === docData.clientId) {
-              const updatedServices = (c.services || []).map((s) => {
-                const updatedDocs = (s.requiredDocs || []).map((req) => {
-                  if (req.docName.toLowerCase().includes(docData.name.toLowerCase()) || req.docName.includes(docData.category)) {
-                    return {
-                      ...req,
-                      isUploaded: true,
-                      status: 'pending' as const,
-                      documentId: newDoc.id,
-                    };
-                  }
-                  return req;
-                });
-                return { ...s, requiredDocs: updatedDocs };
+        nextClientsList = nextClientsList.map((c) => {
+          if (c.id === docData.clientId) {
+            const updatedServices = (c.services || []).map((s) => {
+              const updatedDocs = (s.requiredDocs || []).map((req) => {
+                if (req.docName.toLowerCase().includes(docData.name.toLowerCase()) || req.docName.includes(docData.category)) {
+                  return {
+                    ...req,
+                    isUploaded: true,
+                    status: 'pending' as const,
+                    documentId: newDoc.id,
+                  };
+                }
+                return req;
               });
-              return { ...c, services: updatedServices, updatedAt: new Date().toISOString() };
-            }
-            return c;
-          })
-        );
+              return { ...s, requiredDocs: updatedDocs };
+            });
+            return { ...c, services: updatedServices, updatedAt: new Date().toISOString() };
+          }
+          return c;
+        });
+        setClients(nextClientsList);
       }
+
+      persistAndSyncImmediate({
+        documents: nextDocs,
+        clients: nextClientsList,
+      });
 
       recordAuditLog('Document Uploaded', 'Documents', `Uploaded document "${newDoc.name}" (${newDoc.category}) for client ID ${docData.clientId}`);
 
@@ -5885,7 +5723,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       setNotifications((prev) => [notif, ...prev]);
     },
-    [currentUser, recordAuditLog]
+    [documents, clients, currentUser, recordAuditLog, persistAndSyncImmediate]
   );
 
   // Update Document Status (Approve / Reject)
@@ -5894,8 +5732,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       let docName = '';
       let clientId = '';
 
-      setDocuments((prev) =>
-        prev.map((d) => {
+      let nextDocsList: DocumentItem[] = [];
+      setDocuments((prev) => {
+        nextDocsList = (prev || []).map((d) => {
           if (d.id === docId) {
             docName = d.name;
             clientId = d.clientId;
@@ -5906,30 +5745,36 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             };
           }
           return d;
-        })
-      );
+        });
+        return nextDocsList;
+      });
 
       // Reflect in client required docs
+      let nextClientsList = clients;
       if (clientId) {
-        setClients((prev) =>
-          prev.map((c) => {
-            if (c.id === clientId) {
-              const updatedServices = (c.services || []).map((s) => ({
-                ...s,
-                requiredDocs: (s.requiredDocs || []).map((req) =>
-                  req.documentId === docId ? { ...req, status: (status === 'under_review' ? 'pending' : status) as 'pending' | 'approved' | 'rejected' } : req
-                ),
-              }));
-              return { ...c, services: updatedServices };
-            }
-            return c;
-          })
-        );
+        nextClientsList = (clients || []).map((c) => {
+          if (c.id === clientId) {
+            const updatedServices = (c.services || []).map((s) => ({
+              ...s,
+              requiredDocs: (s.requiredDocs || []).map((req) =>
+                req.documentId === docId ? { ...req, status: (status === 'under_review' ? 'pending' : status) as 'pending' | 'approved' | 'rejected' } : req
+              ),
+            }));
+            return { ...c, services: updatedServices };
+          }
+          return c;
+        });
+        setClients(nextClientsList);
       }
+
+      persistAndSyncImmediate({
+        documents: nextDocsList,
+        clients: nextClientsList,
+      });
 
       recordAuditLog('Document Status Updated', 'Documents', `Document "${docName}" marked as ${status.toUpperCase()}. Remarks: ${remarks || 'None'}`);
     },
-    [recordAuditLog]
+    [clients, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteDocument = useCallback(
@@ -5952,49 +5797,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setDocuments(nextDocs);
 
       // Also clean up client requiredDocs if linked
-      setClients((prevClients) =>
-        (prevClients || []).map((c) => {
-          if (!c.services) return c;
-          const updatedServices = c.services.map((s) => ({
-            ...s,
-            requiredDocs: (s.requiredDocs || []).map((req) =>
-              req.documentId === docId ? { ...req, isUploaded: false, status: 'pending' as const, fileUrl: undefined, documentId: undefined } : req
-            ),
-          }));
-          return { ...c, services: updatedServices };
-        })
-      );
+      const nextClientsList = (clients || []).map((c) => {
+        if (!c.services) return c;
+        const updatedServices = c.services.map((s) => ({
+          ...s,
+          requiredDocs: (s.requiredDocs || []).map((req) =>
+            req.documentId === docId ? { ...req, isUploaded: false, status: 'pending' as const, fileUrl: undefined, documentId: undefined } : req
+          ),
+        }));
+        return { ...c, services: updatedServices };
+      });
+      setClients(nextClientsList);
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.documents = nextDocs;
-          parsed.deletedDocumentIds = nextDeletedDocIds;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+      persistAndSyncImmediate({
+        documents: nextDocs,
+        clients: nextClientsList,
+        deletedDocumentIds: nextDeletedDocIds,
+      });
 
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({
-              type: 'CRM_TAB_UPDATE',
-              snapshot: parsed,
-            });
-          }
-
-          deleteDocumentFromCloud(docId).catch(() => {});
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
-        }
-      } catch {}
+      deleteDocumentFromCloud(docId).catch(() => {});
 
       recordAuditLog('Document Deleted', 'Documents', `Deleted document ID ${docId}`);
     },
-    [documents, recordAuditLog, checkDeletePermission]
+    [documents, clients, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
   );
 
   // Tasks
@@ -6007,7 +5832,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createdAt: new Date().toISOString(),
       };
 
-      setTasks((prev) => [newTask, ...prev]);
+      const nextTasks = [newTask, ...(tasks || [])];
+      setTasks(nextTasks);
+      persistAndSyncImmediate({
+        tasks: nextTasks,
+      });
       recordAuditLog('Task Created', 'Tasks', `Created task: "${newTask.title}" assigned to ${newTask.assignedEmployeeName}`);
 
       const notif: NotificationItem = {
@@ -6023,13 +5852,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       setNotifications((prev) => [notif, ...prev]);
     },
-    [recordAuditLog]
+    [tasks, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateTaskStatus = useCallback(
     (taskId: string, status: TaskItem['status']) => {
-      setTasks((prev) =>
-        prev.map((t) => {
+      let nextTasksList: TaskItem[] = [];
+      setTasks((prev) => {
+        nextTasksList = (prev || []).map((t) => {
           if (t.id === taskId) {
             return {
               ...t,
@@ -6038,18 +5868,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             };
           }
           return t;
-        })
-      );
+        });
+        return nextTasksList;
+      });
+
+      persistAndSyncImmediate({
+        tasks: nextTasksList,
+      });
+
       recordAuditLog('Task Status Changed', 'Tasks', `Task ${taskId} updated to ${status}`);
     },
-    [recordAuditLog]
+    [recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateTask = useCallback(
     (taskId: string, updates: Partial<TaskItem>) => {
       let generatedChangeLog: ChangeLogEntry | null = null;
-      setTasks((prev) =>
-        prev.map((t) => {
+      let nextTasksList: TaskItem[] = [];
+      setTasks((prev) => {
+        nextTasksList = (prev || []).map((t) => {
           if (t.id === taskId) {
             const cleanUpdates: Partial<TaskItem> = {};
             (Object.keys(updates) as Array<keyof TaskItem>).forEach((key) => {
@@ -6083,15 +5920,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             };
           }
           return t;
-        })
-      );
+        });
+        return nextTasksList;
+      });
+
+      persistAndSyncImmediate({
+        tasks: nextTasksList,
+      });
+
       if (generatedChangeLog) {
-        recordAuditLog('Task Modified (Changelog)', 'Tasks', `${currentUser.name} (${currentUser.role}) ${generatedChangeLog.summary} on task ID ${taskId}`);
+        recordAuditLog('Task Modified (Changelog)', 'Tasks', `${currentUser.name} (${currentUser.role}) ${(generatedChangeLog as ChangeLogEntry).summary} on task ID ${taskId}`);
       } else {
         recordAuditLog('Task Updated', 'Tasks', `Updated task ID ${taskId}`);
       }
     },
-    [currentUser, recordAuditLog]
+    [currentUser, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteTask = useCallback(
@@ -6113,35 +5956,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nextTasks = (tasks || []).filter((t) => t && t.id !== taskId);
       setTasks(nextTasks);
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.tasks = nextTasks;
-          parsed.deletedTaskIds = nextDeletedTaskIds;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({
-              type: 'CRM_TAB_UPDATE',
-              snapshot: parsed,
-            });
-          }
-
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        tasks: nextTasks,
+        deletedTaskIds: nextDeletedTaskIds,
+      });
 
       recordAuditLog('Task Deleted', 'Tasks', `Deleted task ID ${taskId}`);
     },
-    [tasks, recordAuditLog, checkDeletePermission]
+    [tasks, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
   );
 
   const addTaskComment = useCallback(
@@ -6410,24 +6232,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const parsedDel = JSON.parse(storedDel).filter((id: string) => id !== newInv.id);
           localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(parsedDel));
         }
-
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.invoices = nextInvoices;
-          parsed.clients = nextClients;
-          parsed.deletedInvoiceIds = (parsed.deletedInvoiceIds || []).filter((id: string) => id !== newInv.id);
-          parsed.lastUpdated = new Date().toISOString();
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-        }
       } catch {}
+
+      persistAndSyncImmediate({
+        invoices: nextInvoices,
+        clients: nextClients,
+      });
 
       recordAuditLog('Invoice Generated', 'Payments', `Generated Invoice #${invoiceNumber} for AED ${newInv.grandTotal.toLocaleString()} (${newInv.clientName})`);
 
       return newInv;
     },
-    [invoices, clients, currentUser, isInvoiceForClient, recordAuditLog]
+    [invoices, clients, currentUser, isInvoiceForClient, recordAuditLog, persistAndSyncImmediate]
   );
 
   const recordPayment = useCallback(
@@ -6571,33 +6387,13 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const parsedDel = JSON.parse(storedDel).filter((id: string) => id !== invoiceId);
           localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(parsedDel));
         }
-
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.invoices = nextInvoices;
-          parsed.clients = nextClients;
-          parsed.transactions = nextTransactions;
-          parsed.deletedInvoiceIds = (parsed.deletedInvoiceIds || []).filter((id: string) => id !== invoiceId);
-          parsed.lastUpdated = new Date().toISOString();
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({
-              type: 'CRM_TAB_UPDATE',
-              snapshot: parsed,
-            });
-          }
-
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
-        }
       } catch {}
+
+      persistAndSyncImmediate({
+        invoices: nextInvoices,
+        clients: nextClients,
+        transactions: nextTransactions,
+      });
 
       recordAuditLog('Payment Recorded', 'Payments', `Recorded payment of AED ${amount.toLocaleString()} for Invoice #${invNum || targetInv?.invoiceNumber} (${clientName || targetInv?.clientName}) via ${method}`);
 
@@ -6613,7 +6409,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       setNotifications((prev) => [notif, ...prev]);
     },
-    [currentUser, invoices, clients, transactions, isInvoiceForClient, recordAuditLog]
+    [currentUser, invoices, clients, transactions, isInvoiceForClient, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateInvoice = useCallback(
@@ -6839,17 +6635,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isLocalDebounceSavingRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.invoices = nextInvoicesList;
-          parsed.clients = nextClientsList;
-          parsed.lastUpdated = new Date().toISOString();
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        invoices: nextInvoicesList,
+        clients: nextClientsList,
+      });
 
       if (generatedChangeLog) {
         recordAuditLog('Invoice Modified (Changelog)', 'Payments', `${currentUser.name} (${currentUser.role}) ${generatedChangeLog.summary} on Invoice ID ${invoiceId}`);
@@ -6857,7 +6646,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         recordAuditLog('Invoice Updated', 'Payments', `Updated details for Invoice ID ${invoiceId}`);
       }
     },
-    [currentUser, invoices, clients, isInvoiceForClient, recordAuditLog]
+    [currentUser, invoices, clients, isInvoiceForClient, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateInvoiceStatus = useCallback(
@@ -6915,21 +6704,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isLocalDebounceSavingRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.invoices = nextInvoicesList;
-          parsed.clients = nextClientsList;
-          parsed.lastUpdated = new Date().toISOString();
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        invoices: nextInvoicesList,
+        clients: nextClientsList,
+      });
 
       recordAuditLog('Invoice Status Changed', 'Payments', `Invoice ${invoiceId} marked as ${status}`);
     },
-    [invoices, clients, isInvoiceForClient, recordAuditLog]
+    [invoices, clients, isInvoiceForClient, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteInvoice = useCallback(
@@ -6979,36 +6761,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setClients(nextClients);
       }
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.invoices = nextInvoices;
-          parsed.clients = nextClients;
-          parsed.deletedInvoiceIds = nextDeletedInvoiceIds;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({
-              type: 'CRM_TAB_UPDATE',
-              snapshot: parsed,
-            });
-          }
-
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        invoices: nextInvoices,
+        clients: nextClients,
+        deletedInvoiceIds: nextDeletedInvoiceIds,
+      });
 
       recordAuditLog('Invoice Deleted', 'Payments', `Deleted invoice ID ${invoiceId}`);
     },
-    [invoices, clients, recordAuditLog, checkDeletePermission]
+    [invoices, clients, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
   );
 
   // Services Catalog & Classification Management
@@ -7027,35 +6788,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         id: `class-${Date.now()}`,
       };
 
-      setServiceClassifications((prev) => {
-        const next = [...prev, newClassification];
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.serviceClassifications = next;
-            if (Array.isArray(parsed.deletedServiceClassificationIds)) {
-              parsed.deletedServiceClassificationIds = parsed.deletedServiceClassificationIds.filter((cid: string) => cid !== newClassification.id);
-            }
-            if (Array.isArray(parsed.deletedClassificationIds)) {
-              parsed.deletedClassificationIds = parsed.deletedClassificationIds.filter((cid: string) => cid !== newClassification.id);
-            }
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-            }
-            syncSnapshot(parsed);
-          }
-        } catch {}
-        return next;
+      const nextClassifications = [...(serviceClassifications || []), newClassification];
+      setServiceClassifications(nextClassifications);
+
+      persistAndSyncImmediate({
+        serviceClassifications: nextClassifications,
       });
 
       recordAuditLog('Service Classification Added', 'Services', `Created service classification "${newClassification.name}"`);
       return newClassification;
     },
-    [currentUser.role, recordAuditLog, syncSnapshot]
+    [currentUser.role, serviceClassifications, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateServiceClassification = useCallback(
@@ -7069,56 +6812,31 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = nowIso;
 
       let oldName = '';
-      setServiceClassifications((prev) => {
-        const next = prev.map((c) => {
-          if (c.id === id) {
-            oldName = c.name;
-            return { ...c, ...updates };
-          }
-          return c;
-        });
-
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.serviceClassifications = next;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-            }
-            syncSnapshot(parsed);
-          }
-        } catch {}
-
-        return next;
+      const nextClassifications = (serviceClassifications || []).map((c) => {
+        if (c.id === id) {
+          oldName = c.name;
+          return { ...c, ...updates };
+        }
+        return c;
       });
+      setServiceClassifications(nextClassifications);
 
       // If category name changed, cascade update to all service categories
+      let nextCategories = serviceCategories;
       if (updates.name && oldName && updates.name.trim() !== oldName.trim()) {
         const newName = updates.name.trim();
-        setServiceCategories((prev) => {
-          const next = prev.map((s) => (s.category === oldName ? { ...s, category: newName } : s));
-          try {
-            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              parsed.serviceCategories = next;
-              parsed.lastUpdated = nowIso;
-              parsed.hasCustomModifications = true;
-              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-              syncSnapshot(parsed);
-            }
-          } catch {}
-          return next;
-        });
+        nextCategories = (serviceCategories || []).map((s) => (s.category === oldName ? { ...s, category: newName } : s));
+        setServiceCategories(nextCategories);
       }
+
+      persistAndSyncImmediate({
+        serviceClassifications: nextClassifications,
+        serviceCategories: nextCategories !== serviceCategories ? nextCategories : undefined,
+      });
 
       recordAuditLog('Service Classification Updated', 'Services', `Updated service classification ID ${id}`);
     },
-    [currentUser.role, recordAuditLog, syncSnapshot]
+    [currentUser.role, serviceClassifications, serviceCategories, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteServiceClassification = useCallback(
@@ -7140,55 +6858,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY, JSON.stringify(updatedDelClassificationIds));
       } catch {}
 
-      let deletedName = '';
-      setServiceClassifications((prev) => {
-        const target = prev.find((c) => c.id === id);
-        if (target) deletedName = target.name;
-        const next = prev.filter((c) => c.id !== id);
-
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.serviceClassifications = next;
-            parsed.deletedServiceClassificationIds = [
-              ...new Set([...(Array.isArray(parsed.deletedServiceClassificationIds) ? parsed.deletedServiceClassificationIds : []), id, ...updatedDelClassificationIds])
-            ];
-            parsed.deletedClassificationIds = parsed.deletedServiceClassificationIds;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-            }
-            syncSnapshot(parsed);
-          }
-        } catch {}
-
-        return next;
-      });
+      const target = (serviceClassifications || []).find((c) => c.id === id);
+      const deletedName = target?.name || '';
+      const nextClassifications = (serviceClassifications || []).filter((c) => c.id !== id);
+      setServiceClassifications(nextClassifications);
 
       // Migrate services under this classification
+      let nextCategories = serviceCategories;
       if (deletedName) {
         const fallback = migrateToCategory || 'General';
-        setServiceCategories((prev) => {
-          const next = prev.map((s) => (s.category === deletedName ? { ...s, category: fallback } : s));
-          try {
-            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              parsed.serviceCategories = next;
-              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-              syncSnapshot(parsed);
-            }
-          } catch {}
-          return next;
-        });
+        nextCategories = (serviceCategories || []).map((s) => (s.category === deletedName ? { ...s, category: fallback } : s));
+        setServiceCategories(nextCategories);
       }
+
+      persistAndSyncImmediate({
+        serviceClassifications: nextClassifications,
+        deletedServiceClassificationIds: updatedDelClassificationIds,
+        deletedClassificationIds: updatedDelClassificationIds,
+        serviceCategories: nextCategories !== serviceCategories ? nextCategories : undefined,
+      });
 
       recordAuditLog('Service Classification Deleted', 'Services', `Deleted service classification ID ${id}`);
     },
-    [currentUser.role, recordAuditLog, syncSnapshot]
+    [currentUser.role, serviceClassifications, serviceCategories, recordAuditLog, persistAndSyncImmediate]
   );
 
   const addServiceCategory = useCallback(
@@ -7206,35 +6898,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         id: `srv-${Date.now()}`,
       };
 
-      setServiceCategories((prev) => {
-        const next = [newService, ...prev];
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.serviceCategories = next;
-            if (Array.isArray(parsed.deletedServiceCategoryIds)) {
-              parsed.deletedServiceCategoryIds = parsed.deletedServiceCategoryIds.filter((cid: string) => cid !== newService.id);
-            }
-            if (Array.isArray(parsed.deletedCategoryIds)) {
-              parsed.deletedCategoryIds = parsed.deletedCategoryIds.filter((cid: string) => cid !== newService.id);
-            }
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-            }
-            syncSnapshot(parsed);
-          }
-        } catch {}
-        return next;
+      const nextCategories = [newService, ...(serviceCategories || [])];
+      setServiceCategories(nextCategories);
+
+      persistAndSyncImmediate({
+        serviceCategories: nextCategories,
       });
 
       recordAuditLog('Service Category Added', 'Services', `Created new service catalog item "${newService.name}" (${newService.code})`);
       return newService;
     },
-    [currentUser.role, recordAuditLog, syncSnapshot]
+    [currentUser.role, serviceCategories, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateServiceCategory = useCallback(
@@ -7247,49 +6921,35 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
-      setServiceCategories((prev) => {
-        const next = prev.map((s) => {
-          if (s.id === id) {
-            const cleanUpdates: Partial<ServiceCategory> = {};
-            (Object.keys(updates) as Array<keyof ServiceCategory>).forEach((key) => {
-              if (updates[key] !== undefined) {
-                (cleanUpdates as any)[key] = updates[key];
-              }
-            });
-            return {
-              ...s,
-              ...cleanUpdates,
-              id: s.id,
-              requiredDocuments:
-                cleanUpdates.requiredDocuments !== undefined
-                  ? cleanUpdates.requiredDocuments
-                  : s.requiredDocuments || [],
-            };
-          }
-          return s;
-        });
-
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.serviceCategories = next;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
+      const nextCategories = (serviceCategories || []).map((s) => {
+        if (s.id === id) {
+          const cleanUpdates: Partial<ServiceCategory> = {};
+          (Object.keys(updates) as Array<keyof ServiceCategory>).forEach((key) => {
+            if (updates[key] !== undefined) {
+              (cleanUpdates as any)[key] = updates[key];
             }
-            syncSnapshot(parsed);
-          }
-        } catch {}
+          });
+          return {
+            ...s,
+            ...cleanUpdates,
+            id: s.id,
+            requiredDocuments:
+              cleanUpdates.requiredDocuments !== undefined
+                ? cleanUpdates.requiredDocuments
+                : s.requiredDocuments || [],
+          };
+        }
+        return s;
+      });
+      setServiceCategories(nextCategories);
 
-        return next;
+      persistAndSyncImmediate({
+        serviceCategories: nextCategories,
       });
 
       recordAuditLog('Service Category Updated', 'Services', `Updated service catalog item ID ${id}`);
     },
-    [currentUser.role, recordAuditLog, syncSnapshot]
+    [currentUser.role, serviceCategories, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteServiceCategory = useCallback(
@@ -7311,32 +6971,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY, JSON.stringify(updatedDelCategoryIds));
       } catch {}
 
-      setServiceCategories((prev) => {
-        const next = (prev || []).filter((s) => s && s.id !== id);
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.serviceCategories = next;
-            parsed.deletedServiceCategoryIds = [
-              ...new Set([...(Array.isArray(parsed.deletedServiceCategoryIds) ? parsed.deletedServiceCategoryIds : []), id, ...updatedDelCategoryIds])
-            ];
-            parsed.deletedCategoryIds = parsed.deletedServiceCategoryIds;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-            }
-            syncSnapshot(parsed);
-          }
-        } catch {}
-        return next;
+      const nextCategories = (serviceCategories || []).filter((s) => s && s.id !== id);
+      setServiceCategories(nextCategories);
+
+      persistAndSyncImmediate({
+        serviceCategories: nextCategories,
+        deletedServiceCategoryIds: updatedDelCategoryIds,
+        deletedCategoryIds: updatedDelCategoryIds,
       });
 
       recordAuditLog('Service Category Deleted', 'Services', `Deleted service catalog ID ${id}`);
     },
-    [currentUser.role, recordAuditLog, syncSnapshot]
+    [currentUser.role, serviceCategories, recordAuditLog, persistAndSyncImmediate]
   );
 
   // Vendors Management
@@ -7365,39 +7011,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch {}
 
-      let nextVendors: Vendor[] = [];
-      setVendors((prev) => {
-        nextVendors = [newVendor, ...(prev || [])];
-        return nextVendors;
+      const nextVendors = [newVendor, ...(vendors || [])];
+      setVendors(nextVendors);
+
+      persistAndSyncImmediate({
+        vendors: nextVendors,
+        deletedVendorIds: nextDeletedVendorIds,
       });
-
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.vendors = nextVendors.length > 0 ? nextVendors : [newVendor, ...(parsed.vendors || [])];
-          parsed.deletedVendorIds = nextDeletedVendorIds;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
-        }
-      } catch {}
 
       recordAuditLog('Vendor Profile Created', 'Vendors', `Created new partner/vendor "${newVendor.name}" (${newVendor.category})`);
       return newVendor;
     },
-    [recordAuditLog]
+    [vendors, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateVendor = useCallback(
@@ -7407,53 +7032,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
-      let nextVendors: Vendor[] = [];
-      setVendors((prev) => {
-        nextVendors = (prev || []).map((v) => {
-          if (v.id === id) {
-            const cleanUpdates: Partial<Vendor> = {};
-            (Object.keys(updates) as Array<keyof Vendor>).forEach((key) => {
-              if (updates[key] !== undefined) {
-                (cleanUpdates as any)[key] = updates[key];
-              }
-            });
-            return {
-              ...v,
-              ...cleanUpdates,
-              id: v.id,
-              createdAt: v.createdAt,
-            };
-          }
-          return v;
-        });
-        return nextVendors;
-      });
-
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.vendors = nextVendors;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
+      const nextVendors = (vendors || []).map((v) => {
+        if (v.id === id) {
+          const cleanUpdates: Partial<Vendor> = {};
+          (Object.keys(updates) as Array<keyof Vendor>).forEach((key) => {
+            if (updates[key] !== undefined) {
+              (cleanUpdates as any)[key] = updates[key];
+            }
+          });
+          return {
+            ...v,
+            ...cleanUpdates,
+            id: v.id,
+            createdAt: v.createdAt,
+          };
         }
-      } catch {}
+        return v;
+      });
+      setVendors(nextVendors);
+
+      persistAndSyncImmediate({
+        vendors: nextVendors,
+      });
 
       recordAuditLog('Vendor Profile Updated', 'Vendors', `Updated vendor profile ID ${id}`);
     },
-    [recordAuditLog]
+    [vendors, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteVendor = useCallback(
@@ -7478,33 +7082,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nextVendors = (vendors || []).filter((v) => v && v.id !== id);
       setVendors(nextVendors);
 
-      // Immediate synchronous persistence to localStorage, BroadcastChannel, Server API, and Cloud
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.vendors = nextVendors;
-          parsed.deletedVendorIds = nextDeletedVendorIds;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        vendors: nextVendors,
+        deletedVendorIds: nextDeletedVendorIds,
+      });
 
       recordAuditLog('Vendor Profile Deleted', 'Vendors', `Deleted vendor partner ID ${id} (${target?.name || ''})`);
     },
-    [vendors, recordAuditLog, checkDeletePermission]
+    [vendors, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
   );
 
   // Transactions Management
@@ -7535,52 +7120,38 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
-      setTransactions((prev) => {
-        const nextList = [newTx, ...(prev || [])];
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.transactions = nextList;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-          }
-        } catch {}
-        return nextList;
-      });
+      const nextTransactions = [newTx, ...(transactions || [])];
+      setTransactions(nextTransactions);
 
       // If linked to a client, adjust client financial ledger balances
+      let updatedClients: Client[] | undefined = undefined;
       if (newTx.clientId) {
-        setClients((prev) =>
-          prev.map((c) => {
-            if (c.id === newTx.clientId) {
-              let newPaid = c.paidAmount;
-              if (['deposit', 'service_fee', 'typing_fee', 'vat_payment'].includes(newTx.type)) {
-                newPaid += newTx.amount;
-              } else if (newTx.type === 'refund') {
-                newPaid = Math.max(0, newPaid - newTx.amount);
-              }
-              const newOutstanding = Math.max(0, c.totalAmount - newPaid);
-              return {
-                ...c,
-                paidAmount: newPaid,
-                outstandingAmount: newOutstanding,
-                paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
-                updatedAt: new Date().toISOString(),
-              };
+        updatedClients = (clients || []).map((c) => {
+          if (c.id === newTx.clientId) {
+            let newPaid = c.paidAmount;
+            if (['deposit', 'service_fee', 'typing_fee', 'vat_payment'].includes(newTx.type)) {
+              newPaid += newTx.amount;
+            } else if (newTx.type === 'refund') {
+              newPaid = Math.max(0, newPaid - newTx.amount);
             }
-            return c;
-          })
-        );
+            const newOutstanding = Math.max(0, c.totalAmount - newPaid);
+            return {
+              ...c,
+              paidAmount: newPaid,
+              outstandingAmount: newOutstanding,
+              paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return c;
+        });
+        setClients(updatedClients);
       }
+
+      persistAndSyncImmediate({
+        transactions: nextTransactions,
+        clients: updatedClients,
+      });
 
       recordAuditLog(
         'Transaction Recorded',
@@ -7590,7 +7161,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return newTx;
     },
-    [currentUser, recordAuditLog]
+    [currentUser, transactions, clients, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateTransaction = useCallback(
@@ -7600,55 +7171,39 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
-      setTransactions((prev) => {
-        const nextList = (prev || []).map((tx) => {
-          if (tx.id === id) {
-            const cleanUpdates: Partial<Transaction> = {};
-            (Object.keys(updates) as Array<keyof Transaction>).forEach((key) => {
-              if (updates[key] !== undefined) {
-                (cleanUpdates as any)[key] = updates[key];
-              }
-            });
-            if (cleanUpdates.date && /^\d{4}-\d{2}-\d{2}$/.test(String(cleanUpdates.date).trim())) {
-              const timePart = nowIso.split('T')[1];
-              cleanUpdates.date = `${String(cleanUpdates.date).trim()}T${timePart}`;
+      const nextList = (transactions || []).map((tx) => {
+        if (tx.id === id) {
+          const cleanUpdates: Partial<Transaction> = {};
+          (Object.keys(updates) as Array<keyof Transaction>).forEach((key) => {
+            if (updates[key] !== undefined) {
+              (cleanUpdates as any)[key] = updates[key];
             }
-            return {
-              ...tx,
-              ...cleanUpdates,
-              id: tx.id,
-              transactionNumber: tx.transactionNumber,
-              createdAt: tx.createdAt,
-              recordedByUserId: tx.recordedByUserId,
-              recordedByUserName: tx.recordedByUserName,
-            };
+          });
+          if (cleanUpdates.date && /^\d{4}-\d{2}-\d{2}$/.test(String(cleanUpdates.date).trim())) {
+            const timePart = nowIso.split('T')[1];
+            cleanUpdates.date = `${String(cleanUpdates.date).trim()}T${timePart}`;
           }
-          return tx;
-        });
-
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.transactions = nextList;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-          }
-        } catch {}
-
-        return nextList;
+          return {
+            ...tx,
+            ...cleanUpdates,
+            id: tx.id,
+            transactionNumber: tx.transactionNumber,
+            createdAt: tx.createdAt,
+            recordedByUserId: tx.recordedByUserId,
+            recordedByUserName: tx.recordedByUserName,
+          };
+        }
+        return tx;
       });
+      setTransactions(nextList);
+
+      persistAndSyncImmediate({
+        transactions: nextList,
+      });
+
       recordAuditLog('Transaction Updated', 'Transactions', `Updated transaction ID ${id}`);
     },
-    [recordAuditLog]
+    [transactions, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteTransaction = useCallback(
@@ -7659,56 +7214,42 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
-      setTransactions((prev) => {
-        const tx = (prev || []).find((t) => t && t.id === id);
-        if (tx && tx.clientId) {
-          setClients((cPrev) =>
-            cPrev.map((c) => {
-              if (c.id === tx.clientId) {
-                let newPaid = c.paidAmount;
-                if (['deposit', 'service_fee', 'typing_fee', 'vat_payment'].includes(tx.type)) {
-                  newPaid = Math.max(0, newPaid - tx.amount);
-                } else if (tx.type === 'refund') {
-                  newPaid += tx.amount;
-                }
-                const newOutstanding = Math.max(0, c.totalAmount - newPaid);
-                return {
-                  ...c,
-                  paidAmount: newPaid,
-                  outstandingAmount: newOutstanding,
-                  paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
-                  updatedAt: new Date().toISOString(),
-                };
-              }
-              return c;
-            })
-          );
-        }
-        const nextList = (prev || []).filter((item) => item && item.id !== id);
-
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.transactions = nextList;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
+      const tx = (transactions || []).find((t) => t && t.id === id);
+      let updatedClients: Client[] | undefined = undefined;
+      if (tx && tx.clientId) {
+        updatedClients = (clients || []).map((c) => {
+          if (c.id === tx.clientId) {
+            let newPaid = c.paidAmount;
+            if (['deposit', 'service_fee', 'typing_fee', 'vat_payment'].includes(tx.type)) {
+              newPaid = Math.max(0, newPaid - tx.amount);
+            } else if (tx.type === 'refund') {
+              newPaid += tx.amount;
             }
-            saveCRMDataToCloud(parsed, true).catch(() => {});
+            const newOutstanding = Math.max(0, c.totalAmount - newPaid);
+            return {
+              ...c,
+              paidAmount: newPaid,
+              outstandingAmount: newOutstanding,
+              paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
+              updatedAt: new Date().toISOString(),
+            };
           }
-        } catch {}
+          return c;
+        });
+        setClients(updatedClients);
+      }
 
-        return nextList;
+      const nextList = (transactions || []).filter((item) => item && item.id !== id);
+      setTransactions(nextList);
+
+      persistAndSyncImmediate({
+        transactions: nextList,
+        clients: updatedClients,
       });
+
       recordAuditLog('Transaction Deleted', 'Transactions', `Deleted transaction record ID ${id}`);
     },
-    [recordAuditLog, checkDeletePermission]
+    [transactions, clients, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
   );
 
   // Leads Management
@@ -7750,7 +7291,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       hasUserEditedRef.current = true;
       isLocalDebounceSavingRef.current = true;
 
-      setLeads((prev) => [newLead, ...prev]);
+      const nextLeads = [newLead, ...(leads || [])];
+      setLeads(nextLeads);
+      persistAndSyncImmediate({
+        leads: nextLeads,
+      });
       recordAuditLog('Lead Created', 'Leads', `Created new inquiry / prospect: ${newLead.name} (${newLead.serviceInterested || 'General'})`);
 
       // Notification
@@ -7768,7 +7313,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return newLead;
     },
-    [users, currentUser, recordAuditLog]
+    [leads, users, currentUser, recordAuditLog, persistAndSyncImmediate]
   );
 
   // Update Lead (Defensive Deep Update: Preserves notesList, tasks, tags, location, and previous state)
@@ -7779,9 +7324,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
 
+      let nextLeadsList: Lead[] = [];
       let generatedChangeLog: ChangeLogEntry | null = null;
-      setLeads((prev) =>
-        prev.map((ld) => {
+      setLeads((prev) => {
+        nextLeadsList = (prev || []).map((ld) => {
           if (ld.id === id) {
             // Clean undefined values to prevent accidental erasure
             const cleanUpdates: Partial<Lead> = {};
@@ -7848,15 +7394,21 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return updated;
           }
           return ld;
-        })
-      );
+        });
+        return nextLeadsList;
+      });
+
+      persistAndSyncImmediate({
+        leads: nextLeadsList,
+      });
+
       if (generatedChangeLog) {
-        recordAuditLog('Lead Modified (Changelog)', 'Leads', `${currentUser.name} (${currentUser.role}) ${generatedChangeLog.summary} on lead ID ${id}`);
+        recordAuditLog('Lead Modified (Changelog)', 'Leads', `${currentUser.name} (${currentUser.role}) ${(generatedChangeLog as ChangeLogEntry).summary} on lead ID ${id}`);
       } else {
         recordAuditLog('Lead Updated', 'Leads', `Updated details for lead ID ${id}`);
       }
     },
-    [users, currentUser, recordAuditLog]
+    [users, currentUser, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteLead = useCallback(
@@ -7880,36 +7432,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLeads(nextLeads);
       setTasks(nextTasks);
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.leads = nextLeads;
-          parsed.tasks = nextTasks;
-          parsed.deletedLeadIds = nextDeletedLeadIds;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({
-              type: 'CRM_TAB_UPDATE',
-              snapshot: parsed,
-            });
-          }
-
-          saveCRMDataToCloud(parsed, true).catch(() => {});
-          fetch('/api/crm/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed),
-          }).catch(() => {});
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        leads: nextLeads,
+        tasks: nextTasks,
+        deletedLeadIds: nextDeletedLeadIds,
+      });
 
       recordAuditLog('Lead Deleted', 'Leads', `Deleted lead record ID ${id}`);
     },
-    [leads, tasks, recordAuditLog, checkDeletePermission]
+    [leads, tasks, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
   );
 
   // Bulk Assign Leads
@@ -9174,9 +8705,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       // If company was assigned for new user, update company's employeeIds roster
       const targetCompanyIds = newUser.companyIds || (newUser.companyId ? [newUser.companyId] : []);
+      let updatedCompanies: Company[] | null = null;
       if (targetCompanyIds.length > 0) {
-        setCompanies((prevComps) =>
-          prevComps.map((c) => {
+        setCompanies((prevComps) => {
+          updatedCompanies = prevComps.map((c) => {
             if (targetCompanyIds.includes(c.id)) {
               const curEmpIds = c.employeeIds || [];
               if (!curEmpIds.includes(newId)) {
@@ -9184,48 +8716,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               }
             }
             return c;
-          })
-        );
+          });
+          return updatedCompanies;
+        });
       }
 
-      setUsers((prev) => {
-        const next = [...prev, newUser];
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.users = next;
-            if (updatedDepts) {
-              parsed.departments = updatedDepts;
-            }
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+      const nextUsers = [...(users || []), newUser];
+      setUsers(nextUsers);
 
-            // Immediately broadcast across tabs
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            // Immediately force persist to Cloud Realtime Database and Server API
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
-          }
-        } catch {}
-        return next;
+      persistAndSyncImmediate({
+        users: nextUsers,
+        departments: updatedDepts || departments,
+        companies: updatedCompanies || companies,
       });
 
       recordAuditLog('User Account Created', 'Users', `Created user ${newUser.name} (${newUser.role.toUpperCase()})`);
       return newUser;
     },
-    [roles, recordAuditLog]
+    [users, roles, departments, companies, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateUser = useCallback(
@@ -9292,6 +8800,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
 
         // Bidirectionally update companies state so the assigned company's employeeIds includes this user
+        let updatedCompanies: Company[] | null = null;
         if (updates.companyId !== undefined || updates.companyIds !== undefined) {
           const targetCompanyIds = updates.companyIds !== undefined
             ? updates.companyIds
@@ -9299,8 +8808,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ? [updates.companyId]
             : [];
 
-          setCompanies((prevComps) =>
-            prevComps.map((c) => {
+          setCompanies((prevComps) => {
+            updatedCompanies = prevComps.map((c) => {
               const curEmpIds = c.employeeIds || [];
               if (targetCompanyIds.includes(c.id)) {
                 if (!curEmpIds.includes(id)) {
@@ -9310,8 +8819,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 return { ...c, employeeIds: curEmpIds.filter((empId) => empId !== id) };
               }
               return c;
-            })
-          );
+            });
+            return updatedCompanies;
+          });
         }
 
         // If updating the active user session, immediately update currentUserState
@@ -9325,32 +8835,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         }
 
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.users = next;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-            // Immediately broadcast across tabs
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            // Immediately force persist to Cloud Realtime Database and Server API
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
-          }
-        } catch {}
+        persistAndSyncImmediate({
+          users: next,
+          companies: updatedCompanies || undefined,
+        });
 
         return next;
       });
@@ -9370,17 +8858,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return d;
           });
 
-          try {
-            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              parsed.departments = nextDepts;
-              parsed.lastUpdated = nowIso;
-              parsed.hasCustomModifications = true;
-              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-              saveCRMDataToCloud(parsed, true).catch(() => {});
-            }
-          } catch {}
+          persistAndSyncImmediate({
+            departments: nextDepts,
+          });
 
           return nextDepts;
         });
@@ -9388,7 +8868,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       recordAuditLog('User Updated', 'Users', `Updated user account ID ${id}`);
     },
-    [roles, recordAuditLog]
+    [currentUser?.id, roles, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteCompany = useCallback(
@@ -9405,58 +8885,35 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(DELETED_COMPANIES_STORAGE_KEY, JSON.stringify(nextDeletedCompanyIds));
       } catch {}
 
-      setCompanies((prev) => {
-        const next = (prev || []).filter((c) => c && c.id !== id);
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.companies = next;
-            parsed.deletedCompanyIds = nextDeletedCompanyIds;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
-          }
-        } catch {}
-        return next;
-      });
+      const nextCompanies = (companies || []).filter((c) => c && c.id !== id);
+      setCompanies(nextCompanies);
 
       // Also clean up assigned company on users
-      setUsers((prevUsers) => {
-        const updatedUsers = (prevUsers || []).map((u) => {
-          const curIds = u.companyIds || (u.companyId ? [u.companyId] : []);
-          if (curIds.includes(id) || u.companyId === id) {
-            const remaining = curIds.filter((cid) => cid !== id);
-            return {
-              ...u,
-              companyId: u.companyId === id ? (remaining[0] || '') : u.companyId,
-              companyIds: remaining,
-            };
-          }
-          return u;
-        });
-        return updatedUsers;
+      const updatedUsers = (users || []).map((u) => {
+        const curIds = u.companyIds || (u.companyId ? [u.companyId] : []);
+        if (curIds.includes(id) || u.companyId === id) {
+          const remaining = curIds.filter((cid) => cid !== id);
+          return {
+            ...u,
+            companyId: u.companyId === id ? (remaining[0] || '') : u.companyId,
+            companyIds: remaining,
+          };
+        }
+        return u;
       });
+      setUsers(updatedUsers);
 
       setSelectedCompanyId((prevSelected) => (prevSelected === id ? 'all' : prevSelected));
 
+      persistAndSyncImmediate({
+        companies: nextCompanies,
+        users: updatedUsers,
+        deletedCompanyIds: nextDeletedCompanyIds,
+      });
+
       recordAuditLog('Company Deleted', 'Companies', `Permanently deleted company / branch ID ${id}`);
     },
-    [recordAuditLog]
+    [companies, users, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteUser = useCallback(
@@ -9477,9 +8934,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
+      let deletedIds: string[] = [];
       // Record in permanent deleted set
       try {
-        let deletedIds: string[] = [];
         const rawDel = localStorage.getItem(DELETED_USERS_STORAGE_KEY);
         if (rawDel) deletedIds = JSON.parse(rawDel);
         if (!deletedIds.includes(id)) deletedIds.push(id);
@@ -9498,35 +8955,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch {}
 
-      setUsers((prev) => {
-        const next = (prev || []).filter((u) => u && u.id !== id);
-        try {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            parsed.users = next;
-            parsed.lastUpdated = nowIso;
-            parsed.hasCustomModifications = true;
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+      const nextUsers = (users || []).filter((u) => u && u.id !== id);
+      setUsers(nextUsers);
 
-            // Immediately broadcast across tabs
-            if (broadcastChannelRef.current) {
-              broadcastChannelRef.current.postMessage({
-                type: 'CRM_TAB_UPDATE',
-                snapshot: parsed,
-              });
-            }
-
-            // Immediately force persist to Cloud Firestore and Server API
-            saveCRMDataToCloud(parsed, true).catch(() => {});
-            fetch('/api/crm/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed),
-            }).catch(() => {});
-          }
-        } catch {}
-        return next;
+      persistAndSyncImmediate({
+        users: nextUsers,
+        deletedUserIds: deletedIds,
       });
 
       // If current user is the one deleted, log them out immediately
@@ -9541,7 +8975,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       recordAuditLog('User Deleted', 'Users', `Permanently deleted user account ID ${id} (${targetUser?.name || targetUser?.email || ''})`);
     },
-    [currentUser.id, currentUser.role, users, recordAuditLog]
+    [currentUser.id, currentUser.role, users, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateUserProfile = useCallback(
@@ -9850,22 +9284,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       hasCustomModifications: false,
     };
 
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(defaultSnapshot));
-      if (broadcastChannelRef.current) {
-        broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: defaultSnapshot });
-      }
-      await saveCRMDataToCloud(defaultSnapshot);
-      await fetch('/api/crm/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(defaultSnapshot),
-      });
-      setServerSyncStatus('synced');
-    } catch {
-      // ignore
-    }
-  }, []);
+    persistAndSyncImmediate({
+      ...defaultSnapshot,
+      forceReset: true,
+      hasCustomModifications: false,
+    });
+  }, [persistAndSyncImmediate]);
 
   // Clear all operational data (set records to 0)
   const clearAllDataToZero = useCallback(async () => {
@@ -9883,18 +9307,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // Keep system administrators and staff accounts
     const staffOnlyUsers = users.filter((u) => u.role !== 'client');
-    setUsers(staffOnlyUsers.length > 0 ? staffOnlyUsers : [INITIAL_USERS[0]]);
+    const updatedUsers = staffOnlyUsers.length > 0 ? staffOnlyUsers : [INITIAL_USERS[0]];
+    setUsers(updatedUsers);
     if (currentUser.role === 'client') {
       setCurrentUser(INITIAL_USERS[0]);
     }
 
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
-
-    const zeroSnapshot = {
+    persistAndSyncImmediate({
       currentUserId: INITIAL_USERS[0].id,
       companies,
       vendors,
-      users: staffOnlyUsers.length > 0 ? staffOnlyUsers : [INITIAL_USERS[0]],
+      users: updatedUsers,
       roles,
       stages,
       workflows,
@@ -9914,22 +9337,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       visaApplications: [],
       crmBranding,
       billingSettings,
-      lastUpdated: new Date().toISOString(),
       forceReset: true,
       hasCustomModifications: true,
-    };
-
-    try {
-      await saveCRMDataToCloud(zeroSnapshot);
-      await fetch('/api/crm/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(zeroSnapshot),
-      });
-      setServerSyncStatus('synced');
-    } catch {
-      // ignore
-    }
+    });
   }, [
     users,
     currentUser,
@@ -9944,6 +9354,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     leadStages,
     crmBranding,
     billingSettings,
+    persistAndSyncImmediate,
   ]);
 
   const exportCRMData = useCallback(() => {
@@ -10872,22 +10283,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nextApps = (visaApplications || []).filter((a) => a && a.id !== id);
       setVisaApplications(nextApps);
 
-      // Immediate synchronous persistence to localStorage
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.visaApplications = nextApps;
-          parsed.deletedVisaAppIds = nextDeletedAppIds;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        visaApplications: nextApps,
+        deletedVisaAppIds: nextDeletedAppIds,
+      });
 
       if (target) {
         recordAuditLog(
@@ -10897,7 +10296,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
     },
-    [visaApplications, recordAuditLog, checkDeletePermission, syncSnapshot]
+    [visaApplications, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
   );
 
   const processNomodPaymentOutcome = useCallback(
@@ -11120,31 +10519,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(parsedDel));
           }
 
-          const currentLocal = getCurrentLocalSnapshot();
-          const fullSnapshot: any = {
-            ...currentLocal,
+          hasUserEditedRef.current = false;
+          persistAndSyncImmediate({
             invoices: nextInvoices,
             clients: nextClients,
             transactions: nextTransactions,
             ...(targetApp && updatedApp ? { visaApplications: nextVisaApps } : {}),
-            deletedInvoiceIds: (currentLocal.deletedInvoiceIds || []).filter((id: string) => id !== invId),
-            lastUpdated: timestamp,
-            hasCustomModifications: true,
-          };
-
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(fullSnapshot));
-          localStorage.setItem(CRM_VAULT_STORAGE_KEY, JSON.stringify(fullSnapshot));
-          saveToIndexedDbVault('current_working_state', fullSnapshot).catch(() => {});
-
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({
-              type: 'CRM_TAB_UPDATE',
-              snapshot: fullSnapshot,
-            });
-          }
-
-          hasUserEditedRef.current = false;
-          syncSnapshot(fullSnapshot);
+            deletedInvoiceIds: (getCurrentLocalSnapshot().deletedInvoiceIds || []).filter((id: string) => id !== invId),
+          });
         } catch {}
 
         // Notification
@@ -11287,7 +10669,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         invoice: updatedInvoice,
       };
     },
-    [visaApplications, invoices, clients, transactions, currentUser, recordAuditLog, isInvoiceForClient]
+    [visaApplications, invoices, clients, transactions, currentUser, recordAuditLog, isInvoiceForClient, persistAndSyncImmediate]
   );
 
   const confirmNomodPayment = useCallback(
@@ -11402,37 +10784,17 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch {}
 
-      let nextCatalog: VisaCountryOption[] = [];
-      setVisaCountryCatalog((prev) => {
-        const existingIdx = (prev || []).findIndex((c) => c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode);
-        if (existingIdx >= 0) {
-          nextCatalog = [...(prev || [])];
-          nextCatalog[existingIdx] = country;
-        } else {
-          nextCatalog = [country, ...(prev || [])];
-        }
-        return nextCatalog;
-      });
+      const existingIdx = (visaCountryCatalog || []).findIndex((c) => c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode);
+      const nextCatalog = existingIdx >= 0
+        ? (visaCountryCatalog || []).map((c, idx) => (idx === existingIdx ? country : c))
+        : [country, ...(visaCountryCatalog || [])];
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
-          const idx = currentList.findIndex((c: any) => c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode);
-          if (idx >= 0) currentList[idx] = country;
-          else currentList.unshift(country);
-          parsed.visaCountryCatalog = currentList;
-          parsed.deletedVisaCountryCodes = nextDeletedCodes;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      setVisaCountryCatalog(nextCatalog);
+
+      persistAndSyncImmediate({
+        visaCountryCatalog: nextCatalog,
+        deletedVisaCountryCodes: nextDeletedCodes,
+      });
 
       recordAuditLog(
         'Worldwide Visa Country Added',
@@ -11440,7 +10802,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Added new destination country ${country.countryName} (${country.countryCode}) to worldwide visa directory.`
       );
     },
-    [recordAuditLog, syncSnapshot]
+    [visaCountryCatalog, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateVisaCountry = useCallback(
@@ -11451,33 +10813,16 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isLocalDebounceSavingRef.current = true;
 
       const normalizedCode = countryCode.toLowerCase().trim();
-      let nextCatalog: VisaCountryOption[] = [];
-      setVisaCountryCatalog((prev) => {
-        nextCatalog = (prev || []).map((c) =>
-          c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode
-            ? { ...c, ...updates }
-            : c
-        );
-        return nextCatalog;
-      });
+      const nextCatalog = (visaCountryCatalog || []).map((c) =>
+        c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode
+          ? { ...c, ...updates }
+          : c
+      );
+      setVisaCountryCatalog(nextCatalog);
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
-          parsed.visaCountryCatalog = currentList.map((c: any) =>
-            c && c.countryCode && c.countryCode.toLowerCase().trim() === normalizedCode ? { ...c, ...updates } : c
-          );
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        visaCountryCatalog: nextCatalog,
+      });
 
       recordAuditLog(
         'Worldwide Visa Country Updated',
@@ -11485,7 +10830,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Updated destination country ${countryCode} details in worldwide visa catalog.`
       );
     },
-    [recordAuditLog, syncSnapshot]
+    [visaCountryCatalog, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteVisaCountry = useCallback(
@@ -11510,22 +10855,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nextCatalog = (visaCountryCatalog || []).filter((c) => c && c.countryCode && c.countryCode.toLowerCase().trim() !== normalizedCode);
       setVisaCountryCatalog(nextCatalog);
 
-      // Immediate synchronous persistence to localStorage
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.visaCountryCatalog = nextCatalog;
-          parsed.deletedVisaCountryCodes = nextDeletedCodes;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        visaCountryCatalog: nextCatalog,
+        deletedVisaCountryCodes: nextDeletedCodes,
+      });
 
       if (target) {
         recordAuditLog(
@@ -11535,7 +10868,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
       }
     },
-    [visaCountryCatalog, recordAuditLog, syncSnapshot]
+    [visaCountryCatalog, recordAuditLog, persistAndSyncImmediate]
   );
 
   const addVisaCountryService = useCallback(
@@ -11556,42 +10889,20 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch {}
 
-      let nextCatalog: VisaCountryOption[] = [];
-      setVisaCountryCatalog((prev) => {
-        nextCatalog = (prev || []).map((c) => {
-          if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
-          const exists = (c.visaTypes || []).some((vt) => vt && vt.id === service.id);
-          const nextTypes = exists
-            ? (c.visaTypes || []).map((vt) => (vt && vt.id === service.id ? service : vt))
-            : [...(c.visaTypes || []), service];
-          return { ...c, visaTypes: nextTypes };
-        });
-        return nextCatalog;
+      const nextCatalog = (visaCountryCatalog || []).map((c) => {
+        if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
+        const exists = (c.visaTypes || []).some((vt) => vt && vt.id === service.id);
+        const nextTypes = exists
+          ? (c.visaTypes || []).map((vt) => (vt && vt.id === service.id ? service : vt))
+          : [...(c.visaTypes || []), service];
+        return { ...c, visaTypes: nextTypes };
       });
+      setVisaCountryCatalog(nextCatalog);
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
-          parsed.visaCountryCatalog = currentList.map((c: any) => {
-            if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
-            const exists = (c.visaTypes || []).some((vt: any) => vt && vt.id === service.id);
-            const nextTypes = exists
-              ? (c.visaTypes || []).map((vt: any) => (vt && vt.id === service.id ? service : vt))
-              : [...(c.visaTypes || []), service];
-            return { ...c, visaTypes: nextTypes };
-          });
-          parsed.deletedVisaServiceIds = nextDeletedServices;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        visaCountryCatalog: nextCatalog,
+        deletedVisaServiceIds: nextDeletedServices,
+      });
 
       recordAuditLog(
         'Worldwide Visa Service Added',
@@ -11599,7 +10910,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Added/updated visa service "${service.name}" for country ${countryCode}.`
       );
     },
-    [recordAuditLog, syncSnapshot]
+    [visaCountryCatalog, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateVisaCountryService = useCallback(
@@ -11610,39 +10921,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isLocalDebounceSavingRef.current = true;
 
       const normalizedCode = countryCode.toLowerCase().trim();
-      let nextCatalog: VisaCountryOption[] = [];
-      setVisaCountryCatalog((prev) => {
-        nextCatalog = (prev || []).map((c) => {
-          if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
-          const nextTypes = (c.visaTypes || []).map((vt) =>
-            vt && vt.id === serviceId ? { ...vt, ...updates } : vt
-          );
-          return { ...c, visaTypes: nextTypes };
-        });
-        return nextCatalog;
+      const nextCatalog = (visaCountryCatalog || []).map((c) => {
+        if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
+        const nextTypes = (c.visaTypes || []).map((vt) =>
+          vt && vt.id === serviceId ? { ...vt, ...updates } : vt
+        );
+        return { ...c, visaTypes: nextTypes };
       });
+      setVisaCountryCatalog(nextCatalog);
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
-          parsed.visaCountryCatalog = currentList.map((c: any) => {
-            if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
-            const nextTypes = (c.visaTypes || []).map((vt: any) =>
-              vt && vt.id === serviceId ? { ...vt, ...updates } : vt
-            );
-            return { ...c, visaTypes: nextTypes };
-          });
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        visaCountryCatalog: nextCatalog,
+      });
 
       recordAuditLog(
         'Worldwide Visa Service Updated',
@@ -11650,7 +10940,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Modified visa service ${serviceId} for country ${countryCode}.`
       );
     },
-    [recordAuditLog, syncSnapshot]
+    [visaCountryCatalog, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteVisaCountryService = useCallback(
@@ -11671,41 +10961,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch {}
 
-      let nextCatalog: VisaCountryOption[] = [];
-      setVisaCountryCatalog((prev) => {
-        nextCatalog = (prev || []).map((c) => {
-          if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
-          return {
-            ...c,
-            visaTypes: (c.visaTypes || []).filter((vt) => vt && vt.id !== serviceId),
-          };
-        });
-        return nextCatalog;
+      const nextCatalog = (visaCountryCatalog || []).map((c) => {
+        if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
+        return {
+          ...c,
+          visaTypes: (c.visaTypes || []).filter((vt) => vt && vt.id !== serviceId),
+        };
       });
+      setVisaCountryCatalog(nextCatalog);
 
-      // Immediate synchronous persistence to localStorage
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const currentList = Array.isArray(parsed.visaCountryCatalog) ? parsed.visaCountryCatalog : [];
-          parsed.visaCountryCatalog = currentList.map((c: any) => {
-            if (!c || !c.countryCode || c.countryCode.toLowerCase().trim() !== normalizedCode) return c;
-            return {
-              ...c,
-              visaTypes: (c.visaTypes || []).filter((vt: any) => vt && vt.id !== serviceId),
-            };
-          });
-          parsed.deletedVisaServiceIds = nextDeletedServices;
-          parsed.lastUpdated = nowIso;
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-          if (broadcastChannelRef.current) {
-            broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-          }
-          syncSnapshot(parsed);
-        }
-      } catch {}
+      persistAndSyncImmediate({
+        visaCountryCatalog: nextCatalog,
+        deletedVisaServiceIds: nextDeletedServices,
+      });
 
       recordAuditLog(
         'Worldwide Visa Service Removed',
@@ -11713,7 +10981,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Removed visa service ${serviceId} from country ${countryCode}.`
       );
     },
-    [recordAuditLog, syncSnapshot]
+    [visaCountryCatalog, recordAuditLog, persistAndSyncImmediate]
   );
 
   const resetVisaCountryCatalog = useCallback(() => {
@@ -11727,29 +10995,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch {}
     setVisaCountryCatalog([]);
 
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        parsed.visaCountryCatalog = [];
-        parsed.deletedVisaCountryCodes = [];
-        parsed.deletedVisaServiceIds = [];
-        parsed.lastUpdated = nowIso;
-        parsed.hasCustomModifications = true;
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-        if (broadcastChannelRef.current) {
-          broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: parsed });
-        }
-        syncSnapshot(parsed);
-      }
-    } catch {}
+    persistAndSyncImmediate({
+      visaCountryCatalog: [],
+      deletedVisaCountryCodes: [],
+      deletedVisaServiceIds: [],
+    });
 
     recordAuditLog(
       'Worldwide Visa Catalog Reset',
       'Services',
       'Reset worldwide visa country directory.'
     );
-  }, [recordAuditLog, syncSnapshot]);
+  }, [recordAuditLog, persistAndSyncImmediate]);
 
   // Computed Filtered Views (Strict Employee Data Isolation & Branch Filtering)
   const isEmployeeRole =

@@ -1148,9 +1148,21 @@ async function startServer() {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     try {
       const rawBody = req.body;
-      const payload = (rawBody && typeof rawBody === 'object' && rawBody.data && typeof rawBody.data === 'object' && (rawBody.data.clients || rawBody.data.users || rawBody.data.stages || rawBody.data.serviceCategories || rawBody.data.leads))
-        ? rawBody.data
-        : rawBody;
+      let payload = rawBody;
+      // Only unwrap if rawBody is an API wrapper { success: true, data: { ... } } without root collections
+      if (
+        rawBody &&
+        typeof rawBody === 'object' &&
+        rawBody.data &&
+        typeof rawBody.data === 'object' &&
+        !Array.isArray(rawBody.clients) &&
+        !Array.isArray(rawBody.leads) &&
+        !Array.isArray(rawBody.invoices) &&
+        !Array.isArray(rawBody.tasks) &&
+        !Array.isArray(rawBody.users)
+      ) {
+        payload = rawBody.data;
+      }
       if (!payload || typeof payload !== 'object') {
         return res.status(400).json({ success: false, error: 'Invalid payload format' });
       }
@@ -1162,6 +1174,9 @@ async function startServer() {
           existing = JSON.parse(fs.readFileSync(STORE_FILE, 'utf-8')) || {};
         } catch {}
       }
+
+      delete (payload as any).data;
+      delete (existing as any).data;
 
       // Non-destructive ID-based merge helper
       const mergeCollection = (existingList: any[], incomingList: any[]) => {
@@ -1596,9 +1611,11 @@ async function startServer() {
         deletedVisaServiceIds: combinedDeletedVisaServiceIds,
         deletedVisaAppIds: combinedDeletedVisaAppIds,
         isColdStart: false,
-        revision: (Number(existing.revision) || 0) + 1,
+        revision: Math.max(Number(existing.revision) || 0, Number(payload.revision) || 0) + 1,
         lastUpdated: new Date().toISOString(),
       };
+
+      delete (merged as any).data;
 
       // Write to temp file then rename for atomic safe write
       const tempFile = `${STORE_FILE}.tmp.${Date.now()}`;
