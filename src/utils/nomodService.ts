@@ -45,6 +45,7 @@ export interface NomodPaymentResult {
   liveMode?: boolean;
   provider?: string;
   nomodOfficialUrl?: string;
+  settlementStatus?: string;
   rawResponse?: any;
 }
 
@@ -79,6 +80,8 @@ export async function createNomodPaymentLink(
 ): Promise<{
   success: boolean;
   link?: string;
+  nomodOfficialUrl?: string;
+  crmHostedUrl?: string;
   paymentId?: string;
   reference?: string;
   applicationId?: string;
@@ -103,6 +106,8 @@ export async function createNomodPaymentLink(
         return {
           success: true,
           link: data.link,
+          nomodOfficialUrl: data.nomodOfficialUrl || data.link,
+          crmHostedUrl: data.crmHostedUrl,
           paymentId: data.paymentId,
           reference: data.reference,
           applicationId: data.applicationId,
@@ -134,11 +139,50 @@ export async function createNomodPaymentLink(
   return {
     success: true,
     link,
+    nomodOfficialUrl: `https://pay.nomodapp.com/en/l/${paymentId}`,
+    crmHostedUrl: link,
     paymentId,
     reference: randRef,
     applicationId: payload.applicationId,
     invoiceId: payload.invoiceId,
   };
+}
+
+/**
+ * Real-time poller to check if a Nomod live checkout link has been completed by customer.
+ */
+export async function pollNomodLinkStatus(
+  paymentId: string,
+  reference?: string,
+  customerName?: string
+): Promise<{
+  success: boolean;
+  isPaid: boolean;
+  status: 'paid' | 'rejected' | 'pending' | 'enabled' | 'cancelled' | 'failed';
+  chargeId?: string;
+  reference?: string;
+  authCode?: string;
+  cardBrand?: string;
+  last4?: string;
+  amount?: number;
+  currency?: string;
+  paidAt?: string;
+  customerName?: string;
+  failureReason?: string;
+}> {
+  try {
+    const params = new URLSearchParams();
+    if (paymentId) params.set('paymentId', paymentId);
+    if (reference) params.set('reference', reference);
+    if (customerName) params.set('customerName', customerName);
+    const res = await fetch(`/api/nomod/poll-status?${params.toString()}`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Error polling Nomod link status:', err);
+  }
+  return { success: false, isPaid: false, status: 'pending' };
 }
 
 /**

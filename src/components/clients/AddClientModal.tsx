@@ -62,7 +62,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
   }, [formData.companyId, companies]);
 
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway'>('Bank Transfer');
+  const [paymentMethod, setPaymentMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway' | 'Nomod'>('Nomod');
   const [vatRate, setVatRate] = useState<number>(0);
 
   const [showQuickCreateService, setShowQuickCreateService] = useState(false);
@@ -701,13 +701,9 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                         <select
                           value={paymentMethod}
                           onChange={(e) => setPaymentMethod(e.target.value as any)}
-                          className="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs border border-slate-200 dark:border-slate-700"
+                          className="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs border border-slate-200 dark:border-slate-700 font-semibold text-blue-600 dark:text-blue-400"
                         >
-                          <option value="Bank Transfer">Bank Transfer</option>
-                          <option value="Credit Card">Credit Card / POS</option>
-                          <option value="Cash">Cash Voucher</option>
-                          <option value="Cheque">Cheque</option>
-                          <option value="Online Gateway">Online Gateway (Stripe/Wio)</option>
+                          <option value="Nomod">Nomod Live Gateway</option>
                         </select>
                       </div>
                     </div>

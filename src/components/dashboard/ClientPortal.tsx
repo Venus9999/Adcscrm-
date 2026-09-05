@@ -53,6 +53,7 @@ export const ClientPortal: React.FC = () => {
     setSelectedClientId,
     billingSettings,
     processNomodPaymentOutcome,
+    confirmNomodPayment,
   } = useCRM();
 
   // Pick client profile corresponding strictly to current logged-in user or selected client
@@ -1183,12 +1184,11 @@ export const ClientPortal: React.FC = () => {
             recordPayment(
               nomodCheckoutInvoice.id,
               result.amount,
-              'Credit Card',
+              'Nomod',
               result.reference,
               `Nomod Live Gateway Settlement: Auth ${result.authCode || 'N/A'}, Card: ${result.cardBrand || 'Card'} ending ${result.last4 || '****'}`
             );
-            setShowNomodModal(false);
-            setNomodCheckoutInvoice(null);
+            confirmNomodPayment(nomodCheckoutInvoice.id, result);
           }}
           onPaymentOutcome={(result) => {
             processNomodPaymentOutcome({

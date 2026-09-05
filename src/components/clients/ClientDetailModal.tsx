@@ -42,6 +42,7 @@ import { GmailComposerModal } from '../gmail/GmailComposerModal';
 import { Client, DocumentItem, Invoice, InvoiceLineItem, WorkStage, Transaction, ServiceCategory } from '../../types/crm';
 import { ChangeLogView } from '../common/ChangeLogView';
 import { QuickCreateServiceModal } from '../services/QuickCreateServiceModal';
+import { NomodCheckoutModal } from '../payment/NomodCheckoutModal';
 
 interface ClientDetailModalProps {
   clientId: string | null;
@@ -77,6 +78,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     reassignClient,
     deleteClient,
     recordPayment,
+    confirmNomodPayment,
     addTransaction,
     updateTransaction,
     deleteTransaction,
@@ -203,8 +205,9 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [payAmount, setPayAmount] = useState<number>(0);
-  const [payMethod, setPayMethod] = useState<Invoice['paymentMethod']>('Bank Transfer');
+  const [payMethod, setPayMethod] = useState<Invoice['paymentMethod']>('Nomod');
   const [payRef, setPayRef] = useState('');
+  const [nomodInvoice, setNomodInvoice] = useState<Invoice | null>(null);
 
   // Invoice state
   interface ClientInvoiceServiceLineItem {
@@ -317,7 +320,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
   const [editInvVatRate, setEditInvVatRate] = useState<number>(0);
   const [editInvAmountPaid, setEditInvAmountPaid] = useState<number>(0);
   const [editInvDueDate, setEditInvDueDate] = useState('');
-  const [editInvPaymentMethod, setEditInvPaymentMethod] = useState<Invoice['paymentMethod']>('Bank Transfer');
+  const [editInvPaymentMethod, setEditInvPaymentMethod] = useState<Invoice['paymentMethod']>('Nomod');
   const [editInvStatus, setEditInvStatus] = useState<Invoice['status']>('unpaid');
   const [editInvNotes, setEditInvNotes] = useState('');
 
@@ -706,7 +709,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
       grandTotal,
       amountPaid: 0,
       balanceAmount: grandTotal,
-      paymentMethod: 'Bank Transfer',
+      paymentMethod: 'Nomod',
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: invDueDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
       status: 'unpaid',
@@ -1586,14 +1589,12 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
 
                       {(inv.balanceAmount ?? 0) > 0 && (
                         <button
-                          onClick={() => {
-                            setSelectedInvoiceId(inv.id);
-                            setPayAmount(inv.balanceAmount || 0);
-                            setShowPayModal(true);
-                          }}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                          onClick={() => setNomodInvoice(inv)}
+                          className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                          title="Pay via Nomod Gateway"
                         >
-                          Record Payment
+                          <CreditCard className="w-3 h-3" />
+                          <span>Pay via Nomod</span>
                         </button>
                       )}
                     </div>
@@ -2855,13 +2856,9 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                   <select
                     value={payMethod}
                     onChange={(e) => setPayMethod(e.target.value as Invoice['paymentMethod'])}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold text-blue-600 dark:text-blue-400"
                   >
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Online Portal">Online Portal</option>
+                    <option value="Nomod">Nomod Live Gateway (Credit / Debit Card)</option>
                   </select>
                 </div>
 
@@ -3553,13 +3550,9 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                     <select
                       value={editInvPaymentMethod}
                       onChange={(e) => setEditInvPaymentMethod(e.target.value as any)}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-semibold text-blue-600 dark:text-blue-400"
                     >
-                      <option value="Bank Transfer">Bank Transfer</option>
-                      <option value="Credit Card">Credit Card</option>
-                      <option value="Cash">Cash</option>
-                      <option value="Cheque">Cheque</option>
-                      <option value="Online">Online</option>
+                      <option value="Nomod">Nomod Live Gateway</option>
                     </select>
                   </div>
                 </div>
@@ -3596,6 +3589,31 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
               </form>
             </div>
           </div>
+        )}
+        {/* Modal: Nomod Live Checkout */}
+        {nomodInvoice && (
+          <NomodCheckoutModal
+            isOpen={Boolean(nomodInvoice)}
+            onClose={() => setNomodInvoice(null)}
+            amount={nomodInvoice.balanceAmount}
+            currency={billingSettings?.currency || 'AED'}
+            serviceTitle={nomodInvoice.serviceName || 'Professional Corporate Services'}
+            applicationNumber={nomodInvoice.invoiceNumber}
+            invoiceId={nomodInvoice.id}
+            customerName={client?.fullName || nomodInvoice.clientName}
+            customerEmail={client?.email || nomodInvoice.clientEmail}
+            customerPhone={client?.phone || client?.mobile || nomodInvoice.clientPhone}
+            onPaymentSuccess={(result) => {
+              confirmNomodPayment(nomodInvoice.id, result);
+              recordPayment(
+                nomodInvoice.id,
+                nomodInvoice.balanceAmount,
+                'Nomod',
+                result.reference || `NOMOD-${Date.now()}`,
+                `Nomod Live Gateway Settlement: Auth ${result.authCode || 'N/A'}, Card: ${result.cardBrand || 'Card'} ending ${result.last4 || '****'}`
+              );
+            }}
+          />
         )}
       </div>
     </div>

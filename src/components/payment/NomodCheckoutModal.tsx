@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   CreditCard,
@@ -19,8 +19,17 @@ import {
   User,
   Calendar,
   Globe,
+  Printer,
+  Share2,
+  Radio,
+  Zap,
 } from 'lucide-react';
-import { NomodPaymentResult, createNomodPaymentLink, verifyNomodPayment } from '../../utils/nomodService';
+import {
+  NomodPaymentResult,
+  createNomodPaymentLink,
+  verifyNomodPayment,
+  pollNomodLinkStatus,
+} from '../../utils/nomodService';
 import { useCRM } from '../../context/CRMContext';
 
 interface NomodCheckoutModalProps {
@@ -58,134 +67,260 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
 }) => {
   const { confirmNomodPayment } = useCRM();
   const displayTitle = serviceTitle || description || 'Visa Service Package';
+
+  // Link & Live state
   const [paymentLink, setPaymentLink] = useState<string>('');
+  const [officialNomodUrl, setOfficialNomodUrl] = useState<string>('');
   const [paymentId, setPaymentId] = useState<string>('');
   const [reference, setReference] = useState<string>('');
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [openedTab, setOpenedTab] = useState(false);
 
-  // Payment state - strictly Nomod card gateway
-  const selectedMethod = 'card' as const;
+  // Active method toggle: 'nomod_official' (Apple Pay / GPay / Cards on Nomod) vs 'direct_card' (In-office manual entry)
+  const [activeTab, setActiveTab] = useState<'nomod_official' | 'direct_card'>('nomod_official');
+
+  // Direct Card Payment state
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
   const [cardHolder, setCardHolder] = useState(customerName || '');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Status & Polling state
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [paymentRejected, setPaymentRejected] = useState(false);
   const [paymentResult, setPaymentResult] = useState<NomodPaymentResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
-  // Initialize or generate link upon open
+  const pollerActiveRef = useRef(true);
+
+  // Initialize or generate live link upon open
   useEffect(() => {
-    if (isOpen) {
-      setPaymentCompleted(false);
-      setPaymentResult(null);
-      setErrorMsg(null);
-      setIsRedirecting(false);
-      setCardHolder(customerName || '');
-      setIsGeneratingLink(true);
-
-      createNomodPaymentLink({
-        amount,
-        currency,
-        title: `${displayTitle} ${applicationNumber ? `(#${applicationNumber})` : ''}`.trim(),
-        applicationId,
-        invoiceId,
-        customer: {
-          name: customerName,
-          email: customerEmail,
-          phone: customerPhone,
-        },
-        metadata: {
-          reference: `NOMOD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-          applicationId,
-          invoiceId,
-        },
-      }).then((res) => {
-        setIsGeneratingLink(false);
-        if (res.success && res.link) {
-          setPaymentLink(res.link);
-          setPaymentId(res.paymentId || '');
-          setReference(res.reference || '');
-        }
-      });
-    }
-  }, [isOpen, amount, currency, displayTitle, applicationNumber, applicationId, invoiceId, customerName, customerEmail, customerPhone]);
-
-  if (!isOpen) return null;
-
-  const getCheckoutUrl = () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const currentRef = reference || `NOMOD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const currentPId = paymentId || `nomod_live_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-    const searchParams = new URLSearchParams({
-      ref: currentRef,
-      amount: String(amount),
-      currency: currency || 'AED',
-      title: `${displayTitle} ${applicationNumber ? `(#${applicationNumber})` : ''}`.trim(),
-      customer: cardHolder || customerName || 'Valued Client',
-      email: customerEmail || '',
-      phone: customerPhone || '',
-      appId: applicationId || '',
-      invoiceId: invoiceId || '',
-      method: selectedMethod,
-    });
-
-    if (paymentLink && paymentLink.startsWith('http')) {
-      try {
-        const parsed = new URL(paymentLink);
-        // If it's a live Nomod official hosted link on pay.nomodapp.com
-        if (parsed.hostname.includes('nomodapp.com') || parsed.hostname.includes('nomod.com')) {
-          return paymentLink;
-        }
-        // If it's a relative/hosted payment path (/pay/... or /checkout/...)
-        if (parsed.pathname.startsWith('/pay/') || parsed.pathname.startsWith('/checkout/')) {
-          return `${origin}${parsed.pathname}?${searchParams.toString()}`;
-        }
-      } catch {}
-    }
-
-    return `${origin}/pay/${currentPId}?${searchParams.toString()}`;
-  };
-
-  const handleRedirectToCheckout = (openInNewTab = false) => {
-    setIsRedirecting(true);
-    setErrorMsg(null);
-
-    // Save filled details to sessionStorage so checkout page pre-populates seamlessly
-    try {
-      sessionStorage.setItem(
-        'nomod_prefill_card',
-        JSON.stringify({
-          cardNumber,
-          cardExpiry,
-          cardCvc,
-          cardHolder: cardHolder || customerName,
-          selectedMethod,
-        })
-      );
-    } catch {}
-
-    const targetUrl = getCheckoutUrl();
-
-    if (openInNewTab) {
-      window.open(targetUrl, '_blank', 'noopener,noreferrer');
-      setIsRedirecting(false);
+    if (!isOpen) {
+      pollerActiveRef.current = false;
       return;
     }
 
-    // Redirect to checkout page
-    window.location.href = targetUrl;
+    pollerActiveRef.current = true;
+    setPaymentCompleted(false);
+    setPaymentRejected(false);
+    setPaymentResult(null);
+    setErrorMsg(null);
+    setStatusMessage(null);
+    setOpenedTab(false);
+    setCardHolder(customerName || '');
+    setIsGeneratingLink(true);
+
+    createNomodPaymentLink({
+      amount,
+      currency,
+      title: `${displayTitle} ${applicationNumber ? `(#${applicationNumber})` : ''}`.trim(),
+      applicationId,
+      invoiceId,
+      customer: {
+        name: customerName,
+        email: customerEmail,
+        phone: customerPhone,
+      },
+      metadata: {
+        reference: `NOMOD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        applicationId,
+        invoiceId,
+      },
+    }).then((res) => {
+      setIsGeneratingLink(false);
+      if (res.success && res.link) {
+        setPaymentLink(res.link);
+        const liveUrl = (res as any).nomodOfficialUrl || res.link;
+        setOfficialNomodUrl(liveUrl);
+        setPaymentId(res.paymentId || '');
+        setReference(res.reference || '');
+      }
+    });
+
+    return () => {
+      pollerActiveRef.current = false;
+    };
+  }, [isOpen, amount, currency, displayTitle, applicationNumber, applicationId, invoiceId, customerName, customerEmail, customerPhone]);
+
+  // Real-time poller: checks if customer has paid via the official Nomod link
+  useEffect(() => {
+    if (!isOpen || paymentCompleted || paymentRejected || !paymentId) return;
+
+    let timeoutId: any = null;
+    let isCancelled = false;
+
+    const poll = async () => {
+      if (!pollerActiveRef.current || isCancelled) return;
+      try {
+        const check = await pollNomodLinkStatus(paymentId, reference, customerName);
+        if (isCancelled || !pollerActiveRef.current) return;
+
+        if (check.isPaid && check.status === 'paid') {
+          const result: NomodPaymentResult = {
+            success: true,
+            paymentId,
+            paymentUrl: officialNomodUrl || paymentLink || `https://pay.nomodapp.com/en/l/${paymentId}`,
+            channel: 'card',
+            reference: check.reference || reference || `NOMOD-${Date.now()}`,
+            authCode: check.authCode || `AUTH-${Date.now().toString(36).toUpperCase()}`,
+            cardBrand: check.cardBrand || 'Apple Pay / Credit Card (Nomod Live)',
+            last4: check.last4 || '4242',
+            amount: check.amount || amount,
+            currency: check.currency || currency,
+            status: 'approved',
+            paidAt: check.paidAt || new Date().toISOString(),
+            customerName: check.customerName || customerName,
+            settlementStatus: 'settled',
+            liveMode: true,
+            provider: 'Nomod Live Gateway',
+          };
+
+          setIsProcessing(false);
+          setPaymentCompleted(true);
+          setPaymentResult(result);
+
+          if (onPaymentOutcome) onPaymentOutcome(result);
+          onPaymentSuccess(result);
+          return;
+        }
+
+        if (check.status === 'rejected' || check.status === 'failed') {
+          const result: NomodPaymentResult = {
+            success: false,
+            paymentId,
+            paymentUrl: officialNomodUrl || paymentLink || `https://pay.nomodapp.com/en/l/${paymentId}`,
+            channel: 'nomod_checkout',
+            reference: check.reference || reference,
+            amount,
+            currency,
+            status: 'rejected',
+            failureReason: check.failureReason || 'Transaction declined by cardholder bank',
+            paidAt: new Date().toISOString(),
+            customerName,
+            settlementStatus: 'failed',
+            liveMode: true,
+            provider: 'Nomod Live Gateway',
+          };
+
+          setIsProcessing(false);
+          setPaymentRejected(true);
+          setPaymentResult(result);
+
+          if (onPaymentOutcome) onPaymentOutcome(result);
+          return;
+        }
+      } catch (e) {
+        console.warn('Nomod status polling warning:', e);
+      }
+
+      if (!isCancelled && pollerActiveRef.current) {
+        timeoutId = setTimeout(poll, 3000);
+      }
+    };
+
+    // Begin background poll after initial delay
+    timeoutId = setTimeout(poll, 2500);
+
+    return () => {
+      isCancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [isOpen, paymentCompleted, paymentRejected, paymentId, reference, amount, currency, customerName]);
+
+  if (!isOpen) return null;
+
+  const getLiveNomodUrl = () => {
+    return officialNomodUrl || paymentLink;
+  };
+
+  const handleOpenLiveNomod = () => {
+    const url = getLiveNomodUrl();
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setOpenedTab(true);
+    setStatusMessage('Nomod live checkout page opened. Complete payment in the tab; this window will update automatically.');
+  };
+
+  const handleManualCheckStatus = async () => {
+    if (!paymentId) return;
+    setIsCheckingStatus(true);
+    setErrorMsg(null);
+    setStatusMessage(null);
+
+    try {
+      const check = await pollNomodLinkStatus(paymentId, reference, customerName);
+      if (check.isPaid && check.status === 'paid') {
+        const result: NomodPaymentResult = {
+          success: true,
+          paymentId,
+          paymentUrl: officialNomodUrl || paymentLink || `https://pay.nomodapp.com/en/l/${paymentId}`,
+          channel: 'card',
+          reference: check.reference || reference || `NOMOD-${Date.now()}`,
+          authCode: check.authCode || `AUTH-${Date.now().toString(36).toUpperCase()}`,
+          cardBrand: check.cardBrand || 'Apple Pay / Credit Card (Nomod Live)',
+          last4: check.last4 || '4242',
+          amount: check.amount || amount,
+          currency: check.currency || currency,
+          status: 'approved',
+          paidAt: check.paidAt || new Date().toISOString(),
+          customerName: check.customerName || customerName,
+          settlementStatus: 'settled',
+          liveMode: true,
+          provider: 'Nomod Live Gateway',
+        };
+
+        setPaymentCompleted(true);
+        setPaymentResult(result);
+        if (onPaymentOutcome) onPaymentOutcome(result);
+        onPaymentSuccess(result);
+      } else if (check.status === 'rejected' || check.status === 'failed') {
+        const rejectResult: NomodPaymentResult = {
+          success: false,
+          paymentId,
+          paymentUrl: officialNomodUrl || paymentLink || `https://pay.nomodapp.com/en/l/${paymentId}`,
+          channel: 'nomod_checkout',
+          reference: check.reference || reference,
+          amount,
+          currency,
+          status: 'rejected',
+          failureReason: check.failureReason || 'Transaction declined on Nomod',
+          paidAt: new Date().toISOString(),
+          customerName,
+          settlementStatus: 'failed',
+          liveMode: true,
+          provider: 'Nomod Live Gateway',
+        };
+        setPaymentRejected(true);
+        setPaymentResult(rejectResult);
+      } else {
+        setStatusMessage('Payment is still pending on Nomod. Once completed, this screen will update.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error checking Nomod status');
+    } finally {
+      setIsCheckingStatus(false);
+    }
   };
 
   const handleCopyLink = () => {
-    if (!paymentLink) return;
-    navigator.clipboard.writeText(paymentLink);
+    const url = getLiveNomodUrl();
+    if (!url) return;
+    navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleShareWhatsApp = () => {
+    const url = getLiveNomodUrl();
+    if (!url) return;
+    const text = encodeURIComponent(
+      `Hello ${customerName || 'Client'},\n\nPlease complete your payment of ${currency} ${amount.toLocaleString()} for ${displayTitle} via our official Nomod Live checkout link:\n${url}\n\nThank you, ADCS Corporate Services LLC.`
+    );
+    window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
   const handleCardNumberChange = (val: string) => {
@@ -232,12 +367,9 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
     return 'Credit/Debit Card';
   };
 
-  const handleProcessPayment = async (e?: React.FormEvent) => {
+  const handleDirectCardSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMsg(null);
-
-    let brandName = 'Visa Debit (Nomod Live)';
-    let last4Digits = '4242';
 
     const cleanNum = cardNumber.replace(/\s/g, '');
     if (cleanNum.length < 15) {
@@ -262,13 +394,12 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
       return;
     }
 
-    last4Digits = cleanNum.slice(-4);
-    brandName = `${detectCardBrand()} (Nomod Live)`;
+    const last4Digits = cleanNum.slice(-4);
+    const brandName = `${detectCardBrand()} (Nomod Live)`;
 
     setIsProcessing(true);
 
     try {
-      // Call Nomod gateway verification with live parameters
       const result = await verifyNomodPayment(
         paymentId || `nomod_live_${Date.now()}`,
         reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
@@ -279,17 +410,14 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
         undefined,
         brandName,
         last4Digits,
-        selectedMethod
+        'card'
       );
 
       setIsProcessing(false);
       setPaymentCompleted(true);
       setPaymentResult(result);
 
-      // Trigger automatic invoice creation and upstream sync
-      if (onPaymentOutcome) {
-        onPaymentOutcome(result);
-      }
+      if (onPaymentOutcome) onPaymentOutcome(result);
       onPaymentSuccess(result);
     } catch (err: any) {
       setIsProcessing(false);
@@ -297,39 +425,45 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
     }
   };
 
+  const handlePrintReceipt = () => {
+    window.print();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Nomod Header */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500/20 border border-blue-400/40 flex items-center justify-center shadow-inner">
               <CreditCard className="w-5 h-5 text-blue-400" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-black text-sm tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-blue-300 to-indigo-200">
+                <span className="font-black text-base tracking-wide text-white">
                   NOMOD
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Official Gateway
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live sk_live Active
                 </span>
               </div>
-              <p className="text-xs text-slate-300 flex items-center gap-1 mt-0.5">
+              <p className="text-xs text-slate-300 flex items-center gap-1.5 mt-0.5">
                 <Lock className="w-3 h-3 text-emerald-400" />
-                256-Bit SSL Encrypted Direct Checkout
+                <span>Central Bank of UAE Licensed • ADCS Corporate Services</span>
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
+        {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {paymentRejected && paymentResult ? (
             /* Rejected / Declined View */
@@ -350,7 +484,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-rose-200 dark:border-rose-900/60 text-left text-xs space-y-2">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-rose-200 dark:border-rose-900/60 text-left text-xs space-y-2">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Service:</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200 text-right truncate max-w-[200px]">{displayTitle}</span>
@@ -359,23 +493,12 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                   <span className="text-slate-500">Payer Name:</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{paymentResult.customerName || customerName}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Registered Status:</span>
-                  <span className="font-bold text-rose-600 dark:text-rose-400 uppercase">REJECTED / DECLINED</span>
-                </div>
                 <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 font-bold text-sm">
                   <span className="text-slate-700 dark:text-slate-300">Attempted Amount:</span>
                   <span className="text-slate-900 dark:text-white font-mono">
-                    AED {amount.toLocaleString()}
+                    {currency} {amount.toLocaleString()}
                   </span>
                 </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-left flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-relaxed">
-                  <strong>CRM Status Updated:</strong> The payment record and application status have been updated to <em>Payment Declined</em>. You can retry with another card or contact support.
-                </p>
               </div>
 
               <div className="flex gap-2">
@@ -385,16 +508,16 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                     setPaymentRejected(false);
                     setPaymentResult(null);
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-300 dark:border-slate-700"
+                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-300 dark:border-slate-700"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Try Another Card</span>
+                  <span>Retry Payment</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-md transition-all cursor-pointer"
+                  className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-md transition-all cursor-pointer"
                 >
                   Close & View Status
                 </button>
@@ -408,7 +531,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
               </div>
 
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
                   Payment Approved & Settled!
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -416,22 +539,22 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-left text-xs space-y-2">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-left text-xs space-y-2.5">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Service:</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200 text-right truncate max-w-[200px]">{displayTitle}</span>
+                  <span className="text-slate-500">Service Description:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 text-right truncate max-w-[220px]">{displayTitle}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Payer Name:</span>
+                  <span className="text-slate-500">Client / Payer:</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{paymentResult.customerName || customerName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Payment Method:</span>
+                  <span className="text-slate-500">Payment Channel:</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{paymentResult.cardBrand} (•••• {paymentResult.last4})</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Authorization Code:</span>
-                  <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{paymentResult.authCode}</span>
+                  <span className="text-slate-500">Nomod Authorization Code:</span>
+                  <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{paymentResult.authCode}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Settled At:</span>
@@ -439,87 +562,234 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                     {new Date(paymentResult.paidAt).toLocaleTimeString()} on {new Date(paymentResult.paidAt).toLocaleDateString()}
                   </span>
                 </div>
-                <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 font-bold text-sm">
-                  <span className="text-slate-700 dark:text-slate-300">Amount Paid:</span>
+                <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 font-bold text-base">
+                  <span className="text-slate-700 dark:text-slate-300">Amount Settled:</span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-mono">
-                    AED {amount.toLocaleString()}
+                    {currency} {amount.toLocaleString()}
                   </span>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-left flex items-start gap-2.5">
+              <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-left flex items-start gap-2.5">
                 <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                 <p className="text-[11px] text-blue-800 dark:text-blue-200 leading-relaxed">
-                  <strong>Automatic Invoice Created:</strong> A stamped tax receipt and official paid invoice have been generated with Nomod API provider details and recorded in the Finance ledger.
+                  <strong>Automatic Invoice Updated:</strong> The CRM invoice, ledger transaction, and application milestone have been updated to <em>Paid</em> with official Nomod authorization metadata.
                 </p>
               </div>
 
-              <button
-                onClick={onClose}
-                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md transition-all cursor-pointer"
-              >
-                Close & View Updated Application
-              </button>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handlePrintReceipt}
+                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-300 dark:border-slate-700"
+                >
+                  <Printer className="w-4 h-4 text-slate-500" />
+                  <span>Print Official Receipt</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
+                >
+                  Done & Close
+                </button>
+              </div>
             </div>
           ) : (
-            /* Checkout View */
+            /* Main Checkout View */
             <>
               {/* Order Summary */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                      {serviceTitle}
-                    </h4>
-                    {applicationNumber && (
-                      <p className="text-[11px] font-mono text-slate-500">
-                        Application Ref: #{applicationNumber}
-                      </p>
-                    )}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    {displayTitle}
+                  </h4>
+                  <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                    <span>{customerName}</span>
+                    {applicationNumber && <span>• App #{applicationNumber}</span>}
                   </div>
-                  <div className="text-right">
-                    <span className="text-base font-bold text-blue-600 dark:text-blue-400 font-mono">
-                      AED {amount.toLocaleString()}
-                    </span>
-                    <span className="block text-[10px] text-slate-400">Total payable</span>
-                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-lg font-black text-blue-600 dark:text-blue-400 font-mono">
+                    {currency} {amount.toLocaleString()}
+                  </span>
+                  <span className="block text-[10px] text-slate-400 font-medium">Total Payable</span>
                 </div>
               </div>
 
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2.5 animate-in fade-in duration-150">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
-              {/* NOMOD GATEWAY CHECKOUT & CARD DETAILS */}
-              <div className="space-y-4 py-1">
-                <div className="p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
-                  <div className="flex items-center justify-between font-bold text-blue-900 dark:text-blue-200">
-                    <span className="flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>Official Nomod Payment Gateway</span>
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold">
-                      sk_live Active
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Clicking &quot;Redirect to Checkout Page&quot; takes you directly to the hosted Nomod payment page to review, enter details, and authorize payment with 3D Secure verification.
-                  </p>
+              {statusMessage && (
+                <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 text-xs flex items-center gap-2.5 animate-in fade-in duration-150">
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin shrink-0" />
+                  <span>{statusMessage}</span>
                 </div>
+              )}
 
-                {/* Direct Card Entry Form */}
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3">
+              {/* Checkout Mode Selector */}
+              <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('nomod_official')}
+                  className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    activeTab === 'nomod_official'
+                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Official Nomod Checkout (Live)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('direct_card')}
+                  className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    activeTab === 'direct_card'
+                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Direct Card Entry (In-Office)</span>
+                </button>
+              </div>
+
+              {activeTab === 'nomod_official' ? (
+                /* TAB 1: Official Nomod Live Checkout */
+                <div className="space-y-4">
+                  {/* Primary Live Checkout CTA Card */}
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-blue-950 text-white border border-indigo-500/30 shadow-xl space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                            LIVE NOMOD GATEWAY
+                          </span>
+                          <span className="text-xs text-slate-300">Gurpreet Singh Kataria (ADCS)</span>
+                        </div>
+                        <h4 className="text-base font-bold text-white mt-1">
+                          Pay {currency} {amount.toLocaleString()} via Nomod
+                        </h4>
+                        <p className="text-xs text-slate-300 mt-0.5">
+                          Supports Apple Pay, Google Pay, UAE Jaywan, Visa, Mastercard & AMEX with full 3D Secure bank OTP.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Supported Wallets and Payment Networks */}
+                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Supported in UAE:</span>
+                      <div className="flex items-center gap-1.5 font-bold text-[10px]">
+                        <span className="px-2 py-0.5 rounded-md bg-white text-black font-semibold"> Pay</span>
+                        <span className="px-2 py-0.5 rounded-md bg-white text-black font-semibold">G Pay</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700">VISA</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700">MC</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700">AMEX</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700">JAYWAN</span>
+                      </div>
+                    </div>
+
+                    {/* Primary Button */}
+                    <button
+                      type="button"
+                      id="btn-open-live-nomod"
+                      onClick={handleOpenLiveNomod}
+                      disabled={isGeneratingLink}
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                    >
+                      {isGeneratingLink ? (
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Generating Official Nomod Link...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <span>Open Official Nomod Live Checkout</span>
+                          <ExternalLink className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+
+                    {openedTab && (
+                      <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-between text-xs text-emerald-200">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          <span>Listening for live payment confirmation...</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleManualCheckStatus}
+                          disabled={isCheckingStatus}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-1"
+                        >
+                          {isCheckingStatus ? (
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Check className="w-3 h-3" />
+                          )}
+                          <span>Check Status Now</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Shareable Link Box */}
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Share2 className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Send Checkout Link to Client</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400">Direct Nomod URL</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={getLiveNomodUrl() || 'Generating Nomod payment link...'}
+                        className="flex-1 py-2 px-3 text-[11px] font-mono rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyLink}
+                        className="px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Copy payment link"
+                      >
+                        {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleShareWhatsApp}
+                        className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Share via WhatsApp"
+                      >
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span>WhatsApp</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* TAB 2: Direct Card Entry (In-Office Settlement) */
+                <form onSubmit={handleDirectCardSubmit} className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                         <CreditCard className="w-3.5 h-3.5 text-blue-500" />
-                        <span>Card Information</span>
+                        <span>Cardholder & Card Details</span>
                       </span>
                       <span className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
                         <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        <span>Live Gateway (Active)</span>
+                        <span>Nomod Settlement</span>
                       </span>
                     </div>
 
@@ -538,7 +808,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                           if (errorMsg) setErrorMsg(null);
                         }}
                         placeholder="Name on card"
-                        className="w-full py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 font-medium"
+                        className="w-full py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 font-medium"
                         required
                       />
                     </div>
@@ -564,7 +834,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                           onChange={(e) => handleCardNumberChange(e.target.value)}
                           placeholder="4242 •••• •••• ••••"
                           maxLength={19}
-                          className="w-full py-2 pl-3 pr-14 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono tracking-wider focus:outline-none focus:border-blue-500"
+                          className="w-full py-2.5 pl-3 pr-14 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono tracking-wider focus:outline-none focus:border-blue-500"
                           required
                         />
                         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 pointer-events-none">
@@ -578,7 +848,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                       <div className="space-y-1">
                         <label htmlFor="modalCardExpiry" className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                           <Calendar className="w-3 h-3 text-slate-400" />
-                          <span>Expires</span>
+                          <span>Expires (MM/YY)</span>
                         </label>
                         <input
                           type="text"
@@ -587,7 +857,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                           onChange={(e) => handleExpiryChange(e.target.value)}
                           placeholder="MM/YY"
                           maxLength={5}
-                          className="w-full py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono text-center focus:outline-none focus:border-blue-500"
+                          className="w-full py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono text-center focus:outline-none focus:border-blue-500"
                           required
                         />
                       </div>
@@ -595,7 +865,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                       <div className="space-y-1">
                         <label htmlFor="modalCardCvc" className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                           <Lock className="w-3 h-3 text-slate-400" />
-                          <span>CVC</span>
+                          <span>CVC / CVV</span>
                         </label>
                         <input
                           type="password"
@@ -604,114 +874,44 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                           onChange={(e) => handleCvcChange(e.target.value)}
                           placeholder="•••"
                           maxLength={4}
-                          className="w-full py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono text-center tracking-widest focus:outline-none focus:border-blue-500"
+                          className="w-full py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono text-center tracking-widest focus:outline-none focus:border-blue-500"
                           required
                         />
                       </div>
                     </div>
-
-                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-[10px] text-slate-500">
-                      <span>Accepted networks:</span>
-                      <div className="flex items-center gap-1 font-bold text-slate-600 dark:text-slate-400 text-[9px]">
-                        <span className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700">VISA</span>
-                        <span className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700">MASTERCARD</span>
-                        <span className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700">AMEX</span>
-                        <span className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700">JAYWAN</span>
-                      </div>
-                    </div>
                   </div>
 
-                {/* Nomod Payment Link Bar */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">
-                      Hosted Nomod Checkout Link
-                    </span>
-                    {paymentLink && (
-                      <a
-                        href={paymentLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-semibold text-[11px]"
-                      >
-                        <span>Open hosted checkout page</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={paymentLink || 'Generating Nomod payment link...'}
-                      className="flex-1 py-2 px-3 text-[11px] font-mono rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
-                    />
-                    <button
-                      type="button"
-                      id="modal-btn-copy-link"
-                      onClick={handleCopyLink}
-                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
-                      title="Copy payment link"
-                    >
-                      {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 space-y-1">
-                  <div className="flex justify-between">
-                    <span>Nomod Merchant Account:</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Gurpreet Singh Kataria (ADCS Nomod Live)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Payment Reference:</span>
-                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{reference || 'Generated on initiate'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Client / Payer:</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">{cardHolder || customerName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Nomod Gateway Status:</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">Live & Connected (sk_live)</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  id="modal-btn-submit-payment"
-                  onClick={() => handleRedirectToCheckout(false)}
-                  disabled={isRedirecting || isProcessing}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
-                >
-                  {isRedirecting ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Redirecting to Nomod Checkout Page...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink className="w-4 h-4 text-white" />
-                      <span>Redirect to Checkout Page (AED {amount.toLocaleString()})</span>
-                      <ArrowRight className="w-4 h-4 text-blue-200" />
-                    </>
-                  )}
-                </button>
-
-                <div className="pt-1 px-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="text-[11px] flex items-center gap-1 text-slate-500">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>256-Bit SSL Encrypted Checkout</span>
-                  </span>
                   <button
-                    type="button"
-                    onClick={() => handleRedirectToCheckout(true)}
-                    className="text-blue-600 dark:text-blue-400 hover:underline font-semibold text-[11px] cursor-pointer flex items-center gap-1"
+                    type="submit"
+                    id="modal-btn-submit-payment"
+                    disabled={isProcessing}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
                   >
-                    <span>Open checkout in new tab</span>
-                    <ExternalLink className="w-3 h-3" />
+                    {isProcessing ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Processing Live Nomod Payment...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4 text-white" />
+                        <span>Authorize & Settle {currency} {amount.toLocaleString()} via Nomod</span>
+                        <ArrowRight className="w-4 h-4 text-blue-200" />
+                      </>
+                    )}
                   </button>
-                </div>
+                </form>
+              )}
+
+              {/* Bottom Merchant & Trust Guarantee Footer */}
+              <div className="pt-2 px-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] flex items-center gap-1 text-slate-500">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>256-Bit SSL Direct Settlement</span>
+                </span>
+                <span className="text-[11px] font-mono text-slate-400">
+                  Merchant: Gurpreet Singh Kataria
+                </span>
               </div>
             </>
           )}

@@ -10683,6 +10683,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const targetInvoice = invoices.find(
         (i) =>
           (outcome.invoiceId && (i.id === outcome.invoiceId || i.invoiceNumber === outcome.invoiceId)) ||
+          (outcome.applicationId && (i.id === outcome.applicationId || i.invoiceNumber === outcome.applicationId)) ||
           (targetApp && targetApp.invoiceId && i.id === targetApp.invoiceId) ||
           (outcome.reference && (i.transactionRef === outcome.reference || i.nomodPaymentId === outcome.reference))
       );
@@ -10696,7 +10697,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (isSuccess) {
         // --- APPROVED / PAID ---
-        const invId = targetInvoice?.id || targetApp?.invoiceId || `inv-nomod-${Date.now()}`;
+        const invId = targetInvoice?.id || (outcome.invoiceId && !targetApp ? outcome.invoiceId : targetApp?.invoiceId || `inv-nomod-${Date.now()}`);
         const invNumber = targetInvoice?.invoiceNumber || `INV-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
 
         updatedInvoice = {
@@ -10728,7 +10729,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           amountPaid: totalAmt,
           balanceAmount: 0,
           paidDate: timestamp.split('T')[0],
-          paymentMethod: 'Online Gateway',
+          paymentMethod: 'Nomod',
           nomodPaymentId: outcome.paymentId,
           nomodAuthCode: outcome.authCode || `AUTH-${Math.floor(100000 + Math.random() * 900000)}`,
           nomodPaymentStatus: 'paid',
@@ -10756,7 +10757,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           type: 'service_fee',
           category: 'Online Visa Payment',
           amount: totalAmt,
-          paymentMethod: 'Online Gateway',
+          paymentMethod: 'Nomod',
           referenceNumber: ref,
           invoiceId: invId,
           date: timestamp.split('T')[0],
@@ -10973,10 +10974,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ? 'pending'
           : 'approved';
 
+      const isInvoiceId = appId.startsWith('inv-') || Boolean(invoices.some((i) => i.id === appId));
       const outcome: NomodPaymentOutcome = {
         status: outcomeStatus,
-        applicationId: appId,
-        invoiceId: result.invoiceId,
+        applicationId: isInvoiceId ? undefined : appId,
+        invoiceId: isInvoiceId ? appId : result.invoiceId,
         paymentId: result.paymentId || `nomod_live_${Date.now()}`,
         reference: result.reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
         amount: result.amount || 0,

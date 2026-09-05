@@ -54,6 +54,7 @@ export const InvoicesPayments: React.FC = () => {
     billingSettings,
     updateBillingSettings,
     processNomodPaymentOutcome,
+    confirmNomodPayment,
   } = useCRM();
 
   const [activeTab, setActiveTab] = useState<'invoices' | 'transactions'>('invoices');
@@ -186,7 +187,7 @@ export const InvoicesPayments: React.FC = () => {
     type: 'deposit',
     category: '',
     amount: 0,
-    paymentMethod: 'Bank Transfer',
+    paymentMethod: 'Nomod',
     referenceNumber: '',
     receiptNumber: '',
     date: '',
@@ -233,13 +234,13 @@ export const InvoicesPayments: React.FC = () => {
   const [editAmountPaid, setEditAmountPaid] = useState<number>(0);
   const [editIssueDate, setEditIssueDate] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
-  const [editPaymentMethod, setEditPaymentMethod] = useState<string>('Bank Transfer');
+  const [editPaymentMethod, setEditPaymentMethod] = useState<string>('Nomod');
   const [editStatus, setEditStatus] = useState<Invoice['status']>('unpaid');
   const [editNotes, setEditNotes] = useState('');
 
   // Record Payment Form
   const [payAmount, setPayAmount] = useState<number>(0);
-  const [payMethod, setPayMethod] = useState<Invoice['paymentMethod']>('Bank Transfer');
+  const [payMethod, setPayMethod] = useState<Invoice['paymentMethod']>('Nomod');
   const [payRef, setPayRef] = useState('');
   const [payNotes, setPayNotes] = useState('');
 
@@ -248,7 +249,7 @@ export const InvoicesPayments: React.FC = () => {
   const [txType, setTxType] = useState<TransactionType>('deposit');
   const [txCategory, setTxCategory] = useState('Advance Security Deposit');
   const [txAmount, setTxAmount] = useState<number>(1500);
-  const [txMethod, setTxMethod] = useState<PaymentMethodType>('Bank Transfer');
+  const [txMethod, setTxMethod] = useState<PaymentMethodType>('Nomod');
   const [txRef, setTxRef] = useState('');
   const [txNotes, setTxNotes] = useState('');
 
@@ -542,7 +543,7 @@ export const InvoicesPayments: React.FC = () => {
       grandTotal,
       amountPaid: 0,
       balanceAmount: grandTotal,
-      paymentMethod: 'Bank Transfer',
+      paymentMethod: 'Nomod',
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: invDueDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
       status: 'unpaid',
@@ -947,7 +948,7 @@ export const InvoicesPayments: React.FC = () => {
                             </button>
                           )}
 
-                          {/* Nomod Instant Checkout Button */}
+                          {/* Single Payment Option: Nomod Live Gateway */}
                           {inv.balanceAmount > 0 && (
                             <button
                               onClick={() => {
@@ -955,24 +956,10 @@ export const InvoicesPayments: React.FC = () => {
                                 setShowNomodModal(true);
                               }}
                               className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-                              title="Checkout with Nomod (Credit & Debit Cards, UAE Jaywan Debit)"
+                              title="Checkout with Nomod (Credit & Debit Cards)"
                             >
                               <CreditCard className="w-3 h-3" />
                               <span>Pay via Nomod</span>
-                            </button>
-                          )}
-
-                          {/* Record Payment Button */}
-                          {inv.balanceAmount > 0 && currentUser.role !== 'client' && (
-                            <button
-                              onClick={() => {
-                                setActiveInvoice(inv);
-                                setPayAmount(inv.balanceAmount);
-                                setShowPaymentModal(true);
-                              }}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
-                            >
-                              Record Pay
                             </button>
                           )}
 
@@ -1882,13 +1869,9 @@ export const InvoicesPayments: React.FC = () => {
                   <select
                     value={editPaymentMethod}
                     onChange={(e) => setEditPaymentMethod(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold text-blue-600 dark:text-blue-400"
                   >
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Online Gateway">Online Gateway</option>
+                    <option value="Nomod">Nomod Live Gateway</option>
                   </select>
                 </div>
               </div>
@@ -2004,13 +1987,9 @@ export const InvoicesPayments: React.FC = () => {
                 <select
                   value={payMethod}
                   onChange={(e) => setPayMethod(e.target.value as any)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold text-blue-600 dark:text-blue-400"
                 >
-                  <option value="Bank Transfer">Bank Wire Transfer</option>
-                  <option value="Credit Card">Credit Card (POS/Online Gateway)</option>
-                  <option value="Cash">Cash at Counter</option>
-                  <option value="Cheque">Corporate Cheque</option>
-                  <option value="Online Gateway">Online Payment Portal</option>
+                  <option value="Nomod">Nomod Live Gateway (Credit / Debit Card)</option>
                 </select>
               </div>
 
@@ -2148,13 +2127,9 @@ export const InvoicesPayments: React.FC = () => {
                   <select
                     value={txMethod}
                     onChange={(e) => setTxMethod(e.target.value as any)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold text-blue-600 dark:text-blue-400"
                   >
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Corporate Card">Corporate Card</option>
-                    <option value="Cheque">Corporate Cheque</option>
-                    <option value="Cash">Cash at Branch</option>
+                    <option value="Nomod">Nomod Live Gateway</option>
                   </select>
                 </div>
               </div>
@@ -2306,15 +2281,11 @@ export const InvoicesPayments: React.FC = () => {
                     Payment Method
                   </label>
                   <select
-                    value={editTxData.paymentMethod ?? ''}
+                    value={editTxData.paymentMethod ?? 'Nomod'}
                     onChange={(e) => setEditTxData({ ...editTxData, paymentMethod: e.target.value as PaymentMethodType })}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold text-blue-600 dark:text-blue-400"
                   >
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Corporate Card">Corporate Card</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Cash">Cash</option>
+                    <option value="Nomod">Nomod Live Gateway</option>
                   </select>
                 </div>
 
@@ -2567,12 +2538,11 @@ export const InvoicesPayments: React.FC = () => {
             recordPayment(
               nomodCheckoutInvoice.id,
               result.amount,
-              'Credit Card',
+              'Nomod',
               result.reference,
               `Nomod Live Gateway Settlement: Auth ${result.authCode || 'N/A'}, Card: ${result.cardBrand || 'Card'} ending ${result.last4 || '****'}`
             );
-            setShowNomodModal(false);
-            setNomodCheckoutInvoice(null);
+            confirmNomodPayment(nomodCheckoutInvoice.id, result);
           }}
           onPaymentOutcome={(result) => {
             processNomodPaymentOutcome({
