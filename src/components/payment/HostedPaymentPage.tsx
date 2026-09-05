@@ -191,45 +191,6 @@ export const HostedPaymentPage: React.FC = () => {
     return `${origin}/?${searchParams.toString()}`;
   };
 
-  const handleSimulateDecline = async () => {
-    setErrorMsg(null);
-    setIsProcessing(true);
-    setProcessStep('Establishing encrypted link with issuing bank...');
-
-    const cleanNum = cardNumber.replace(/\s/g, '');
-    const last4Digits = cleanNum.length >= 4 ? cleanNum.slice(-4) : '4242';
-    const detectedBrand = detectCardBrand();
-    const brandName = `${detectedBrand} (Nomod Live)`;
-
-    try {
-      await new Promise((r) => setTimeout(r, 600));
-      setProcessStep('Verifying card authorization with 3D Secure 2.0...');
-      await new Promise((r) => setTimeout(r, 700));
-      setProcessStep('Card issuer declined authorization (Decline Code: 05)...');
-      await new Promise((r) => setTimeout(r, 500));
-
-      const declinedRes = await verifyNomodPayment(
-        params.paymentId || `nomod_dec_${Date.now()}`,
-        params.ref || `NOMOD-DEC-${Date.now().toString(36).toUpperCase()}`,
-        params.amount,
-        cardHolder || params.customer || 'Valued Client',
-        undefined,
-        'rejected',
-        'Transaction declined by issuing bank: Insufficient funds or international card usage restriction (Decline code 05)',
-        brandName,
-        last4Digits,
-        selectedMethod
-      );
-
-      setPaymentResult(declinedRes);
-      setPaymentDeclined(true);
-      setIsProcessing(false);
-    } catch (err: any) {
-      setIsProcessing(false);
-      setErrorMsg(err.message || 'Decline simulation encountered an unexpected error.');
-    }
-  };
-
   // Format Card Number (XXXX XXXX XXXX XXXX)
   const handleCardNumberChange = (val: string) => {
     const digitsOnly = val.replace(/\D/g, '').substring(0, 16);
@@ -257,17 +218,6 @@ export const HostedPaymentPage: React.FC = () => {
     const clean = val.replace(/\D/g, '').substring(0, 4);
     setCardCvc(clean);
     if (errorMsg) setErrorMsg(null);
-  };
-
-  // Quick Demo Card Autofill
-  const handleFillDemoCard = () => {
-    setCardNumber('4242 4242 4242 4242');
-    setCardExpiry('12/28');
-    setCardCvc('888');
-    if (!cardHolder || cardHolder === 'Valued Client') {
-      setCardHolder(params.customer || 'Rakesh Kumar');
-    }
-    setErrorMsg(null);
   };
 
   // Detect Card Brand
@@ -684,16 +634,10 @@ export const HostedPaymentPage: React.FC = () => {
                           <CreditCard className="w-4 h-4 text-blue-400" />
                           <span className="text-xs font-bold text-white uppercase tracking-wider">Card Details</span>
                         </div>
-                        <button
-                          type="button"
-                          id="btn-fill-demo-card"
-                          onClick={handleFillDemoCard}
-                          className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-[11px] font-bold border border-blue-500/30 flex items-center gap-1 transition-colors cursor-pointer"
-                          title="Click to auto-fill sample test card"
-                        >
-                          <Sparkles className="w-3 h-3 text-blue-300" />
-                          <span>Fill Demo Card</span>
-                        </button>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>Nomod Live Active</span>
+                        </div>
                       </div>
 
                       {/* Cardholder Name */}
@@ -849,15 +793,14 @@ export const HostedPaymentPage: React.FC = () => {
                     </button>
 
                     <div className="pt-2 px-1 flex items-center justify-between text-xs text-slate-400">
-                      <span className="text-[11px]">Testing Nomod response handling:</span>
-                      <button
-                        type="button"
-                        onClick={handleSimulateDecline}
-                        disabled={isProcessing}
-                        className="text-rose-400 hover:text-rose-300 font-semibold underline text-[11px] cursor-pointer disabled:opacity-50 transition-colors"
-                      >
-                        Simulate Card Issuer Decline (Code 05)
-                      </button>
+                      <span className="text-[11px] flex items-center gap-1.5 text-slate-400">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Direct Nomod Merchant Settlement</span>
+                      </span>
+                      <span className="text-[11px] font-mono text-emerald-400 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span>Live Production Active</span>
+                      </span>
                     </div>
                   </div>
                 </div>

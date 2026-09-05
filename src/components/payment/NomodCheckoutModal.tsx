@@ -214,14 +214,6 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
     if (errorMsg) setErrorMsg(null);
   };
 
-  const handleFillDemoCard = () => {
-    setCardNumber('4242 4242 4242 4242');
-    setCardExpiry('12/28');
-    setCardCvc('888');
-    if (!cardHolder) setCardHolder(customerName || 'Rakesh Kumar');
-    setErrorMsg(null);
-  };
-
   const detectCardBrand = () => {
     const clean = cardNumber.replace(/\s/g, '');
     if (clean.startsWith('4')) return 'Visa';
@@ -302,46 +294,6 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
     } catch (err: any) {
       setIsProcessing(false);
       setErrorMsg(err.message || 'Payment processing failed. Please check card details or try again.');
-    }
-  };
-
-  const handleSimulateDecline = async () => {
-    setErrorMsg(null);
-    setIsProcessing(true);
-
-    const cleanNum = cardNumber.replace(/\s/g, '');
-    const last4Digits = cleanNum.length >= 4 ? cleanNum.slice(-4) : '4242';
-    const detectedBrand = detectCardBrand();
-    const brandName = `${detectedBrand} (Nomod Live)`;
-
-    try {
-      await new Promise((r) => setTimeout(r, 600));
-
-      const declinedResult = await verifyNomodPayment(
-        paymentId || `nomod_dec_${Date.now()}`,
-        reference || `NOMOD-DEC-${Date.now().toString(36).toUpperCase()}`,
-        amount,
-        cardHolder || customerName,
-        undefined,
-        'rejected',
-        'Transaction declined by card issuer: Insufficient funds or card restriction (Decline code: 05)',
-        brandName,
-        last4Digits,
-        selectedMethod
-      );
-
-      setIsProcessing(false);
-      setPaymentRejected(true);
-      setPaymentResult(declinedResult);
-
-      if (onPaymentOutcome) {
-        onPaymentOutcome(declinedResult);
-      } else if (applicationId) {
-        confirmNomodPayment(applicationId, declinedResult);
-      }
-    } catch (err: any) {
-      setIsProcessing(false);
-      setErrorMsg(err.message || 'Decline simulation encountered an unexpected error.');
     }
   };
 
@@ -565,16 +517,10 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                         <CreditCard className="w-3.5 h-3.5 text-blue-500" />
                         <span>Card Information</span>
                       </span>
-                      <button
-                        type="button"
-                        id="modal-btn-demo-card"
-                        onClick={handleFillDemoCard}
-                        className="px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 text-[11px] font-bold border border-blue-200 dark:border-blue-800 flex items-center gap-1 transition-colors cursor-pointer"
-                        title="Click to fill test card data"
-                      >
-                        <Sparkles className="w-3 h-3 text-blue-500" />
-                        <span>Fill Test Card</span>
-                      </button>
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        <span>Live Gateway (Active)</span>
+                      </span>
                     </div>
 
                     {/* Cardholder Name */}

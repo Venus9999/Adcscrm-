@@ -255,6 +255,7 @@ export const DEFAULT_BILLING_SETTINGS: InvoiceBillingSettings = {
   nomodApiKey: 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY',
   nomodCurrencyDefault: 'AED',
   nomodEnabled: true,
+  nomodLiveMode: true,
   termsAndConditions: 'All government pass-through fees are 0% VAT exempt. Professional typing and PRO representation are subject to 5% UAE standard VAT. Payment is due upon receipt of invoice.',
   invoiceFooterNote: 'Thank you for choosing ADCS CRM. Cryptographically signed for Federal Tax Authority (FTA) compliance.',
   lastUpdated: '2026-08-27T00:00:00Z',

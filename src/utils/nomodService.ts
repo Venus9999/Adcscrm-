@@ -142,8 +142,8 @@ export async function createNomodPaymentLink(
 }
 
 /**
- * Verifies or simulates completion of a Nomod payment transaction and returns provider data.
- * Supports testing/handling both approved and rejected outcomes.
+ * Verifies completion of a live Nomod payment transaction and returns provider data.
+ * Real-time production settlement via Nomod Live Gateway.
  */
 export async function verifyNomodPayment(
   paymentId: string,

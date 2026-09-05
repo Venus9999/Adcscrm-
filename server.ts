@@ -307,6 +307,7 @@ async function startServer() {
         const nomodRes = await fetch('https://api.nomod.com/v1/links', {
           method: 'POST',
           headers: {
+            'Authorization': `Bearer ${apiKey}`,
             'X-API-KEY': apiKey,
             'Content-Type': 'application/json',
           },
@@ -451,6 +452,7 @@ async function startServer() {
           // 1. Check link status directly
           const checkRes = await fetch(`https://api.nomod.com/v1/links/${paymentId}`, {
             headers: {
+              'Authorization': `Bearer ${apiKey}`,
               'X-API-KEY': apiKey,
               'Content-Type': 'application/json',
             },
@@ -461,7 +463,10 @@ async function startServer() {
             let chargeData: any = null;
             try {
               const chargesRes = await fetch('https://api.nomod.com/v1/charges?limit=15', {
-                headers: { 'X-API-KEY': apiKey },
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'X-API-KEY': apiKey,
+                },
               });
               if (chargesRes.ok) {
                 const chargesJson = await chargesRes.json();
@@ -572,6 +577,7 @@ async function startServer() {
       const apiKey = process.env.NOMOD_API_KEY || 'sk_live_3IVlZ54J.kLVItZdIN1Xlvi2ybkMPU6Fv6K13UhvY';
       const checkRes = await fetch('https://api.nomod.com/v1/links?limit=1', {
         headers: {
+          'Authorization': `Bearer ${apiKey}`,
           'X-API-KEY': apiKey,
         },
       });
