@@ -205,6 +205,11 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString(), persistence: 'server_disk' });
   });
 
+  // Standard health check endpoints for Cloud Run, App Engine, Kubernetes
+  app.get(['/healthz', '/health', '/_ah/health'], (req, res) => {
+    res.status(200).send('OK');
+  });
+
   // GET /api/smtp/status - Check server-level SMTP configuration state
   app.get('/api/smtp/status', (req, res) => {
     const config = getEffectiveSmtpConfig();
@@ -2262,12 +2267,28 @@ async function startServer() {
 
   // Vite development middleware or production static serving
   if (!isProduction) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.warn('[Vite Middleware] Vite dev server failed to start, falling back to static file serving:', viteErr);
+      const distPath = path.join(process.cwd(), 'dist');
+      if (fs.existsSync(distPath)) {
+        app.use(express.static(distPath));
+      }
+      app.get('*', (req, res) => {
+        const indexPath = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(200).send('ADCS CRM Server Active');
+        }
+      });
+    }
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     if (fs.existsSync(distPath)) {
@@ -2289,6 +2310,7 @@ async function startServer() {
 
   server.on('error', (err: any) => {
     console.error(`[Server Listen Error on port ${PORT}]:`, err);
+    process.exit(1);
   });
 
   process.on('SIGTERM', () => {
