@@ -1,9 +1,20 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { createServer as createViteServer } from 'vite';
 import { getVisaCountryInsights, generateOrEditImageWithGemini, analyzeDocumentWithGemini } from './server/geminiService';
 import { sendEmailViaSmtp, verifySmtpConnection, getEffectiveSmtpConfig } from './server/emailService';
+
+// Determine execution environment: compiled bundle in dist/, Cloud Run (K_SERVICE/K_REVISION), or explicit NODE_ENV
+const isProduction =
+  process.env.NODE_ENV === 'production' ||
+  Boolean(process.env.K_SERVICE) ||
+  Boolean(process.env.K_REVISION) ||
+  (typeof __filename !== 'undefined' && (__filename.includes('dist') || __filename.endsWith('.cjs'))) ||
+  Boolean(process.argv[1] && (process.argv[1].includes('dist') || process.argv[1].endsWith('.cjs')));
+
+if (isProduction) {
+  process.env.NODE_ENV = 'production';
+}
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -11,12 +22,20 @@ const STORE_FILE = path.join(DATA_DIR, 'crm-store.json');
 const VAULT_FILE = path.join(DATA_DIR, 'crm-store-vault.json');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 
-// Ensure persistent directories exist
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// Ensure persistent directories exist safely
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[Directory Init] Notice on DATA_DIR:', e);
 }
-if (!fs.existsSync(BACKUPS_DIR)) {
-  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(BACKUPS_DIR)) {
+    fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[Directory Init] Notice on BACKUPS_DIR:', e);
 }
 
 // Upgrade Shield: Calculate comprehensive metrics across all CRM collections in a JSON file or object
@@ -2242,7 +2261,8 @@ async function startServer() {
   });
 
   // Vite development middleware or production static serving
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isProduction) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -2250,14 +2270,25 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+    }
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('Application build not found. Please ensure npm run build has completed.');
+      }
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`ADCS CRM Enterprise Server active on http://0.0.0.0:${PORT}`);
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`ADCS CRM Enterprise Server active on http://0.0.0.0:${PORT} [mode: ${isProduction ? 'production' : 'development'}]`);
+  });
+
+  server.on('error', (err: any) => {
+    console.error(`[Server Listen Error on port ${PORT}]:`, err);
   });
 }
 

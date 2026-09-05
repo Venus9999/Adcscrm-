@@ -1574,9 +1574,9 @@
       "workingHours": "Mon - Fri 08:30 - 17:30 (UAE GST)"
     }
   ],
-  "hasCustomModifications": true,
+  "hasCustomModifications": false,
   "isColdStart": false,
-  "lastUpdated": "2026-09-05T13:38:56.085Z",
+  "lastUpdated": "2026-09-05T14:04:12.672Z",
   "leadCategories": [
     {
       "id": "cat-golden-visa",
@@ -3191,7 +3191,10 @@
       "paymentStatus": "unpaid",
       "totalAmount": 0,
       "paidAmount": 0,
-      "outstandingAmount": 0
+      "outstandingAmount": 0,
+      "passportNo": "",
+      "notes": [],
+      "tags": []
     }
   ],
   "documents": [],
@@ -3825,5 +3828,5 @@
     "createdBy": "Gurpreet Singh Kataria (master)",
     "version": "4.0"
   },
-  "revision": 4
+  "revision": 6
 }
