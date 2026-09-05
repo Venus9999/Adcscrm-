@@ -3605,13 +3605,6 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
             customerPhone={client?.phone || client?.mobile || nomodInvoice.clientPhone}
             onPaymentSuccess={(result) => {
               confirmNomodPayment(nomodInvoice.id, result);
-              recordPayment(
-                nomodInvoice.id,
-                nomodInvoice.balanceAmount,
-                'Nomod',
-                result.reference || `NOMOD-${Date.now()}`,
-                `Nomod Live Gateway Settlement: Auth ${result.authCode || 'N/A'}, Card: ${result.cardBrand || 'Card'} ending ${result.last4 || '****'}`
-              );
             }}
           />
         )}

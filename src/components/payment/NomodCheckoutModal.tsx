@@ -181,7 +181,6 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
           setPaymentCompleted(true);
           setPaymentResult(result);
 
-          if (onPaymentOutcome) onPaymentOutcome(result);
           onPaymentSuccess(result);
           return;
         }
@@ -278,7 +277,6 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
 
         setPaymentCompleted(true);
         setPaymentResult(result);
-        if (onPaymentOutcome) onPaymentOutcome(result);
         onPaymentSuccess(result);
       } else if (check.status === 'rejected' || check.status === 'failed') {
         const rejectResult: NomodPaymentResult = {

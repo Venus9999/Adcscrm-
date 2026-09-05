@@ -1181,30 +1181,25 @@ export const ClientPortal: React.FC = () => {
           customerEmail={nomodCheckoutInvoice.clientEmail || client.email}
           customerPhone={nomodCheckoutInvoice.clientPhone || client.phone}
           onPaymentSuccess={(result) => {
-            recordPayment(
-              nomodCheckoutInvoice.id,
-              result.amount,
-              'Nomod',
-              result.reference,
-              `Nomod Live Gateway Settlement: Auth ${result.authCode || 'N/A'}, Card: ${result.cardBrand || 'Card'} ending ${result.last4 || '****'}`
-            );
             confirmNomodPayment(nomodCheckoutInvoice.id, result);
           }}
           onPaymentOutcome={(result) => {
-            processNomodPaymentOutcome({
-              status: result.status === 'rejected' ? 'rejected' : result.status === 'failed' ? 'failed' : 'approved',
-              invoiceId: nomodCheckoutInvoice.id,
-              paymentId: result.paymentId,
-              reference: result.reference,
-              amount: result.amount,
-              currency: result.currency || 'AED',
-              authCode: result.authCode,
-              cardBrand: result.cardBrand,
-              last4: result.last4,
-              customerName: result.customerName,
-              failureReason: result.failureReason,
-              timestamp: result.paidAt,
-            });
+            if (result.status === 'rejected' || result.status === 'failed') {
+              processNomodPaymentOutcome({
+                status: 'rejected',
+                invoiceId: nomodCheckoutInvoice.id,
+                paymentId: result.paymentId,
+                reference: result.reference,
+                amount: result.amount,
+                currency: result.currency || 'AED',
+                authCode: result.authCode,
+                cardBrand: result.cardBrand,
+                last4: result.last4,
+                customerName: result.customerName,
+                failureReason: result.failureReason,
+                timestamp: result.paidAt,
+              });
+            }
           }}
         />
       )}

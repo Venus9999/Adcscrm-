@@ -1353,8 +1353,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         parsed.deletedInvoiceIds.forEach((id: string) => {
           if (id && !deletedInvoiceIds.includes(id)) deletedInvoiceIds.push(id);
         });
-        localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(deletedInvoiceIds));
       }
+      // Never consider an invoice deleted if it is actively present in parsed.invoices,
+      // or referenced by any active client service or transaction
+      const activeHydratedInvoiceIds = new Set<string>();
+      if (Array.isArray(parsed.invoices)) {
+        parsed.invoices.forEach((i: any) => { if (i?.id) activeHydratedInvoiceIds.add(i.id); });
+      }
+      if (Array.isArray(parsed.clients)) {
+        parsed.clients.forEach((c: any) => {
+          (c?.services || []).forEach((s: any) => { if (s?.invoiceId) activeHydratedInvoiceIds.add(s.invoiceId); });
+        });
+      }
+      if (Array.isArray(parsed.transactions)) {
+        parsed.transactions.forEach((tx: any) => { if (tx?.invoiceId) activeHydratedInvoiceIds.add(tx.invoiceId); });
+      }
+      deletedInvoiceIds = deletedInvoiceIds.filter((id) => !activeHydratedInvoiceIds.has(id));
+      localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(deletedInvoiceIds));
+
+      // Never consider a client deleted if actively present in parsed.clients
+      const activeHydratedClientIds = new Set<string>();
+      if (Array.isArray(parsed.clients)) {
+        parsed.clients.forEach((c: any) => { if (c?.id) activeHydratedClientIds.add(c.id); });
+      }
+      deletedClientIds = deletedClientIds.filter((id) => !activeHydratedClientIds.has(id));
+      localStorage.setItem(DELETED_CLIENTS_STORAGE_KEY, JSON.stringify(deletedClientIds));
+
       if (Array.isArray(parsed.deletedLeadIds)) {
         parsed.deletedLeadIds.forEach((id: string) => {
           if (id && !deletedLeadIds.includes(id)) deletedLeadIds.push(id);
@@ -6199,11 +6223,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
       try {
+        const storedDel = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY);
+        if (storedDel) {
+          const parsedDel = JSON.parse(storedDel).filter((id: string) => id !== newInv.id);
+          localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(parsedDel));
+        }
+
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
           parsed.invoices = nextInvoices;
           parsed.clients = nextClients;
+          parsed.deletedInvoiceIds = (parsed.deletedInvoiceIds || []).filter((id: string) => id !== newInv.id);
           parsed.lastUpdated = new Date().toISOString();
           parsed.hasCustomModifications = true;
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
@@ -6319,20 +6350,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isLocalDebounceSavingRef.current = true;
       lastAppliedRemoteIsoRef.current = new Date().toISOString();
 
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.invoices = nextInvoices;
-          parsed.clients = nextClients;
-          parsed.lastUpdated = new Date().toISOString();
-          parsed.hasCustomModifications = true;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-        }
-      } catch {}
-
       // Automatically record linked Transaction ledger entry connected to User / Client
       const targetInv = nextInvoices.find((i) => i.id === invoiceId) || existingInv;
+      let nextTransactions = transactions || [];
       if (targetInv) {
         const txNumber = `TX-2026-${Math.floor(1000 + Math.random() * 9000)}`;
         const newTx: Transaction = {
@@ -6359,8 +6379,43 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           recordedByUserName: currentUser.name,
           createdAt: new Date().toISOString(),
         };
-        setTransactions((prev) => [newTx, ...prev]);
+        nextTransactions = [newTx, ...nextTransactions];
+        setTransactions(nextTransactions);
       }
+
+      try {
+        const storedDel = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY);
+        if (storedDel) {
+          const parsedDel = JSON.parse(storedDel).filter((id: string) => id !== invoiceId);
+          localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(parsedDel));
+        }
+
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          parsed.invoices = nextInvoices;
+          parsed.clients = nextClients;
+          parsed.transactions = nextTransactions;
+          parsed.deletedInvoiceIds = (parsed.deletedInvoiceIds || []).filter((id: string) => id !== invoiceId);
+          parsed.lastUpdated = new Date().toISOString();
+          parsed.hasCustomModifications = true;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({
+              type: 'CRM_TAB_UPDATE',
+              snapshot: parsed,
+            });
+          }
+
+          saveCRMDataToCloud(parsed, true).catch(() => {});
+          fetch('/api/crm/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed),
+          }).catch(() => {});
+        }
+      } catch {}
 
       recordAuditLog('Payment Recorded', 'Payments', `Recorded payment of AED ${amount.toLocaleString()} for Invoice #${invNum || targetInv?.invoiceNumber} (${clientName || targetInv?.clientName}) via ${method}`);
 
@@ -6376,7 +6431,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       setNotifications((prev) => [notif, ...prev]);
     },
-    [currentUser, invoices, clients, isInvoiceForClient, recordAuditLog]
+    [currentUser, invoices, clients, transactions, isInvoiceForClient, recordAuditLog]
   );
 
   const updateInvoice = useCallback(
@@ -10744,7 +10799,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           notes: `Settled via Nomod Gateway API. Auth Code: ${outcome.authCode || 'APPROVED'}. Ref: ${ref}`,
         };
 
-        setInvoices((prev) => [updatedInvoice!, ...prev.filter((i) => i.id !== invId)]);
+        const nextInvoices = [updatedInvoice!, ...invoices.filter((i) => i.id !== invId)];
+        setInvoices(nextInvoices);
 
         // Record Transaction in Ledger
         const tx: Transaction = {
@@ -10755,7 +10811,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           companyId: targetApp?.companyId || targetInvoice?.companyId || 'comp-1',
           companyName: 'ADCS Corporate Services LLC',
           type: 'service_fee',
-          category: 'Online Visa Payment',
+          category: targetApp ? 'Online Visa Payment' : 'Online Invoice Payment',
           amount: totalAmt,
           paymentMethod: 'Nomod',
           referenceNumber: ref,
@@ -10767,9 +10823,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           recordedByUserName: 'Nomod Gateway',
           createdAt: timestamp,
         };
-        setTransactions((prev) => [tx, ...prev]);
+        const nextTransactions = [tx, ...transactions.filter((t) => t.id !== tx.id && t.referenceNumber !== ref)];
+        setTransactions(nextTransactions);
 
         // Update Visa Application
+        let nextVisaApps = visaApplications;
         if (targetApp) {
           const approvedMilestone: VisaTimelineEvent = {
             id: `vtl-pay-${Date.now()}`,
@@ -10801,8 +10859,102 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             timeline: [...targetApp.timeline, approvedMilestone],
           };
 
-          setVisaApplications((prev) => prev.map((a) => (a.id === targetApp.id ? updatedApp! : a)));
+          nextVisaApps = visaApplications.map((a) => (a.id === targetApp.id ? updatedApp! : a));
+          setVisaApplications(nextVisaApps);
         }
+
+        // Update Client Financial Records
+        const effectiveClientId = targetInvoice?.clientId || targetApp?.clientId || 'client-1';
+        const nextClients = (clients || []).map((c) => {
+          const isMatch = c.id === effectiveClientId || (targetInvoice && isInvoiceForClient(targetInvoice, c));
+          if (!isMatch) return c;
+
+          const clientInvs = nextInvoices.filter((inv) => isInvoiceForClient(inv, c));
+          const totalAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
+          const paidAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
+          const outstandingAmount = clientInvs.reduce((sum, inv) => sum + Math.max(0, Number(inv.balanceAmount || 0)), 0);
+          const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+            outstandingAmount === 0 && totalAmount > 0 ? 'paid' : outstandingAmount > 0 ? 'partially_paid' : 'paid';
+
+          const updatedServices = (c.services || []).map((s) => {
+            if (
+              s.invoiceId === invId ||
+              (targetInvoice && s.serviceId === targetInvoice.serviceId) ||
+              (targetInvoice?.serviceName && s.serviceName && s.serviceName.trim().toLowerCase() === targetInvoice.serviceName.trim().toLowerCase())
+            ) {
+              const srvPaid = (s.advancePaid || 0) + totalAmt;
+              const srvBalance = Math.max(0, (s.price + (s.governmentFees || 0)) - srvPaid);
+              return {
+                ...s,
+                advancePaid: srvPaid,
+                balance: srvBalance,
+                invoiceId: s.invoiceId || invId,
+                invoiceNumber: s.invoiceNumber || invNumber,
+              };
+            }
+            return s;
+          });
+
+          const paymentNote: InternalNote = {
+            id: `note-${Date.now()}`,
+            userId: currentUser.id,
+            userName: currentUser.name,
+            userRole: currentUser.role,
+            userAvatar: currentUser.avatar,
+            text: `💳 [Nomod Live Gateway Settlement] AED ${totalAmt.toLocaleString()} received for Invoice #${invNumber}. Auth Code: ${outcome.authCode || 'APPROVED'}, Ref: ${ref}.`,
+            createdAt: timestamp,
+          };
+
+          return {
+            ...c,
+            totalAmount: clientInvs.length > 0 ? totalAmount : c.totalAmount,
+            paidAmount: clientInvs.length > 0 ? paidAmount : (c.paidAmount + totalAmt),
+            outstandingAmount: clientInvs.length > 0 ? outstandingAmount : 0,
+            paymentStatus,
+            services: updatedServices,
+            notes: [paymentNote, ...(c.notes || [])],
+            updatedAt: timestamp,
+          };
+        });
+        setClients(nextClients);
+
+        // Safeguard: Remove from DELETED_INVOICES_STORAGE_KEY & persist locally + remotely
+        try {
+          const storedDel = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY);
+          if (storedDel) {
+            const parsedDel = JSON.parse(storedDel).filter((id: string) => id !== invId);
+            localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(parsedDel));
+          }
+
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.invoices = nextInvoices;
+            parsed.clients = nextClients;
+            parsed.transactions = nextTransactions;
+            if (targetApp && updatedApp) {
+              parsed.visaApplications = nextVisaApps;
+            }
+            parsed.deletedInvoiceIds = (parsed.deletedInvoiceIds || []).filter((id: string) => id !== invId);
+            parsed.lastUpdated = timestamp;
+            parsed.hasCustomModifications = true;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+            if (broadcastChannelRef.current) {
+              broadcastChannelRef.current.postMessage({
+                type: 'CRM_TAB_UPDATE',
+                snapshot: parsed,
+              });
+            }
+
+            saveCRMDataToCloud(parsed, true).catch(() => {});
+            fetch('/api/crm/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(parsed),
+            }).catch(() => {});
+          }
+        } catch {}
 
         // Notification
         const notif: NotificationItem = {
@@ -10944,7 +11096,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         invoice: updatedInvoice,
       };
     },
-    [visaApplications, invoices, currentUser, recordAuditLog]
+    [visaApplications, invoices, clients, transactions, currentUser, recordAuditLog, isInvoiceForClient]
   );
 
   const confirmNomodPayment = useCallback(

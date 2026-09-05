@@ -974,25 +974,63 @@ async function startServer() {
         if (data.companies && Array.isArray(data.companies)) {
           data.companies = data.companies.filter((c: any) => c && c.id && !data.deletedCompanyIds.includes(c.id));
         }
+        // Protect active invoices and clients from inadvertent deletion markers
+        const activeInvoiceIdsInStore = new Set<string>();
+        (data.clients || []).forEach((c: any) => {
+          (c?.services || []).forEach((s: any) => { if (s?.invoiceId) activeInvoiceIdsInStore.add(s.invoiceId); });
+        });
+        (data.transactions || []).forEach((tx: any) => { if (tx?.invoiceId) activeInvoiceIdsInStore.add(tx.invoiceId); });
+        data.deletedInvoiceIds = (data.deletedInvoiceIds || []).filter((id: string) => !activeInvoiceIdsInStore.has(id));
+
+        const activeClientIdsInStore = new Set<string>((data.clients || []).map((c: any) => c?.id).filter(Boolean));
+        data.deletedClientIds = (data.deletedClientIds || []).filter((id: string) => !activeClientIdsInStore.has(id));
+
+        if (data.invoices && Array.isArray(data.invoices)) {
+          data.invoices = data.invoices.filter(
+            (i: any) => i && i.id && !data.deletedInvoiceIds.includes(i.id) && (!i.clientId || !data.deletedClientIds.includes(i.clientId))
+          );
+        }
+
         if (data.clients && Array.isArray(data.clients)) {
           data.clients = data.clients
             .filter((c: any) => c && c.id && !data.deletedClientIds.includes(c.id))
-            .map((c: any) => ({
-              ...c,
-              fullName: c.fullName || c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Client',
-              companyId: c.companyId || (data.companies?.[0]?.id || 'comp-1'),
-              refNo: c.refNo || `CL-${c.id?.replace('client-', '') || '001'}`,
-              nationality: c.nationality || 'United Arab Emirates',
-              emiratesId: c.emiratesId || '',
-              mobile: c.mobile || c.phone || '',
-              email: c.email || '',
-              currentStageId: c.currentStageId || 'stage-1',
-              currentStageName: c.currentStageName || 'New Inquiry',
-              paymentStatus: c.paymentStatus || 'unpaid',
-              totalAmount: typeof c.totalAmount === 'number' ? c.totalAmount : 0,
-              paidAmount: typeof c.paidAmount === 'number' ? c.paidAmount : 0,
-              outstandingAmount: typeof c.outstandingAmount === 'number' ? c.outstandingAmount : 0,
-            }));
+            .map((c: any) => {
+              const clientInvs = (data.invoices || []).filter((inv: any) =>
+                inv && (inv.clientId === c.id || (inv.clientName && c.fullName && inv.clientName.trim().toLowerCase() === c.fullName.trim().toLowerCase()))
+              );
+              const computedTotal = clientInvs.length > 0
+                ? clientInvs.reduce((s: number, inv: any) => s + (Number(inv.grandTotal) || 0), 0)
+                : (typeof c.totalAmount === 'number' ? c.totalAmount : 0);
+              const computedPaid = clientInvs.length > 0
+                ? clientInvs.reduce((s: number, inv: any) => s + (Number(inv.amountPaid) || 0), 0)
+                : (typeof c.paidAmount === 'number' ? c.paidAmount : 0);
+              const computedOutstanding = clientInvs.length > 0
+                ? clientInvs.reduce((s: number, inv: any) => s + Math.max(0, Number(inv.balanceAmount || 0)), 0)
+                : (typeof c.outstandingAmount === 'number' ? c.outstandingAmount : Math.max(0, computedTotal - computedPaid));
+              const computedStatus =
+                computedOutstanding === 0 && computedTotal > 0
+                  ? 'paid'
+                  : computedOutstanding > 0
+                  ? (computedPaid > 0 ? 'partially_paid' : 'unpaid')
+                  : (c.paymentStatus || 'unpaid');
+
+              return {
+                ...c,
+                fullName: c.fullName || c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Client',
+                companyId: c.companyId || (data.companies?.[0]?.id || 'comp-1'),
+                refNo: c.refNo || `CL-${c.id?.replace('client-', '') || '001'}`,
+                nationality: c.nationality || 'United Arab Emirates',
+                emiratesId: c.emiratesId || '',
+                mobile: c.mobile || c.phone || '',
+                email: c.email || '',
+                currentStageId: c.currentStageId || 'stage-1',
+                currentStageName: c.currentStageName || 'New Inquiry',
+                paymentStatus: computedStatus,
+                totalAmount: computedTotal,
+                paidAmount: computedPaid,
+                outstandingAmount: computedOutstanding,
+              };
+            });
         }
         if (data.documents && Array.isArray(data.documents)) {
           data.documents = data.documents.filter(
@@ -1002,11 +1040,6 @@ async function startServer() {
         if (data.tasks && Array.isArray(data.tasks)) {
           data.tasks = data.tasks.filter(
             (t: any) => t && t.id && !data.deletedTaskIds.includes(t.id) && (!t.clientId || !data.deletedClientIds.includes(t.clientId))
-          );
-        }
-        if (data.invoices && Array.isArray(data.invoices)) {
-          data.invoices = data.invoices.filter(
-            (i: any) => i && i.id && !data.deletedInvoiceIds.includes(i.id) && (!i.clientId || !data.deletedClientIds.includes(i.clientId))
           );
         }
         if (data.leads && Array.isArray(data.leads)) {
@@ -1238,13 +1271,42 @@ async function startServer() {
         cleanCompanies = initialCompanies.filter((c: any) => c && c.id && !combinedDeletedCompanyIds.includes(c.id));
       }
 
+      // Safeguard: Never mark an invoice or client deleted if it is actively present in payload or referenced by active services/transactions
+      const activeInvoiceIdSet = new Set<string>();
+      if (Array.isArray(payload.invoices)) {
+        payload.invoices.forEach((i: any) => { if (i?.id) activeInvoiceIdSet.add(i.id); });
+      }
+      if (Array.isArray(payload.clients)) {
+        payload.clients.forEach((c: any) => {
+          (c?.services || []).forEach((s: any) => { if (s?.invoiceId) activeInvoiceIdSet.add(s.invoiceId); });
+        });
+      }
+      if (Array.isArray(existing.clients)) {
+        existing.clients.forEach((c: any) => {
+          (c?.services || []).forEach((s: any) => { if (s?.invoiceId) activeInvoiceIdSet.add(s.invoiceId); });
+        });
+      }
+      if (Array.isArray(payload.transactions)) {
+        payload.transactions.forEach((tx: any) => { if (tx?.invoiceId) activeInvoiceIdSet.add(tx.invoiceId); });
+      }
+      if (Array.isArray(existing.transactions)) {
+        existing.transactions.forEach((tx: any) => { if (tx?.invoiceId) activeInvoiceIdSet.add(tx.invoiceId); });
+      }
+      const safeDeletedInvoiceIds = combinedDeletedInvoiceIds.filter((id) => !activeInvoiceIdSet.has(id));
+
+      const activeClientIdSet = new Set<string>();
+      if (Array.isArray(payload.clients)) {
+        payload.clients.forEach((c: any) => { if (c?.id) activeClientIdSet.add(c.id); });
+      }
+      const safeDeletedClientIds = combinedDeletedClientIds.filter((id) => !activeClientIdSet.has(id));
+
       // Handle clients: merge non-destructively and strictly filter out deleted clients
       let mergedClients: any[] = [];
       if (Array.isArray(payload.clients) && payload.clients.length > 0) {
         mergedClients = mergeCollection(existing.clients || [], payload.clients);
       } else if (Array.isArray(existing.clients) && existing.clients.length > 0) {
         // If incoming clients is empty, check if all clients were explicitly marked for deletion
-        const explicitlyDeleted = (existing.clients || []).filter((c: any) => c && c.id && combinedDeletedClientIds.includes(c.id));
+        const explicitlyDeleted = (existing.clients || []).filter((c: any) => c && c.id && safeDeletedClientIds.includes(c.id));
         if (explicitlyDeleted.length === existing.clients.length && Array.isArray(payload.clients)) {
           mergedClients = [];
         } else {
@@ -1252,7 +1314,7 @@ async function startServer() {
         }
       }
       const cleanClients = mergedClients.filter(
-        (c: any) => c && c.id && c.id !== 'client-test-1' && !combinedDeletedClientIds.includes(c.id)
+        (c: any) => c && c.id && c.id !== 'client-test-1' && !safeDeletedClientIds.includes(c.id)
       );
 
       // Handle documents: merge non-destructively and strictly filter out deleted documents or documents belonging to deleted clients
@@ -1263,7 +1325,7 @@ async function startServer() {
         mergedDocs = existing.documents;
       }
       const cleanDocs = mergedDocs.filter(
-        (d: any) => d && d.id && !combinedDeletedDocumentIds.includes(d.id) && (!d.clientId || !combinedDeletedClientIds.includes(d.clientId))
+        (d: any) => d && d.id && !combinedDeletedDocumentIds.includes(d.id) && (!d.clientId || !safeDeletedClientIds.includes(d.clientId))
       );
 
       // Handle tasks: merge non-destructively and strictly filter out deleted tasks or tasks belonging to deleted clients
@@ -1274,7 +1336,7 @@ async function startServer() {
         mergedTasks = existing.tasks;
       }
       const cleanTasks = mergedTasks.filter(
-        (t: any) => t && t.id && !combinedDeletedTaskIds.includes(t.id) && (!t.clientId || !combinedDeletedClientIds.includes(t.clientId))
+        (t: any) => t && t.id && !combinedDeletedTaskIds.includes(t.id) && (!t.clientId || !safeDeletedClientIds.includes(t.clientId))
       );
 
       // Handle invoices: merge non-destructively and strictly filter out deleted invoices or invoices belonging to deleted clients
@@ -1282,7 +1344,7 @@ async function startServer() {
       if (Array.isArray(payload.invoices) && payload.invoices.length > 0) {
         mergedInvoices = mergeCollection(existing.invoices || [], payload.invoices);
       } else if (Array.isArray(existing.invoices) && existing.invoices.length > 0) {
-        const explicitlyDeleted = (existing.invoices || []).filter((i: any) => i && i.id && combinedDeletedInvoiceIds.includes(i.id));
+        const explicitlyDeleted = (existing.invoices || []).filter((i: any) => i && i.id && safeDeletedInvoiceIds.includes(i.id));
         if (explicitlyDeleted.length === existing.invoices.length && explicitlyDeleted.length > 0 && Array.isArray(payload.invoices)) {
           mergedInvoices = [];
         } else {
@@ -1290,7 +1352,7 @@ async function startServer() {
         }
       }
       const cleanInvoices = mergedInvoices.filter(
-        (i: any) => i && i.id && !combinedDeletedInvoiceIds.includes(i.id) && (!i.clientId || !combinedDeletedClientIds.includes(i.clientId))
+        (i: any) => i && i.id && !safeDeletedInvoiceIds.includes(i.id) && (!i.clientId || !safeDeletedClientIds.includes(i.clientId))
       );
 
       // Handle leads: merge non-destructively and strictly filter out deleted leads
@@ -1425,10 +1487,10 @@ async function startServer() {
         users: Array.isArray(payload.users) ? payload.users : (existing.users || []),
         companies: cleanCompanies,
         deletedCompanyIds: combinedDeletedCompanyIds,
-        deletedClientIds: combinedDeletedClientIds,
+        deletedClientIds: safeDeletedClientIds,
         deletedDocumentIds: combinedDeletedDocumentIds,
         deletedTaskIds: combinedDeletedTaskIds,
-        deletedInvoiceIds: combinedDeletedInvoiceIds,
+        deletedInvoiceIds: safeDeletedInvoiceIds,
         deletedLeadIds: combinedDeletedLeadIds,
         deletedVendorIds: combinedDeletedVendorIds,
         deletedStageIds: combinedDeletedStageIds,
