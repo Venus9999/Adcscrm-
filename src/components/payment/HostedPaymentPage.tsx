@@ -183,7 +183,7 @@ export const HostedPaymentPage: React.FC = () => {
           const result: NomodPaymentResult = {
             success: true,
             paymentId: params.paymentId,
-            paymentUrl: `https://pay.nomodapp.com/en/l/${params.paymentId}`,
+            paymentUrl: (check as any)?.url || (typeof window !== 'undefined' ? window.location.href : ''),
             reference: check.reference || params.ref,
             authCode: check.authCode || `AUTH-${Date.now().toString(36).toUpperCase()}`,
             cardBrand: check.cardBrand || 'Apple Pay / Card (Nomod Live)',

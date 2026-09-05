@@ -312,40 +312,49 @@ async function startServer() {
 
       // Call live Nomod REST API using authentic X-API-KEY header
       try {
+        const payloadToSend: any = {
+          title: serviceTitle.substring(0, 100),
+          amount: strAmount,
+          currency: (currency || 'AED').toUpperCase(),
+          items: [
+            {
+              name: serviceTitle.substring(0, 80),
+              amount: strAmount,
+              quantity: 1,
+            },
+          ],
+          metadata: {
+            reference: ref,
+            applicationId: resolvedAppId,
+            invoiceId: resolvedInvId,
+            customerName: customer?.name || '',
+          },
+        };
+
+        // Only include redirect/success URLs if we have a valid absolute HTTP/HTTPS origin
+        if (origin.startsWith('http://') || origin.startsWith('https://')) {
+          payloadToSend.redirect_url = returnUrl || defaultRedirectUrl;
+          payloadToSend.success_url = successUrl || defaultSuccessUrl;
+        }
+
         const nomodRes = await fetch('https://api.nomod.com/v1/links', {
           method: 'POST',
           headers: {
             'X-API-KEY': apiKey,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            title: serviceTitle,
-            amount: strAmount,
-            currency: currency || 'AED',
-            items: [
-              {
-                name: serviceTitle,
-                amount: strAmount,
-                quantity: 1,
-              },
-            ],
-            redirect_url: returnUrl || defaultRedirectUrl,
-            success_url: successUrl || defaultSuccessUrl,
-            failure_url: failureUrl || defaultFailureUrl,
-            cancelled_url: cancelledUrl || defaultCancelledUrl,
-            metadata: {
-              reference: ref,
-              applicationId: resolvedAppId,
-              invoiceId: resolvedInvId,
-              customerName: customer?.name || '',
-            },
-          }),
+          body: JSON.stringify(payloadToSend),
         });
 
         if (nomodRes.ok) {
           liveData = await nomodRes.json();
-          if (liveData && (liveData.url || liveData.id)) {
-            officialUrl = liveData.url || `https://pay.nomodapp.com/en/l/${liveData.id}`;
+          // Strictly accept only authentic Nomod payment URLs returned by Nomod API (short code slug, never UUID)
+          if (liveData && typeof liveData.url === 'string' && liveData.url.startsWith('https://pay.nomodapp.com/en/l/')) {
+            const slug = liveData.url.split('/l/')[1] || '';
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+            if (!isUuid && slug.length > 0 && !slug.startsWith('nomod_')) {
+              officialUrl = liveData.url;
+            }
           }
         } else {
           const errText = await nomodRes.text();
@@ -370,14 +379,14 @@ async function startServer() {
       });
       const crmHostedUrl = `${origin}/pay/${paymentId}?${searchParams.toString()}`;
 
-      // Set the authentic official Nomod live checkout URL as primary link if live API succeeded
+      // Set the authentic official Nomod live checkout URL as primary link if live API succeeded, otherwise use CRM hosted checkout
       const primaryLink = officialUrl || crmHostedUrl;
 
       return res.json({
         success: true,
         link: primaryLink,
         crmHostedUrl,
-        nomodOfficialUrl: officialUrl || `https://pay.nomodapp.com/en/l/${paymentId}`,
+        nomodOfficialUrl: officialUrl || undefined,
         paymentId,
         reference: liveData?.reference_id || ref,
         amount: numAmount,
@@ -385,7 +394,7 @@ async function startServer() {
         title: serviceTitle,
         customer: customer || {},
         status: 'enabled',
-        liveMode: true,
+        liveMode: Boolean(officialUrl),
         applicationId: resolvedAppId,
         invoiceId: resolvedInvId,
         createdAt: new Date().toISOString(),
@@ -515,7 +524,7 @@ async function startServer() {
           result: {
             success: false,
             paymentId: paymentId || `nomod_live_${Date.now()}`,
-            paymentUrl: `https://pay.nomodapp.com/en/l/${paymentId || 'declined'}`,
+            paymentUrl: undefined,
             reference: reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
             authCode: undefined,
             cardBrand: brand,
@@ -599,7 +608,7 @@ async function startServer() {
               result: {
                 success: isSuccessful,
                 paymentId: liveData.id || paymentId,
-                paymentUrl: liveData.url || `https://pay.nomodapp.com/en/l/${paymentId}`,
+                paymentUrl: (typeof liveData.url === 'string' && liveData.url.startsWith('https://pay.nomodapp.com/en/l/')) ? liveData.url : undefined,
                 reference: liveData.reference_id || reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
                 authCode: isSuccessful ? authCode : undefined,
                 cardBrand: brand,
@@ -632,7 +641,7 @@ async function startServer() {
       const result = {
         success: true,
         paymentId: paymentId || `nomod_live_${Date.now()}`,
-        paymentUrl: `https://pay.nomodapp.com/en/l/${paymentId || 'completed'}`,
+        paymentUrl: undefined,
         reference: reference || `NOMOD-${Date.now().toString(36).toUpperCase()}`,
         authCode,
         cardBrand: brand,

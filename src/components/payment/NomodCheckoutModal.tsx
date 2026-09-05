@@ -29,6 +29,7 @@ import {
   createNomodPaymentLink,
   verifyNomodPayment,
   pollNomodLinkStatus,
+  isValidNomodUrl,
 } from '../../utils/nomodService';
 import { useCRM } from '../../context/CRMContext';
 
@@ -132,10 +133,13 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
       },
     }).then((res) => {
       setIsGeneratingLink(false);
-      if (res.success && res.link) {
-        setPaymentLink(res.link);
-        const liveUrl = (res as any).nomodOfficialUrl || res.link;
-        setOfficialNomodUrl(liveUrl);
+      if (res.success) {
+        const liveNomod = isValidNomodUrl(res.nomodOfficialUrl)
+          ? res.nomodOfficialUrl!
+          : (isValidNomodUrl(res.link) ? res.link! : '');
+        const validLink = liveNomod || res.crmHostedUrl || res.link || '';
+        setPaymentLink(validLink);
+        setOfficialNomodUrl(liveNomod);
         setPaymentId(res.paymentId || '');
         setReference(res.reference || '');
       }
@@ -159,11 +163,17 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
         const check = await pollNomodLinkStatus(paymentId, reference, customerName);
         if (isCancelled || !pollerActiveRef.current) return;
 
+        // If poller returns an authentic direct Nomod link, sync it
+        if ((check as any)?.url && isValidNomodUrl((check as any).url)) {
+          setOfficialNomodUrl((check as any).url);
+          setPaymentLink((check as any).url);
+        }
+
         if (check.isPaid && check.status === 'paid') {
           const result: NomodPaymentResult = {
             success: true,
             paymentId,
-            paymentUrl: officialNomodUrl || paymentLink || `https://pay.nomodapp.com/en/l/${paymentId}`,
+            paymentUrl: officialNomodUrl || paymentLink || '',
             channel: 'card',
             reference: check.reference || reference || `NOMOD-${Date.now()}`,
             authCode: check.authCode || `AUTH-${Date.now().toString(36).toUpperCase()}`,
@@ -192,7 +202,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
           const result: NomodPaymentResult = {
             success: false,
             paymentId,
-            paymentUrl: officialNomodUrl || paymentLink || `https://pay.nomodapp.com/en/l/${paymentId}`,
+            paymentUrl: officialNomodUrl || paymentLink || '',
             channel: 'nomod_checkout',
             reference: check.reference || reference,
             amount,
@@ -253,11 +263,17 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
 
     try {
       const check = await pollNomodLinkStatus(paymentId, reference, customerName);
+
+      if ((check as any)?.url && isValidNomodUrl((check as any).url)) {
+        setOfficialNomodUrl((check as any).url);
+        setPaymentLink((check as any).url);
+      }
+
       if (check.isPaid && check.status === 'paid') {
         const result: NomodPaymentResult = {
           success: true,
           paymentId,
-          paymentUrl: officialNomodUrl || paymentLink || `https://pay.nomodapp.com/en/l/${paymentId}`,
+          paymentUrl: officialNomodUrl || paymentLink || '',
           channel: 'card',
           reference: check.reference || reference || `NOMOD-${Date.now()}`,
           authCode: check.authCode || `AUTH-${Date.now().toString(36).toUpperCase()}`,
@@ -281,7 +297,7 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
         const rejectResult: NomodPaymentResult = {
           success: false,
           paymentId,
-          paymentUrl: officialNomodUrl || paymentLink || `https://pay.nomodapp.com/en/l/${paymentId}`,
+          paymentUrl: officialNomodUrl || paymentLink || '',
           channel: 'nomod_checkout',
           reference: check.reference || reference,
           amount,
@@ -668,8 +684,12 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
-                            LIVE NOMOD GATEWAY
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                            isValidNomodUrl(officialNomodUrl)
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                          }`}>
+                            {isValidNomodUrl(officialNomodUrl) ? 'LIVE NOMOD GATEWAY' : 'SECURE HOSTED CHECKOUT'}
                           </span>
                           <span className="text-xs text-slate-300">Gurpreet Singh Kataria (ADCS)</span>
                         </div>
@@ -706,11 +726,13 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                       {isGeneratingLink ? (
                         <div className="flex items-center gap-2">
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Generating Official Nomod Link...</span>
+                          <span>Generating Checkout Link...</span>
                         </div>
                       ) : (
                         <>
-                          <span>Open Official Nomod Live Checkout</span>
+                          <span>
+                            {isValidNomodUrl(officialNomodUrl) ? 'Open Official Nomod Live Checkout' : 'Open Secure Hosted Checkout'}
+                          </span>
                           <ExternalLink className="w-4 h-4" />
                         </>
                       )}
@@ -746,14 +768,16 @@ export const NomodCheckoutModal: React.FC<NomodCheckoutModalProps> = ({
                         <Share2 className="w-3.5 h-3.5 text-blue-500" />
                         <span>Send Checkout Link to Client</span>
                       </span>
-                      <span className="text-[10px] text-slate-400">Direct Nomod URL</span>
+                      <span className="text-[10px] text-slate-400">
+                        {isValidNomodUrl(getLiveNomodUrl()) ? 'Direct Nomod URL' : 'Secure Checkout URL'}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
                         readOnly
-                        value={getLiveNomodUrl() || 'Generating Nomod payment link...'}
+                        value={getLiveNomodUrl() || 'Generating payment link...'}
                         className="flex-1 py-2 px-3 text-[11px] font-mono rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                       />
                       <button
