@@ -18,7 +18,6 @@ COPY package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/data ./data
 RUN mkdir -p /app/data /app/data/backups
 
 EXPOSE 8080
