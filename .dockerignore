@@ -3,5 +3,8 @@ dist
 .git
 .gitignore
 *.log
+*.zip
+public/*.zip
 .env*
 !.env.example
+

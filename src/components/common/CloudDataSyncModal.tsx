@@ -17,6 +17,7 @@ import {
   Building2,
   FileText,
   UserCheck,
+  FolderArchive,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { testFirestoreConnection } from '../../services/firestoreStorage';
@@ -108,6 +109,15 @@ export const CloudDataSyncModal: React.FC<CloudDataSyncModalProps> = ({ isOpen, 
     a.download = `adcs-crm-cloud-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     setFeedbackMsg({ type: 'success', text: 'Full JSON backup downloaded to your computer.' });
+    setTimeout(() => setFeedbackMsg(null), 4000);
+  };
+
+  const handleDownloadSourceZip = () => {
+    const a = document.createElement('a');
+    a.href = '/adcs-crm-source.zip';
+    a.download = 'adcs-crm-source.zip';
+    a.click();
+    setFeedbackMsg({ type: 'success', text: 'Project source ZIP downloading directly to your device.' });
     setTimeout(() => setFeedbackMsg(null), 4000);
   };
 
@@ -345,6 +355,25 @@ export const CloudDataSyncModal: React.FC<CloudDataSyncModalProps> = ({ isOpen, 
                   <p className="text-xs font-bold text-purple-900 dark:text-purple-200">Restore from Backup</p>
                   <p className="text-[11px] text-purple-700 dark:text-purple-300/80 mt-0.5">
                     Upload and restore a JSON database file
+                  </p>
+                </div>
+              </button>
+
+              {/* Download Project Source (.ZIP) */}
+              <button
+                onClick={handleDownloadSourceZip}
+                className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-left transition-colors flex items-start gap-3 cursor-pointer sm:col-span-2"
+              >
+                <div className="p-2 rounded-lg bg-indigo-600 text-white shrink-0">
+                  <FolderArchive className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200">Download Complete Project (.ZIP)</p>
+                    <span className="text-[10px] font-semibold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">One-Click Export</span>
+                  </div>
+                  <p className="text-[11px] text-indigo-700 dark:text-indigo-300/80 mt-0.5">
+                    Download complete application codebase (.zip) with package-lock.json, server, and all configs ready for local deployment or backup
                   </p>
                 </div>
               </button>

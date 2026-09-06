@@ -1,25 +1,30 @@
 # Production Dockerfile for Google Cloud Run
-FROM node:20-slim AS builder
+FROM node:22-slim
 
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
 
-COPY . .
-RUN mkdir -p /app/data /app/data/backups
-RUN npm run build
-
-FROM node:20-slim AS runner
-WORKDIR /app
-ENV NODE_ENV=production
+# Ensure non-interactive environment
+ENV DEBIAN_FRONTEND=noninteractive
 ENV PORT=8080
 
+# 1. Install all dependencies
 COPY package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/public ./public
+RUN npm install --include=dev
+
+# 2. Copy source code and build production client and server bundles
+COPY . .
+RUN npm run build
+
+# 3. Prune devDependencies to keep image lightweight and secure
+RUN npm prune --omit=dev
+
+# 4. Ensure data directory exists
 RUN mkdir -p /app/data /app/data/backups
 
+ENV NODE_ENV=production
+
 EXPOSE 8080
+
 CMD ["node", "dist/server.cjs"]
+
 
