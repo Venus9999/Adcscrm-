@@ -1,32 +1,18 @@
-cat << 'EOF'
+# Settings for Cloud Run
 runConfig:
-  minInstances: 0
-  maxInstances: 5
-  concurrency: 80
   cpu: 1
-  memoryMiB: 1024
-
-scripts:
-  buildCommand: npm run build
-  runCommand: npm run start
-
-env:
-  - variable: NODE_ENV
-    value: production
-EOF
-Output
-
-runConfig:
+  memoryMiB: 512
   minInstances: 0
-  maxInstances: 5
+  maxInstances: 10
   concurrency: 80
-  cpu: 1
-  memoryMiB: 1024
 
-scripts:
-  buildCommand: npm run build
-  runCommand: npm run start
-
+# Environment variables and secrets
 env:
-  - variable: NODE_ENV
-    value: production
+  - variable: STORAGE_BUCKET
+    value: gen-lang-client-0989127214.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: API_KEY
+    secret: myApiKeySecret
+
