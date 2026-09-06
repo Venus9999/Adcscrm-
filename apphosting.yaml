@@ -1,30 +1,32 @@
-# Settings for Cloud Run
+cat << 'EOF'
 runConfig:
-  minInstances: 2
-  maxInstances: 100
-  concurrency: 100
-  cpu: 2
+  minInstances: 0
+  maxInstances: 5
+  concurrency: 80
+  cpu: 1
   memoryMiB: 1024
 
-# Environment variables and secrets
+scripts:
+  buildCommand: npm run build
+  runCommand: npm run start
+
 env:
-  - variable: STORAGE_BUCKET
-    value: mybucket.firebasestorage.app
-    availability:
-      - BUILD
-      - RUNTIME
+  - variable: NODE_ENV
+    value: production
+EOF
+Output
 
-  - variable: API_KEY
-    secret: myApiKeySecret
+runConfig:
+  minInstances: 0
+  maxInstances: 5
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 1024
 
-    # Same as API_KEY above but with a pinned version.
-  - variable: PINNED_API_KEY
-    secret: myApiKeySecret@5
+scripts:
+  buildCommand: npm run build
+  runCommand: npm run start
 
-    # Same as API_KEY above but with the long form secret reference as defined by Cloud Secret Manager.
-  - variable: VERBOSE_API_KEY
-    secret: projects/test-project/secrets/secretID
-
-    # Same as API_KEY above but with the long form secret reference with pinned version.
-  - variable: PINNED_VERBOSE_API_KEY
-    secret: projects/test-project/secrets/secretID/versions/5
+env:
+  - variable: NODE_ENV
+    value: production
