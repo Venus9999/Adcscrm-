@@ -945,6 +945,7 @@ async function startServer() {
           isColdStart,
           revision: Number(data.revision) || 1,
           lastUpdated: isColdStart ? null : (data.lastUpdated || null),
+          clientSyncId: data.clientSyncId || null,
           score: metrics.score,
           totalRecords: metrics.totalRecords,
           usersCount: data.users?.length || 0,
@@ -1633,6 +1634,7 @@ async function startServer() {
         deletedVisaCountryCodes: combinedDeletedVisaCountryCodes,
         deletedVisaServiceIds: combinedDeletedVisaServiceIds,
         deletedVisaAppIds: combinedDeletedVisaAppIds,
+        clientSyncId: payload.clientSyncId || undefined,
         isColdStart: false,
         revision: Math.max(Number(existing.revision) || 0, Number(payload.revision) || 0) + 1,
         lastUpdated: new Date().toISOString(),
@@ -1705,6 +1707,7 @@ async function startServer() {
         type: 'CRM_UPDATE',
         lastUpdated: merged.lastUpdated,
         revision: merged.revision,
+        clientSyncId: payload.clientSyncId || undefined,
         data: merged,
       })}\n\n`;
 
