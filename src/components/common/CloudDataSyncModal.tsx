@@ -112,13 +112,30 @@ export const CloudDataSyncModal: React.FC<CloudDataSyncModalProps> = ({ isOpen, 
     setTimeout(() => setFeedbackMsg(null), 4000);
   };
 
-  const handleDownloadSourceZip = () => {
-    const a = document.createElement('a');
-    a.href = '/adcs-crm-source.zip';
-    a.download = 'adcs-crm-source.zip';
-    a.click();
-    setFeedbackMsg({ type: 'success', text: 'Project source ZIP downloading directly to your device.' });
-    setTimeout(() => setFeedbackMsg(null), 4000);
+  const handleDownloadSourceZip = async (zipName: string = 'adcs-crm-source.zip') => {
+    try {
+      setFeedbackMsg({ type: 'info', text: `Fetching and verifying ${zipName}...` });
+      const res = await fetch(`/${zipName}`);
+      if (!res.ok) throw new Error('Failed to fetch ZIP file');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = zipName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setFeedbackMsg({ type: 'success', text: `${zipName} downloaded directly to your device!` });
+      setTimeout(() => setFeedbackMsg(null), 5000);
+    } catch (e: any) {
+      // Fallback direct link
+      const a = document.createElement('a');
+      a.href = `/${zipName}`;
+      a.download = zipName;
+      a.click();
+      setFeedbackMsg({ type: 'info', text: 'Download initiated.' });
+    }
   };
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -361,19 +378,38 @@ export const CloudDataSyncModal: React.FC<CloudDataSyncModalProps> = ({ isOpen, 
 
               {/* Download Project Source (.ZIP) */}
               <button
-                onClick={handleDownloadSourceZip}
-                className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-left transition-colors flex items-start gap-3 cursor-pointer sm:col-span-2"
+                onClick={() => handleDownloadSourceZip('adcs-crm-source.zip')}
+                className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-left transition-colors flex items-start gap-3 cursor-pointer"
               >
                 <div className="p-2 rounded-lg bg-indigo-600 text-white shrink-0">
                   <FolderArchive className="w-4 h-4" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200">Download Complete Project (.ZIP)</p>
-                    <span className="text-[10px] font-semibold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">One-Click Export</span>
+                    <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200">Full Source Code (.ZIP)</p>
+                    <span className="text-[10px] font-semibold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">2.8 MB</span>
                   </div>
                   <p className="text-[11px] text-indigo-700 dark:text-indigo-300/80 mt-0.5">
-                    Download complete application codebase (.zip) with package-lock.json, server, and all configs ready for local deployment or backup
+                    Complete source code with Dockerfile, server.ts, and all package configurations
+                  </p>
+                </div>
+              </button>
+
+              {/* Download Pre-Built Static Dist (.ZIP) */}
+              <button
+                onClick={() => handleDownloadSourceZip('crm-prebuilt-dist.zip')}
+                className="p-3 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/60 dark:bg-teal-950/30 hover:bg-teal-100 dark:hover:bg-teal-900/40 text-left transition-colors flex items-start gap-3 cursor-pointer"
+              >
+                <div className="p-2 rounded-lg bg-teal-600 text-white shrink-0">
+                  <Download className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-teal-900 dark:text-teal-200">Pre-Built Website (.ZIP)</p>
+                    <span className="text-[10px] font-semibold bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-full">Ready to Host</span>
+                  </div>
+                  <p className="text-[11px] text-teal-700 dark:text-teal-300/80 mt-0.5">
+                    Compiled HTML/JS/CSS ready to drag-and-drop into Netlify, Firebase Hosting, or Vercel
                   </p>
                 </div>
               </button>
