@@ -1,5 +1,22 @@
-# Settings for Firebase App Hosting
-# Learn more: https://firebase.google.com/docs/app-hosting/configure
+bash
+
+cat << 'EOF'
+runConfig:
+  minInstances: 0
+  maxInstances: 5
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 1024
+
+scripts:
+  buildCommand: npm run build
+  runCommand: npm run start
+
+env:
+  - variable: NODE_ENV
+    value: production
+EOF
+Output
 
 runConfig:
   minInstances: 0
@@ -8,6 +25,11 @@ runConfig:
   cpu: 1
   memoryMiB: 1024
 
+scripts:
+  buildCommand: npm run build
+  runCommand: npm run start
+
 env:
   - variable: NODE_ENV
     value: production
+
