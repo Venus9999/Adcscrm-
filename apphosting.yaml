@@ -26,8 +26,8 @@ runConfig:
 scripts:
   buildCommand: npm run build
   runCommand: npm run start
-
 env:
-  - variable: NODE_ENV
-    value: production
+-   variable: STORAGE_BUCKET
+    value: mybucket.firebasestorage.app
+
 
