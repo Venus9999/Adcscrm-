@@ -1563,9 +1563,9 @@
       "workingHours": "Mon - Fri 08:30 - 17:30 (UAE GST)"
     }
   ],
-  "hasCustomModifications": false,
+  "hasCustomModifications": true,
   "isColdStart": false,
-  "lastUpdated": "2026-09-06T09:44:40.058Z",
+  "lastUpdated": "2026-09-06T09:53:06.992Z",
   "leadCategories": [
     {
       "id": "cat-golden-visa",
@@ -2689,15 +2689,14 @@
   "visaCountryCatalog": [],
   "workflows": [
     {
-      "badgeBg": "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
-      "category": "Visa Processing",
-      "code": "WF-GV",
-      "color": "#8B5CF6",
-      "createdAt": "2022-01-01T00:00:00Z",
-      "description": "Comprehensive 16-stage governmental milestone pipeline for UAE 10-Year Investor, Executive & Talent Golden Visas.",
       "id": "wf-golden-visa",
-      "isDefault": true,
       "name": "UAE Golden Visa & Residency Pipeline",
+      "code": "WF-GV",
+      "description": "Comprehensive 16-stage governmental milestone pipeline for UAE 10-Year Investor, Executive & Talent Golden Visas.",
+      "category": "Visa Processing",
+      "color": "#8B5CF6",
+      "badgeBg": "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
+      "isDefault": true,
       "serviceCategoryIds": [
         "srv-golden-visa",
         "srv-green-visa",
@@ -2869,18 +2868,18 @@
           "stepNumber": 16
         }
       ],
+      "createdAt": "2022-01-01T00:00:00Z",
       "updatedAt": "2026-08-25T08:00:00Z"
     },
     {
-      "badgeBg": "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
-      "category": "Business Setup",
-      "code": "WF-CORP-SETUP",
-      "color": "#0EA5E9",
-      "createdAt": "2022-03-10T00:00:00Z",
-      "description": "End-to-end corporate lifecycle: Initial trade name, DED initial approvals, MOA drafting, Ejari leasing, and Commercial License issuance.",
       "id": "wf-business-setup",
-      "isDefault": false,
       "name": "Mainland & Freezone Company Formation",
+      "code": "WF-CORP-SETUP",
+      "description": "End-to-end corporate lifecycle: Initial trade name, DED initial approvals, MOA drafting, Ejari leasing, and Commercial License issuance.",
+      "category": "Business Setup",
+      "color": "#0EA5E9",
+      "badgeBg": "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
+      "isDefault": false,
       "serviceCategoryIds": [
         "srv-mainland-llc",
         "srv-freezone-setup"
@@ -2977,18 +2976,18 @@
           "workflowId": "wf-business-setup"
         }
       ],
+      "createdAt": "2022-03-10T00:00:00Z",
       "updatedAt": "2026-08-25T08:00:00Z"
     },
     {
-      "badgeBg": "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-      "category": "PRO Services",
-      "code": "WF-EMP-VISA",
-      "color": "#10B981",
-      "createdAt": "2022-04-15T00:00:00Z",
-      "description": "MOHRE job quota, electronic work permit, Tawjeeh session, medical fitness examination, biometric Emirates ID, and residency stamping.",
       "id": "wf-employment-visa",
-      "isDefault": false,
       "name": "Employment Visa & Work Permit Pipeline",
+      "code": "WF-EMP-VISA",
+      "description": "MOHRE job quota, electronic work permit, Tawjeeh session, medical fitness examination, biometric Emirates ID, and residency stamping.",
+      "category": "PRO Services",
+      "color": "#10B981",
+      "badgeBg": "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+      "isDefault": false,
       "serviceCategoryIds": [
         "srv-emp-visa",
         "srv-pro-retainer"
@@ -3062,18 +3061,18 @@
           "workflowId": "wf-employment-visa"
         }
       ],
+      "createdAt": "2022-04-15T00:00:00Z",
       "updatedAt": "2026-08-25T08:00:00Z"
     },
     {
-      "badgeBg": "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-      "category": "Attestation",
-      "code": "WF-MOFA-ATT",
-      "color": "#F59E0B",
-      "createdAt": "2022-06-01T00:00:00Z",
-      "description": "Degree, birth, marriage certificate legalization through home country embassies, UAE Ministry of Foreign Affairs (MOFA), and sworn legal translation.",
       "id": "wf-legal-attestation",
-      "isDefault": false,
       "name": "MOFA & Legal Document Attestation",
+      "code": "WF-MOFA-ATT",
+      "description": "Degree, birth, marriage certificate legalization through home country embassies, UAE Ministry of Foreign Affairs (MOFA), and sworn legal translation.",
+      "category": "Attestation",
+      "color": "#F59E0B",
+      "badgeBg": "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+      "isDefault": false,
       "serviceCategoryIds": [
         "srv-mofa-attestation"
       ],
@@ -3134,6 +3133,7 @@
           "workflowId": "wf-legal-attestation"
         }
       ],
+      "createdAt": "2022-06-01T00:00:00Z",
       "updatedAt": "2026-08-25T08:00:00Z"
     }
   ],
@@ -4158,5 +4158,6 @@
     "createdBy": "Gurpreet Singh Kataria (master)",
     "version": "4.0"
   },
-  "revision": 14
+  "revision": 16,
+  "clientSyncId": "client_1ru0qm74_1788688381450"
 }
