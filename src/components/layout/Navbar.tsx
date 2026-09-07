@@ -89,6 +89,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const { isConnected: isGmailConnected, googleUser } = useGmail();
 
+  const handleDownloadZip = async () => {
+    try {
+      const res = await fetch('/adcs-crm-source.zip');
+      if (!res.ok) throw new Error('Fetch failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'adcs-crm-source.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      window.location.href = '/adcs-crm-source.zip';
+    }
+  };
+
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
@@ -959,6 +977,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
+          {/* Direct Download ZIP Button */}
+          <button
+            onClick={handleDownloadZip}
+            className="p-1.5 px-2.5 rounded-md transition-all border flex items-center gap-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs cursor-pointer"
+            title="Download Complete Project Source Code (.ZIP)"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Download ZIP</span>
+          </button>
+
           {/* Database Backup & Reset Menu */}
           <div className="relative" ref={systemRef}>
             <button
@@ -974,6 +1002,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   System Database & Cloud
                 </div>
+                <button
+                  onClick={() => {
+                    handleDownloadZip();
+                    setShowSystemMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 text-amber-600 dark:text-amber-400 font-bold hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                >
+                  <Download className="w-4 h-4 text-amber-600" />
+                  <span>Download Code (.ZIP)</span>
+                </button>
                 <button
                   onClick={() => {
                     setShowCloudSyncModal(true);

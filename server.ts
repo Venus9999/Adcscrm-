@@ -2267,6 +2267,32 @@ async function startServer() {
     }
   });
 
+  // Robust multi-path locator for static production dist folder across all environments
+  const locateDistDirectory = (): string | null => {
+    const candidates = [
+      path.join(process.cwd(), 'dist'),
+      typeof __dirname !== 'undefined' ? __dirname : '',
+      typeof __dirname !== 'undefined' ? path.join(__dirname, '..', 'dist') : '',
+      typeof __dirname !== 'undefined' ? path.join(__dirname, 'dist') : '',
+      process.cwd(),
+      path.resolve('dist'),
+      '/app/dist',
+      path.join(process.cwd(), 'client', 'dist'),
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(path.join(candidate, 'index.html')) && fs.existsSync(path.join(candidate, 'assets'))) {
+        return candidate;
+      }
+    }
+    for (const candidate of candidates) {
+      if (fs.existsSync(path.join(candidate, 'index.html'))) {
+        return candidate;
+      }
+    }
+    return null;
+  };
+
   // Vite development middleware or production static serving
   if (!isProduction) {
     try {
@@ -2278,32 +2304,65 @@ async function startServer() {
       app.use(vite.middlewares);
     } catch (viteErr) {
       console.warn('[Vite Middleware] Vite dev server failed to start, falling back to static file serving:', viteErr);
-      const distPath = path.join(process.cwd(), 'dist');
-      if (fs.existsSync(distPath)) {
+      const distPath = locateDistDirectory();
+      if (distPath) {
         app.use(express.static(distPath));
+        app.get('*', (req, res) => {
+          res.sendFile(path.join(distPath, 'index.html'));
+        });
+      } else {
+        app.get('*', (req, res) => {
+          res.status(200).send('ADCS CRM Server Active');
+        });
       }
+    }
+  } else {
+    let distPath = locateDistDirectory();
+
+    // If dist was not pre-built in container, attempt on-demand build
+    if (!distPath) {
+      console.warn('[CRM Server] Static build assets not found. Attempting on-demand build (npm run build)...');
+      try {
+        const { execSync } = require('child_process');
+        execSync('npm run build', { stdio: 'inherit' });
+        distPath = locateDistDirectory();
+      } catch (buildErr) {
+        console.error('[CRM Server] On-demand build attempt failed:', buildErr);
+      }
+    }
+
+    if (distPath) {
+      console.log(`[CRM Server] Serving static application assets from: ${distPath}`);
+      app.use(express.static(distPath));
       app.get('*', (req, res) => {
-        const indexPath = path.join(distPath, 'index.html');
+        const indexPath = path.join(distPath!, 'index.html');
         if (fs.existsSync(indexPath)) {
           res.sendFile(indexPath);
         } else {
           res.status(200).send('ADCS CRM Server Active');
         }
       });
-    }
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
-    }
-    app.get('*', (req, res) => {
-      const indexPath = path.join(distPath, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        res.status(404).send('Application build not found. Please ensure npm run build has completed.');
+    } else {
+      // Fallback to Vite server even in production if static build is completely missing
+      try {
+        console.info('[CRM Server] Fallback: initializing Vite server to serve frontend dynamically...');
+        const { createServer: createViteServer } = await import('vite');
+        const vite = await createViteServer({
+          server: { middlewareMode: true },
+          appType: 'spa',
+        });
+        app.use(vite.middlewares);
+      } catch (fallbackErr) {
+        app.get('*', (req, res) => {
+          const rootIndex = path.join(process.cwd(), 'index.html');
+          if (fs.existsSync(rootIndex)) {
+            res.sendFile(rootIndex);
+          } else {
+            res.status(200).send('ADCS CRM Server Active (Compiling assets, please refresh in a moment)');
+          }
+        });
       }
-    });
+    }
   }
 
   const activeServers: any[] = [];
