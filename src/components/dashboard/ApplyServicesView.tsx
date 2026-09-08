@@ -181,8 +181,11 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
   const clientCompany = companies.find((c) => c.id === client.companyId);
   const isDirectClient = !!client.isDirectRegistration || client.pricingTier === 'b2c' || (!client.companyId);
   const isB2B = currentUser.role !== 'client' && !isDirectClient;
-  const clientDiscountType = client.discountType || clientCompany?.corporateDiscountType || 'percentage';
-  const clientDiscountVal = client.discountValue ?? (clientDiscountType === 'fixed' ? (clientCompany?.corporateDiscountValue ?? 500) : (client.corporateDiscountPercent ?? clientCompany?.corporateDiscountPercent ?? 15));
+  const clientDiscountType = client.discountType || 'percentage';
+  // B2B discount reset to manual only - do NOT automatically apply corporateDiscountPercent or corporateDiscountValue
+  const clientDiscountVal = client.discountValue !== undefined && client.discountValue !== null
+    ? Number(client.discountValue)
+    : (client.corporateDiscountPercent !== undefined && client.corporateDiscountPercent !== null ? Number(client.corporateDiscountPercent) : 0);
 
   // Form State inside Apply Modal
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -208,19 +211,25 @@ export const ApplyServicesView: React.FC<ApplyServicesViewProps> = ({ client, on
         effectivePrice = client.customServiceRate;
         discountAmount = Math.max(0, baseB2C - client.customServiceRate);
         discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
-      } else if (matchedCategory?.priceB2B !== undefined && matchedCategory.priceB2B > 0 && !client.discountValue) {
+      } else if (clientDiscountVal > 0) {
+        if (clientDiscountType === 'fixed') {
+          discountAmount = Math.min(baseB2C, clientDiscountVal);
+          discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+          effectivePrice = Math.max(0, baseB2C - discountAmount);
+        } else {
+          // percentage
+          discountPercent = clientDiscountVal;
+          discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
+          effectivePrice = Math.max(0, baseB2C - discountAmount);
+        }
+      } else if (matchedCategory?.priceB2B !== undefined && matchedCategory.priceB2B > 0) {
         effectivePrice = matchedCategory.priceB2B;
         discountAmount = Math.max(0, baseB2C - matchedCategory.priceB2B);
-        discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : (clientDiscountType === 'percentage' ? clientDiscountVal : 15);
-      } else if (clientDiscountType === 'fixed') {
-        discountAmount = Math.min(baseB2C, clientDiscountVal);
         discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
-        effectivePrice = Math.max(0, baseB2C - discountAmount);
       } else {
-        // percentage
-        discountPercent = clientDiscountVal;
-        discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
-        effectivePrice = Math.max(0, baseB2C - discountAmount);
+        effectivePrice = baseB2C;
+        discountAmount = 0;
+        discountPercent = 0;
       }
     }
 

@@ -356,13 +356,28 @@ export async function saveCRMDataToCloud(payload: any, force: boolean = false): 
   const nowIso = new Date().toISOString();
   let rtdbSuccess = false;
 
+  // Sanitize document payloads to ensure cloud payloads never exceed the 1MB Firestore limit
+  const cloudPayload = { ...payload };
+  if (Array.isArray(cloudPayload.documents)) {
+    cloudPayload.documents = cloudPayload.documents.map((d: any) => {
+      if (!d) return d;
+      if (typeof d.fileUrl === 'string' && d.fileUrl.startsWith('data:') && d.fileUrl.length > 2000) {
+        return {
+          ...d,
+          fileUrl: `/api/documents/file/${d.id}.pdf`,
+        };
+      }
+      return d;
+    });
+  }
+
   // 1. Instant Realtime Database write (Zero-delay WebSocket broadcast to all connected devices)
   if (rtdb) {
     try {
-      const sanitized = sanitizeForRTDB(payload);
+      const sanitized = sanitizeForRTDB(cloudPayload);
       const rtdbDoc = {
         version: '4.0',
-        lastUpdated: payload.lastUpdated || nowIso,
+        lastUpdated: cloudPayload.lastUpdated || nowIso,
         savedAtIso: nowIso,
         payload: sanitized,
       };
@@ -380,9 +395,9 @@ export async function saveCRMDataToCloud(payload: any, force: boolean = false): 
     try {
       const storeDoc = {
         version: '4.0',
-        lastUpdated: payload.lastUpdated || nowIso,
+        lastUpdated: cloudPayload.lastUpdated || nowIso,
         updatedAt: serverTimestamp(),
-        payload: payload,
+        payload: cloudPayload,
       };
       const storeRef = doc(db, CRM_COLLECTION, CRM_STORE_DOC);
       await setDoc(storeRef, storeDoc);

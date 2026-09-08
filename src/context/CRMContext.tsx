@@ -57,6 +57,8 @@ import {
   getFromIndexedDbVault,
   saveSnapshotToIndexedDb,
   getLatestIndexedDbSnapshot,
+  saveDocumentFileToDb,
+  getDocumentFileFromDb,
 } from '../utils/indexedDbStorage';
 import {
   INITIAL_COMPANIES,
@@ -250,6 +252,7 @@ interface CRMContextType {
   addTransaction: (tx: Omit<Transaction, 'id' | 'transactionNumber' | 'createdAt' | 'recordedByUserId' | 'recordedByUserName'>) => Transaction;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
+  connectTransactionToInvoice: (transactionId: string, invoiceId: string | null, syncInvoiceBalance?: boolean) => void;
 
   // Leads & Pipeline & Category / Source / Stage Management
   addLead: (lead: Omit<Lead, 'id' | 'refNo' | 'createdAt' | 'updatedAt'> & { createdAt?: string }) => Lead;
@@ -443,6 +446,12 @@ const DELETED_LEADS_STORAGE_KEY = 'adcs_crm_deleted_lead_ids';
 const DELETED_STAGES_STORAGE_KEY = 'adcs_crm_deleted_stage_ids';
 const DELETED_SERVICE_CATEGORIES_STORAGE_KEY = 'adcs_crm_deleted_service_category_ids';
 const DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY = 'adcs_crm_deleted_service_classification_ids';
+const DELETED_TRANSACTIONS_STORAGE_KEY = 'adcs_crm_deleted_transaction_ids';
+const DELETED_DEPARTMENTS_STORAGE_KEY = 'adcs_crm_deleted_department_ids';
+const DELETED_ROLES_STORAGE_KEY = 'adcs_crm_deleted_role_ids';
+const DELETED_LEAD_CATEGORIES_STORAGE_KEY = 'adcs_crm_deleted_lead_category_ids';
+const DELETED_LEAD_SOURCES_STORAGE_KEY = 'adcs_crm_deleted_lead_source_ids';
+const DELETED_LEAD_STAGES_STORAGE_KEY = 'adcs_crm_deleted_lead_stage_ids';
 
 export const PROTECTED_CORE_USER_IDS = ['user-master', 'user-1788353211231', 'user-1788060402768'];
 export const PROTECTED_CORE_USER_EMAILS = ['master@adcs.ae', 'hkfmsdxb@gmail.com', 'tahir@theadcs.com'];
@@ -451,6 +460,179 @@ export const BANNED_DEMO_USER_EMAILS = ['admin@adcs.ae', 'employee@adcs.ae', 'ag
 
 export const CURRENT_APP_VERSION = '4.2.0';
 export const CRM_APP_VERSION_KEY = 'adcs_crm_app_version';
+
+// Deep prune helper to scrub all tombstone-deleted items from any snapshot
+export const pruneSnapshotTombstones = (data: any): any => {
+  if (!data || typeof data !== 'object') return data;
+
+  const getIds = (storageKey: string, payloadArr?: any[]): string[] => {
+    let list: string[] = [];
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) list = JSON.parse(raw);
+      }
+    } catch {}
+    if (Array.isArray(payloadArr)) {
+      payloadArr.forEach((id) => {
+        if (id && !list.includes(String(id))) list.push(String(id));
+      });
+    }
+    return list;
+  };
+
+  const delClientIds = getIds(DELETED_CLIENTS_STORAGE_KEY, data.deletedClientIds);
+  const delInvoiceIds = getIds(DELETED_INVOICES_STORAGE_KEY, data.deletedInvoiceIds);
+  const delDocIds = getIds(DELETED_DOCUMENTS_STORAGE_KEY, data.deletedDocumentIds);
+  const delTaskIds = getIds(DELETED_TASKS_STORAGE_KEY, data.deletedTaskIds);
+  const delLeadIds = getIds(DELETED_LEADS_STORAGE_KEY, data.deletedLeadIds);
+  const delTxIds = getIds(DELETED_TRANSACTIONS_STORAGE_KEY, data.deletedTransactionIds);
+  const delDeptIds = getIds(DELETED_DEPARTMENTS_STORAGE_KEY, data.deletedDepartmentIds);
+  const delRoleIds = getIds(DELETED_ROLES_STORAGE_KEY, data.deletedRoleIds);
+  const delCompIds = getIds(DELETED_COMPANIES_STORAGE_KEY, data.deletedCompanyIds);
+  const delVendIds = getIds(DELETED_VENDORS_STORAGE_KEY, data.deletedVendorIds);
+  const delUserIds = getIds(DELETED_USERS_STORAGE_KEY, data.deletedUserIds);
+  const delStageIds = getIds(DELETED_STAGES_STORAGE_KEY, data.deletedStageIds);
+  const delSrvCatIds = getIds(DELETED_SERVICE_CATEGORIES_STORAGE_KEY, data.deletedServiceCategoryIds || data.deletedCategoryIds);
+  const delSrvClassIds = getIds(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY, data.deletedServiceClassificationIds || data.deletedClassificationIds);
+  const delLeadCatIds = getIds(DELETED_LEAD_CATEGORIES_STORAGE_KEY, data.deletedLeadCategoryIds);
+  const delLeadSrcIds = getIds(DELETED_LEAD_SOURCES_STORAGE_KEY, data.deletedLeadSourceIds);
+  const delLeadStgIds = getIds(DELETED_LEAD_STAGES_STORAGE_KEY, data.deletedLeadStageIds);
+  const delVisaAppIds = getIds(DELETED_VISA_APPS_STORAGE_KEY, data.deletedVisaAppIds);
+  const delCountryCodes = getIds(DELETED_VISA_COUNTRIES_STORAGE_KEY, data.deletedVisaCountryCodes).map((c) => String(c).toLowerCase().trim());
+  const delVisaSrvIds = getIds(DELETED_VISA_SERVICES_STORAGE_KEY, data.deletedVisaServiceIds);
+
+  return {
+    ...data,
+    clients: Array.isArray(data.clients)
+      ? data.clients.filter((c: any) => c && c.id && c.id !== 'client-test-1' && !delClientIds.includes(c.id))
+      : data.clients,
+    invoices: Array.isArray(data.invoices)
+      ? data.invoices.filter((i: any) => i && i.id && !delInvoiceIds.includes(i.id) && (!i.clientId || !delClientIds.includes(i.clientId)))
+      : data.invoices,
+    documents: Array.isArray(data.documents)
+      ? data.documents.filter((d: any) => d && d.id && !delDocIds.includes(d.id) && (!d.clientId || !delClientIds.includes(d.clientId)))
+      : data.documents,
+    tasks: Array.isArray(data.tasks)
+      ? data.tasks.filter((t: any) => t && t.id && !delTaskIds.includes(t.id) && (!t.clientId || !delClientIds.includes(t.clientId)))
+      : data.tasks,
+    leads: Array.isArray(data.leads)
+      ? data.leads.filter((l: any) => l && l.id && !delLeadIds.includes(l.id))
+      : data.leads,
+    transactions: Array.isArray(data.transactions)
+      ? data.transactions.filter((tx: any) => tx && tx.id && !delTxIds.includes(tx.id) && (!tx.clientId || !delClientIds.includes(tx.clientId)))
+      : data.transactions,
+    departments: Array.isArray(data.departments)
+      ? data.departments.filter((d: any) => d && d.id && !delDeptIds.includes(d.id))
+      : data.departments,
+    roles: Array.isArray(data.roles)
+      ? data.roles.filter((r: any) => r && r.id && !delRoleIds.includes(r.id))
+      : data.roles,
+    companies: Array.isArray(data.companies)
+      ? data.companies.filter((c: any) => c && c.id && !delCompIds.includes(c.id))
+      : data.companies,
+    vendors: Array.isArray(data.vendors)
+      ? data.vendors.filter((v: any) => v && v.id && !delVendIds.includes(v.id))
+      : data.vendors,
+    users: Array.isArray(data.users)
+      ? data.users.filter((u: any) => {
+          if (!u || !u.id) return false;
+          const emailClean = (u.email || '').toLowerCase().trim();
+          if (delUserIds.includes(u.id) || delUserIds.includes(emailClean)) {
+            if (!PROTECTED_CORE_USER_IDS.includes(u.id) && !PROTECTED_CORE_USER_EMAILS.includes(emailClean)) {
+              return false;
+            }
+          }
+          return true;
+        })
+      : data.users,
+    stages: Array.isArray(data.stages)
+      ? data.stages.filter((s: any) => s && s.id && !delStageIds.includes(s.id))
+      : data.stages,
+    serviceCategories: Array.isArray(data.serviceCategories)
+      ? data.serviceCategories.filter((s: any) => s && s.id && !delSrvCatIds.includes(s.id))
+      : data.serviceCategories,
+    serviceClassifications: Array.isArray(data.serviceClassifications)
+      ? data.serviceClassifications.filter((c: any) => c && c.id && !delSrvClassIds.includes(c.id))
+      : data.serviceClassifications,
+    leadCategories: Array.isArray(data.leadCategories)
+      ? data.leadCategories.filter((c: any) => c && c.id && !delLeadCatIds.includes(c.id))
+      : data.leadCategories,
+    leadSources: Array.isArray(data.leadSources)
+      ? data.leadSources.filter((s: any) => s && s.id && !delLeadSrcIds.includes(s.id))
+      : data.leadSources,
+    leadStages: Array.isArray(data.leadStages)
+      ? data.leadStages.filter((s: any) => s && s.id && !delLeadStgIds.includes(s.id))
+      : data.leadStages,
+    visaApplications: Array.isArray(data.visaApplications)
+      ? data.visaApplications.filter((a: any) => a && a.id && !delVisaAppIds.includes(a.id) && !a.id.startsWith('vsa-app-100'))
+      : data.visaApplications,
+    visaCountryCatalog: Array.isArray(data.visaCountryCatalog)
+      ? data.visaCountryCatalog
+          .filter((c: any) => c && c.countryCode && !delCountryCodes.includes(String(c.countryCode).toLowerCase().trim()))
+          .map((c: any) => ({
+            ...c,
+            visaTypes: Array.isArray(c.visaTypes) ? c.visaTypes.filter((vt: any) => vt && vt.id && !delVisaSrvIds.includes(vt.id)) : [],
+          }))
+      : data.visaCountryCatalog,
+    deletedClientIds: delClientIds,
+    deletedInvoiceIds: delInvoiceIds,
+    deletedDocumentIds: delDocIds,
+    deletedTaskIds: delTaskIds,
+    deletedLeadIds: delLeadIds,
+    deletedTransactionIds: delTxIds,
+    deletedDepartmentIds: delDeptIds,
+    deletedRoleIds: delRoleIds,
+    deletedCompanyIds: delCompIds,
+    deletedVendorIds: delVendIds,
+    deletedUserIds: delUserIds,
+    deletedStageIds: delStageIds,
+    deletedServiceCategoryIds: delSrvCatIds,
+    deletedCategoryIds: delSrvCatIds,
+    deletedServiceClassificationIds: delSrvClassIds,
+    deletedClassificationIds: delSrvClassIds,
+    deletedLeadCategoryIds: delLeadCatIds,
+    deletedLeadSourceIds: delLeadSrcIds,
+    deletedLeadStageIds: delLeadStgIds,
+    deletedVisaCountryCodes: delCountryCodes,
+    deletedVisaServiceIds: delVisaSrvIds,
+    deletedVisaAppIds: delVisaAppIds,
+  };
+};
+
+// Safe localStorage writer with automatic quota protection and document binary deduplication
+export const safeSetLocalStorage = (key: string, data: any) => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const str = typeof data === 'string' ? data : JSON.stringify(data);
+    localStorage.setItem(key, str);
+  } catch (err: any) {
+    console.warn(`[Storage Safe] localStorage quota handling active for key "${key}":`, err?.message);
+    try {
+      const obj = typeof data === 'string' ? JSON.parse(data) : data;
+      if (obj && typeof obj === 'object') {
+        const lean = { ...obj };
+        if (Array.isArray(lean.documents)) {
+          lean.documents = lean.documents.map((d: any) => {
+            if (d && typeof d.fileUrl === 'string' && d.fileUrl.startsWith('data:') && d.fileUrl.length > 500) {
+              const safeId = (d.id || `doc_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+              return { ...d, fileUrl: `/api/documents/file/${safeId}.pdf` };
+            }
+            return d;
+          });
+        }
+        localStorage.setItem(key, JSON.stringify(lean));
+      }
+    } catch (innerErr) {
+      console.warn('[Storage Safe] Secondary optimization notice:', innerErr);
+      try {
+        ['adcs_crm_db_v1', 'adcs_crm_store', 'adcs_crm_state', 'adcs_crm_backup'].forEach((k) => {
+          try { localStorage.removeItem(k); } catch {}
+        });
+      } catch {}
+    }
+  }
+};
 
 // Safe storage reader: Dynamically probes ALL known and historical localStorage keys across version upgrades
 export const readSafeStorageSnapshot = (): any => {
@@ -465,15 +647,9 @@ export const readSafeStorageSnapshot = (): any => {
             ? parsed.data
             : parsed;
           delete (data as any).data;
-          const totalRecords =
-            (Array.isArray(data.clients) ? data.clients.filter((c: any) => c && c.id !== 'client-test-1').length : 0) +
-            (Array.isArray(data.leads) ? data.leads.length : 0) +
-            (Array.isArray(data.invoices) ? data.invoices.length : 0) +
-            (Array.isArray(data.transactions) ? data.transactions.length : 0) +
-            (Array.isArray(data.tasks) ? data.tasks.length : 0) +
-            (Array.isArray(data.documents) ? data.documents.length : 0);
-          if (totalRecords > 0 || data.hasCustomModifications) {
-            return data;
+          // Return pruned working snapshot directly to preserve deletions
+          if (data.clients !== undefined || data.leads !== undefined || data.invoices !== undefined || data.users !== undefined || data.revision !== undefined || data.hasCustomModifications) {
+            return pruneSnapshotTombstones(data);
           }
         }
       }
@@ -487,22 +663,15 @@ export const readSafeStorageSnapshot = (): any => {
             ? parsed.data
             : parsed;
           delete (data as any).data;
-          const totalRecords =
-            (Array.isArray(data.clients) ? data.clients.filter((c: any) => c && c.id !== 'client-test-1').length : 0) +
-            (Array.isArray(data.leads) ? data.leads.length : 0) +
-            (Array.isArray(data.invoices) ? data.invoices.length : 0) +
-            (Array.isArray(data.transactions) ? data.transactions.length : 0) +
-            (Array.isArray(data.tasks) ? data.tasks.length : 0) +
-            (Array.isArray(data.documents) ? data.documents.length : 0);
-          if (totalRecords > 0 || data.hasCustomModifications) {
-            return data;
+          if (data.clients !== undefined || data.leads !== undefined || data.invoices !== undefined || data.users !== undefined || data.revision !== undefined || data.hasCustomModifications) {
+            return pruneSnapshotTombstones(data);
           }
         }
       }
     }
   } catch {}
 
-  // 3. Fallback scan across legacy backup keys if primary storages are empty
+  // 3. Fallback scan across legacy backup keys only if primary storages are empty
   const discoveredKeys = new Set<string>([
     LOCAL_STORAGE_KEY,
     CRM_VAULT_STORAGE_KEY,
@@ -580,18 +749,25 @@ export const readSafeStorageSnapshot = (): any => {
     } catch {}
   }
 
-  // If we found a populated snapshot, ensure LOCAL_STORAGE_KEY & CRM_VAULT_STORAGE_KEY have it
+  // If we found a populated snapshot, prune it, write to primary, and clean legacy keys
   if (bestSnapshot && maxScore > 0) {
     try {
-      delete (bestSnapshot as any).data;
-      const snapJson = JSON.stringify(bestSnapshot);
-      localStorage.setItem(LOCAL_STORAGE_KEY, snapJson);
-      localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapJson);
-      saveToIndexedDbVault('current_working_state', bestSnapshot).catch(() => {});
+      const pruned = pruneSnapshotTombstones(bestSnapshot);
+      delete (pruned as any).data;
+      safeSetLocalStorage(LOCAL_STORAGE_KEY, pruned);
+      safeSetLocalStorage(CRM_VAULT_STORAGE_KEY, pruned);
+      saveToIndexedDbVault('current_working_state', pruned).catch(() => {});
+      // Permanently remove legacy keys to avoid resurrecting deleted entities
+      ['adcs_crm_db_v3', 'adcs_crm_db_v2', 'adcs_crm_db_v1', 'adcs_crm_db', 'adcs_crm_store', 'adcs_crm_state', 'adcs_crm_backup'].forEach((k) => {
+        if (k !== LOCAL_STORAGE_KEY && k !== CRM_VAULT_STORAGE_KEY) {
+          try { localStorage.removeItem(k); } catch {}
+        }
+      });
+      return pruned;
     } catch {}
   }
 
-  return bestSnapshot;
+  return bestSnapshot ? pruneSnapshotTombstones(bestSnapshot) : null;
 };
 
 export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -602,26 +778,39 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const getInitialStorageList = <T extends { id?: string }>(
     key: string,
     initialFallback: T[],
-    mergeWithInitial = false
+    mergeWithInitial = false,
+    tombstoneStorageKey?: string
   ): T[] => {
     try {
-      const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed[key] && Array.isArray(parsed[key]) && parsed[key].length > 0) {
-        if (mergeWithInitial && initialFallback.length > 0) {
-          const map = new Map<string, T>();
-          initialFallback.forEach((item) => {
-            if (item && item.id) map.set(item.id, item);
-          });
-          parsed[key].forEach((item: T) => {
-            if (item && item.id) {
-              const current = map.get(item.id);
-              map.set(item.id, current ? { ...current, ...item } : item);
-            }
-          });
-          return Array.from(map.values());
-        }
-        return parsed[key] as T[];
+      let deletedIds: string[] = [];
+      if (tombstoneStorageKey && typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const raw = localStorage.getItem(tombstoneStorageKey);
+          if (raw) deletedIds = JSON.parse(raw);
+        } catch {}
       }
+
+      const parsed = readSafeStorageSnapshot();
+      if (parsed && parsed[key] && Array.isArray(parsed[key])) {
+        const filteredParsed = (parsed[key] as T[]).filter((item) => !item || !item.id || !deletedIds.includes(item.id));
+        if (filteredParsed.length > 0 || parsed.hasCustomModifications || parsed.revision) {
+          if (mergeWithInitial && initialFallback.length > 0) {
+            const map = new Map<string, T>();
+            initialFallback.forEach((item) => {
+              if (item && item.id && !deletedIds.includes(item.id)) map.set(item.id, item);
+            });
+            filteredParsed.forEach((item: T) => {
+              if (item && item.id && !deletedIds.includes(item.id)) {
+                const current = map.get(item.id);
+                map.set(item.id, current ? { ...current, ...item } : item);
+              }
+            });
+            return Array.from(map.values());
+          }
+          return filteredParsed;
+        }
+      }
+      return (initialFallback || []).filter((item) => !item || !item.id || !deletedIds.includes(item.id));
     } catch {}
     return initialFallback;
   };
@@ -635,8 +824,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.companies && Array.isArray(parsed.companies) && parsed.companies.length > 0) {
-        return (parsed.companies as Company[]).filter((c) => c && c.id && !deletedCompanyIds.includes(c.id));
+      if (parsed && parsed.companies && Array.isArray(parsed.companies)) {
+        const filtered = (parsed.companies as Company[]).filter((c) => c && c.id && !deletedCompanyIds.includes(c.id));
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_COMPANIES || []).filter((c) => !deletedCompanyIds.includes(c.id));
     } catch {
@@ -644,7 +834,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
   const [departments, setDepartments] = useState<Department[]>(() =>
-    getInitialStorageList('departments', INITIAL_DEPARTMENTS, true)
+    getInitialStorageList('departments', INITIAL_DEPARTMENTS, true, DELETED_DEPARTMENTS_STORAGE_KEY)
   );
   const [vendors, setVendors] = useState<Vendor[]>(() => {
     try {
@@ -659,7 +849,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const list = Array.isArray(parsed.vendors)
           ? parsed.vendors
           : Object.values(parsed.vendors);
-        return (list as any[]).filter((v: any) => v && v.id && !deletedVendorIds.includes(v.id));
+        const filtered = (list as any[]).filter((v: any) => v && v.id && !deletedVendorIds.includes(v.id));
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_VENDORS || []).filter((v) => !deletedVendorIds.includes(v.id));
     } catch {
@@ -720,7 +911,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
   const [roles, setRoles] = useState<RoleDefinition[]>(() =>
-    getInitialStorageList('roles', INITIAL_ROLES, true)
+    getInitialStorageList('roles', INITIAL_ROLES, true, DELETED_ROLES_STORAGE_KEY)
   );
   const [stages, setStages] = useState<WorkStage[]>(() => {
     try {
@@ -731,8 +922,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.stages && Array.isArray(parsed.stages) && parsed.stages.length > 0) {
-        return (parsed.stages as WorkStage[]).filter((s) => s && s.id && !deletedStageIds.includes(s.id));
+      if (parsed && parsed.stages && Array.isArray(parsed.stages)) {
+        const filtered = (parsed.stages as WorkStage[]).filter((s) => s && s.id && !deletedStageIds.includes(s.id));
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_STAGES || []).filter((s) => s && s.id && !deletedStageIds.includes(s.id));
     } catch {
@@ -751,8 +943,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.serviceClassifications && Array.isArray(parsed.serviceClassifications) && parsed.serviceClassifications.length > 0) {
-        return (parsed.serviceClassifications as ServiceClassification[]).filter((c) => c && c.id && !deletedClassificationIds.includes(c.id));
+      if (parsed && parsed.serviceClassifications && Array.isArray(parsed.serviceClassifications)) {
+        const filtered = (parsed.serviceClassifications as ServiceClassification[]).filter((c) => c && c.id && !deletedClassificationIds.includes(c.id));
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_SERVICE_CLASSIFICATIONS || []).filter((c) => c && c.id && !deletedClassificationIds.includes(c.id));
     } catch {
@@ -768,8 +961,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.serviceCategories && Array.isArray(parsed.serviceCategories) && parsed.serviceCategories.length > 0) {
-        return (parsed.serviceCategories as ServiceCategory[]).filter((s) => s && s.id && !deletedCategoryIds.includes(s.id));
+      if (parsed && parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) {
+        const filtered = (parsed.serviceCategories as ServiceCategory[]).filter((s) => s && s.id && !deletedCategoryIds.includes(s.id));
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_SERVICE_CATEGORIES || []).filter((s) => !deletedCategoryIds.includes(s.id));
     } catch {
@@ -785,34 +979,33 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.clients && Array.isArray(parsed.clients) && parsed.clients.length > 0) {
+      if (parsed && parsed.clients && Array.isArray(parsed.clients)) {
         const rawClients = (parsed.clients as Client[]).filter((c) => c && c.id && !deletedClientIds.includes(c.id));
-        if (rawClients.length > 0) {
-          const rawInvoices = Array.isArray(parsed.invoices) ? (parsed.invoices as Invoice[]) : [];
-          return rawClients.map((c) => {
-            const clientInvs = rawInvoices.filter(
-              (inv) =>
-                inv &&
-                (inv.clientId === c.id ||
-                  (inv.clientEmail && (c.email || '').toLowerCase().trim() === inv.clientEmail.toLowerCase().trim()))
-            );
-            if (clientInvs.length > 0) {
-              const totalAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
-              const paidAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
-              const outstandingAmount = Math.max(0, totalAmount - paidAmount);
-              const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
-                outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid';
-              return {
-                ...c,
-                totalAmount,
-                paidAmount,
-                outstandingAmount,
-                paymentStatus,
-              };
-            }
-            return c;
-          });
-        }
+        const rawInvoices = Array.isArray(parsed.invoices) ? (parsed.invoices as Invoice[]) : [];
+        const mapped = rawClients.map((c) => {
+          const clientInvs = rawInvoices.filter(
+            (inv) =>
+              inv &&
+              (inv.clientId === c.id ||
+                (inv.clientEmail && (c.email || '').toLowerCase().trim() === inv.clientEmail.toLowerCase().trim()))
+          );
+          if (clientInvs.length > 0) {
+            const totalAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
+            const paidAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
+            const outstandingAmount = Math.max(0, totalAmount - paidAmount);
+            const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+              outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid';
+            return {
+              ...c,
+              totalAmount,
+              paidAmount,
+              outstandingAmount,
+              paymentStatus,
+            };
+          }
+          return c;
+        });
+        if (mapped.length > 0 || parsed.hasCustomModifications || parsed.revision) return mapped;
       }
       return (INITIAL_CLIENTS || []).filter((c) => !deletedClientIds.includes(c.id));
     } catch {
@@ -831,10 +1024,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.documents && Array.isArray(parsed.documents) && parsed.documents.length > 0) {
-        return (parsed.documents as DocumentItem[]).filter(
+      if (parsed && parsed.documents && Array.isArray(parsed.documents)) {
+        const filtered = (parsed.documents as DocumentItem[]).filter(
           (d) => d && d.id && !deletedDocIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))
         );
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_DOCUMENTS || []).filter(
         (d) => !deletedDocIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))
@@ -855,10 +1049,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.tasks && Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
-        return (parsed.tasks as TaskItem[]).filter(
+      if (parsed && parsed.tasks && Array.isArray(parsed.tasks)) {
+        const filtered = (parsed.tasks as TaskItem[]).filter(
           (t) => t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
         );
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_TASKS || []).filter(
         (t) => !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
@@ -879,11 +1074,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.invoices && Array.isArray(parsed.invoices) && parsed.invoices.length > 0) {
+      if (parsed && parsed.invoices && Array.isArray(parsed.invoices)) {
         const filtered = (parsed.invoices as Invoice[]).filter(
           (i) => i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
         );
-        if (filtered.length > 0) return filtered;
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_INVOICES || []).filter(
         (i) => !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
@@ -910,9 +1105,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
 
       const parsed = readSafeStorageSnapshot();
-      if (parsed && parsed.leads && Array.isArray(parsed.leads) && parsed.leads.length > 0) {
+      if (parsed && parsed.leads && Array.isArray(parsed.leads)) {
         const filtered = (parsed.leads as Lead[]).filter((l) => l && l.id && !deletedLeadIds.includes(l.id));
-        if (filtered.length > 0) return filtered;
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
       return (INITIAL_LEADS || []).filter((l) => !deletedLeadIds.includes(l.id));
     } catch {
@@ -920,22 +1115,38 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
   const [leadCategories, setLeadCategories] = useState<LeadCategory[]>(() =>
-    getInitialStorageList('leadCategories', INITIAL_LEAD_CATEGORIES, true)
+    getInitialStorageList('leadCategories', INITIAL_LEAD_CATEGORIES, true, DELETED_LEAD_CATEGORIES_STORAGE_KEY)
   );
   const [leadSources, setLeadSources] = useState<LeadSource[]>(() =>
-    getInitialStorageList('leadSources', INITIAL_LEAD_SOURCES, true)
+    getInitialStorageList('leadSources', INITIAL_LEAD_SOURCES, true, DELETED_LEAD_SOURCES_STORAGE_KEY)
   );
   const [leadStages, setLeadStages] = useState<LeadStage[]>(() =>
-    getInitialStorageList('leadStages', INITIAL_LEAD_STAGES, true)
+    getInitialStorageList('leadStages', INITIAL_LEAD_STAGES, true, DELETED_LEAD_STAGES_STORAGE_KEY)
   );
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
+      let deletedTransactionIds: string[] = [];
+      let deletedClientIds: string[] = [];
+      try {
+        const rawDel = localStorage.getItem(DELETED_TRANSACTIONS_STORAGE_KEY);
+        if (rawDel) deletedTransactionIds = JSON.parse(rawDel);
+        const cliRaw = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+        if (cliRaw) deletedClientIds = JSON.parse(cliRaw);
+      } catch {}
+
       const parsed = readSafeStorageSnapshot();
-      if (parsed && Array.isArray(parsed.transactions) && parsed.transactions.length > 0) {
-        return parsed.transactions;
+      if (parsed && Array.isArray(parsed.transactions)) {
+        const filtered = (parsed.transactions as Transaction[]).filter(
+          (t) => t && t.id && !deletedTransactionIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
+        );
+        if (filtered.length > 0 || parsed.hasCustomModifications || parsed.revision) return filtered;
       }
-    } catch {}
-    return INITIAL_TRANSACTIONS || [];
+      return (INITIAL_TRANSACTIONS || []).filter(
+        (t) => !deletedTransactionIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
+      );
+    } catch {
+      return INITIAL_TRANSACTIONS || [];
+    }
   });
 
   // One-time client-side migration: permanently purge legacy demo visa data from local storage
@@ -1303,6 +1514,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let deletedStageIds: string[] = [];
     let deletedServiceCategoryIds: string[] = [];
     let deletedServiceClassificationIds: string[] = [];
+    let deletedTransactionIds: string[] = [];
+    let deletedDepartmentIds: string[] = [];
+    let deletedRoleIds: string[] = [];
+    let deletedLeadCategoryIds: string[] = [];
+    let deletedLeadSourceIds: string[] = [];
+    let deletedLeadStageIds: string[] = [];
 
     try {
       const delCompRaw = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY);
@@ -1331,6 +1548,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (delCatRaw) deletedServiceCategoryIds = JSON.parse(delCatRaw);
       const delClassRaw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
       if (delClassRaw) deletedServiceClassificationIds = JSON.parse(delClassRaw);
+      const delTxRaw = localStorage.getItem(DELETED_TRANSACTIONS_STORAGE_KEY);
+      if (delTxRaw) deletedTransactionIds = JSON.parse(delTxRaw);
+      const delDeptRaw = localStorage.getItem(DELETED_DEPARTMENTS_STORAGE_KEY);
+      if (delDeptRaw) deletedDepartmentIds = JSON.parse(delDeptRaw);
+      const delRoleRaw = localStorage.getItem(DELETED_ROLES_STORAGE_KEY);
+      if (delRoleRaw) deletedRoleIds = JSON.parse(delRoleRaw);
+      const delLeadCatRaw = localStorage.getItem(DELETED_LEAD_CATEGORIES_STORAGE_KEY);
+      if (delLeadCatRaw) deletedLeadCategoryIds = JSON.parse(delLeadCatRaw);
+      const delLeadSrcRaw = localStorage.getItem(DELETED_LEAD_SOURCES_STORAGE_KEY);
+      if (delLeadSrcRaw) deletedLeadSourceIds = JSON.parse(delLeadSrcRaw);
+      const delLeadStgRaw = localStorage.getItem(DELETED_LEAD_STAGES_STORAGE_KEY);
+      if (delLeadStgRaw) deletedLeadStageIds = JSON.parse(delLeadStgRaw);
 
       if (Array.isArray(parsed.deletedStageIds)) {
         parsed.deletedStageIds.forEach((id: string) => {
@@ -1415,37 +1644,49 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         parsed.deletedInvoiceIds.forEach((id: string) => {
           if (id && !deletedInvoiceIds.includes(id)) deletedInvoiceIds.push(id);
         });
+        localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(deletedInvoiceIds));
       }
-      // Never consider an invoice deleted if it is actively present in parsed.invoices,
-      // or referenced by any active client service or transaction
-      const activeHydratedInvoiceIds = new Set<string>();
-      if (Array.isArray(parsed.invoices)) {
-        parsed.invoices.forEach((i: any) => { if (i?.id) activeHydratedInvoiceIds.add(i.id); });
-      }
-      if (Array.isArray(parsed.clients)) {
-        parsed.clients.forEach((c: any) => {
-          (c?.services || []).forEach((s: any) => { if (s?.invoiceId) activeHydratedInvoiceIds.add(s.invoiceId); });
-        });
-      }
-      if (Array.isArray(parsed.transactions)) {
-        parsed.transactions.forEach((tx: any) => { if (tx?.invoiceId) activeHydratedInvoiceIds.add(tx.invoiceId); });
-      }
-      deletedInvoiceIds = deletedInvoiceIds.filter((id) => !activeHydratedInvoiceIds.has(id));
-      localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(deletedInvoiceIds));
-
-      // Never consider a client deleted if actively present in parsed.clients
-      const activeHydratedClientIds = new Set<string>();
-      if (Array.isArray(parsed.clients)) {
-        parsed.clients.forEach((c: any) => { if (c?.id) activeHydratedClientIds.add(c.id); });
-      }
-      deletedClientIds = deletedClientIds.filter((id) => !activeHydratedClientIds.has(id));
-      localStorage.setItem(DELETED_CLIENTS_STORAGE_KEY, JSON.stringify(deletedClientIds));
-
       if (Array.isArray(parsed.deletedLeadIds)) {
         parsed.deletedLeadIds.forEach((id: string) => {
           if (id && !deletedLeadIds.includes(id)) deletedLeadIds.push(id);
         });
         localStorage.setItem(DELETED_LEADS_STORAGE_KEY, JSON.stringify(deletedLeadIds));
+      }
+      if (Array.isArray(parsed.deletedTransactionIds)) {
+        parsed.deletedTransactionIds.forEach((id: string) => {
+          if (id && !deletedTransactionIds.includes(id)) deletedTransactionIds.push(id);
+        });
+        localStorage.setItem(DELETED_TRANSACTIONS_STORAGE_KEY, JSON.stringify(deletedTransactionIds));
+      }
+      if (Array.isArray(parsed.deletedDepartmentIds)) {
+        parsed.deletedDepartmentIds.forEach((id: string) => {
+          if (id && !deletedDepartmentIds.includes(id)) deletedDepartmentIds.push(id);
+        });
+        localStorage.setItem(DELETED_DEPARTMENTS_STORAGE_KEY, JSON.stringify(deletedDepartmentIds));
+      }
+      if (Array.isArray(parsed.deletedRoleIds)) {
+        parsed.deletedRoleIds.forEach((id: string) => {
+          if (id && !deletedRoleIds.includes(id)) deletedRoleIds.push(id);
+        });
+        localStorage.setItem(DELETED_ROLES_STORAGE_KEY, JSON.stringify(deletedRoleIds));
+      }
+      if (Array.isArray(parsed.deletedLeadCategoryIds)) {
+        parsed.deletedLeadCategoryIds.forEach((id: string) => {
+          if (id && !deletedLeadCategoryIds.includes(id)) deletedLeadCategoryIds.push(id);
+        });
+        localStorage.setItem(DELETED_LEAD_CATEGORIES_STORAGE_KEY, JSON.stringify(deletedLeadCategoryIds));
+      }
+      if (Array.isArray(parsed.deletedLeadSourceIds)) {
+        parsed.deletedLeadSourceIds.forEach((id: string) => {
+          if (id && !deletedLeadSourceIds.includes(id)) deletedLeadSourceIds.push(id);
+        });
+        localStorage.setItem(DELETED_LEAD_SOURCES_STORAGE_KEY, JSON.stringify(deletedLeadSourceIds));
+      }
+      if (Array.isArray(parsed.deletedLeadStageIds)) {
+        parsed.deletedLeadStageIds.forEach((id: string) => {
+          if (id && !deletedLeadStageIds.includes(id)) deletedLeadStageIds.push(id);
+        });
+        localStorage.setItem(DELETED_LEAD_STAGES_STORAGE_KEY, JSON.stringify(deletedLeadStageIds));
       }
     } catch {}
 
@@ -1455,10 +1696,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       setCompanies(cleanCompanies);
     }
-    if (parsed.departments && Array.isArray(parsed.departments) && parsed.departments.length > 0) {
-      setDepartments((prev) => mergeEntitiesById(prev, parsed.departments, INITIAL_DEPARTMENTS));
-    } else if (parsed.departments) {
-      setDepartments((prev) => mergeEntitiesById(prev, [], INITIAL_DEPARTMENTS));
+    if (parsed.departments && Array.isArray(parsed.departments)) {
+      const cleanDepartments = (parsed.departments || []).filter(
+        (d: Department) => d && d.id && !deletedDepartmentIds.includes(d.id)
+      );
+      setDepartments(cleanDepartments);
     }
 
     if (parsed.vendors && Array.isArray(parsed.vendors)) {
@@ -1467,7 +1709,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
       setVendors(cleanVendors);
     }
-    if (parsed.roles && Array.isArray(parsed.roles)) setRoles(parsed.roles);
+    if (parsed.roles && Array.isArray(parsed.roles)) {
+      const cleanRoles = (parsed.roles || []).filter(
+        (r: RoleDefinition) => r && r.id && !deletedRoleIds.includes(r.id)
+      );
+      setRoles(cleanRoles);
+    }
     if (parsed.workflows && Array.isArray(parsed.workflows)) setWorkflows(parsed.workflows);
     if (parsed.users && Array.isArray(parsed.users)) {
       // Get set of permanently deleted user IDs
@@ -1603,14 +1850,64 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (parsed.serviceCategories && Array.isArray(parsed.serviceCategories)) {
       setServiceCategories(parsed.serviceCategories.filter((s: ServiceCategory) => s && s.id && !deletedServiceCategoryIds.includes(s.id)));
     }
+    // Extract and reconcile transactions and invoices
+    const cleanTransactions = (parsed.transactions && Array.isArray(parsed.transactions))
+      ? (parsed.transactions as Transaction[]).filter(
+          (tx) => tx && tx.id && !deletedTransactionIds.includes(tx.id) && (!tx.clientId || !deletedClientIds.includes(tx.clientId))
+        )
+      : [];
+
+    const rawInvoices = (parsed.invoices && Array.isArray(parsed.invoices))
+      ? (parsed.invoices as Invoice[]).filter(
+          (i: any) => i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
+        )
+      : [];
+
+    // Automatically reconcile invoices with their verified linked transactions
+    const cleanInvoices = rawInvoices.map((inv: any) => {
+      const linkedTxs = cleanTransactions.filter(
+        (t) => t && t.invoiceId === inv.id && t.status !== 'cancelled' && t.status !== 'reversed' && t.status !== 'failed'
+      );
+      if (linkedTxs.length === 0) return inv;
+
+      const inflowTotal = linkedTxs
+        .filter((t) => !['refund', 'expense', 'withdrawal'].includes(t.type))
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const refundTotal = linkedTxs
+        .filter((t) => t.type === 'refund')
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+      const netTxsPaid = Math.max(0, inflowTotal - refundTotal);
+      if (netTxsPaid > 0 && ((Number(inv.amountPaid) || 0) < netTxsPaid || inv.status === 'unpaid')) {
+        const grandTotal = Number(inv.grandTotal) || 0;
+        const effectivePaid = Math.max(Number(inv.amountPaid) || 0, netTxsPaid);
+        const cappedPaid = Math.min(grandTotal, effectivePaid);
+        const newBalance = Math.max(0, grandTotal - cappedPaid);
+        const newStatus: Invoice['status'] =
+          newBalance === 0 && grandTotal > 0
+            ? 'paid'
+            : cappedPaid > 0
+            ? 'partially_paid'
+            : (inv.status || 'unpaid');
+        return {
+          ...inv,
+          amountPaid: cappedPaid,
+          balanceAmount: newBalance,
+          status: newStatus,
+          paidDate: newStatus === 'paid' ? (inv.paidDate || linkedTxs[0]?.date || new Date().toISOString().split('T')[0]) : inv.paidDate,
+          paymentMethod: inv.paymentMethod || linkedTxs[0]?.paymentMethod || 'Nomod',
+        };
+      }
+      return inv;
+    });
+
     if (parsed.clients && Array.isArray(parsed.clients)) {
-      const parsedInvoices = Array.isArray(parsed.invoices) ? parsed.invoices : [];
       const cleanClients = parsed.clients
         .filter((c: any) => c && c.id && c.id !== 'client-test-1' && !deletedClientIds.includes(c.id))
         .map((c: any) => {
           const clientEmail = (c.email || '').toLowerCase().trim();
           const clientName = (c.fullName || c.name || '').toLowerCase().trim();
-          const userInvoices = parsedInvoices.filter(
+          const userInvoices = cleanInvoices.filter(
             (inv: any) =>
               inv &&
               (inv.clientId === c.id ||
@@ -1662,85 +1959,114 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             tags: Array.isArray(c.tags) ? c.tags : [],
           };
         });
-      setClients((prev) => {
-        if (parsed.forceReset) return cleanClients;
-        const map = new Map<string, Client>();
-        (prev || []).forEach((c) => {
-          if (c && c.id && c.id !== 'client-test-1' && !deletedClientIds.includes(c.id)) {
-            map.set(c.id, c);
-          }
-        });
-        cleanClients.forEach((c) => {
-          if (c && c.id && c.id !== 'client-test-1' && !deletedClientIds.includes(c.id)) {
-            const current = map.get(c.id);
-            map.set(c.id, current ? { ...current, ...c } : c);
-          }
-        });
-        return Array.from(map.values());
+      // Auto-recover clients referenced by cleanInvoices if missing from cleanClients
+      const existingClientIds = new Set(cleanClients.map((c: any) => c?.id).filter(Boolean));
+      const existingClientEmails = new Set(cleanClients.map((c: any) => (c?.email || '').toLowerCase().trim()).filter(Boolean));
+      const recoveredClients: any[] = [];
+
+      (cleanInvoices || []).forEach((inv: any) => {
+        if (!inv || !inv.clientId) return;
+        if (deletedClientIds.includes(inv.clientId)) return;
+        const invEmail = (inv.clientEmail || '').toLowerCase().trim();
+        const hasId = existingClientIds.has(inv.clientId);
+        const hasEmail = invEmail && existingClientEmails.has(invEmail);
+
+        if (!hasId && !hasEmail) {
+          const clientName = inv.clientName || 'Client';
+          const nameParts = clientName.split(' ');
+          const recClient: Client = {
+            id: inv.clientId,
+            refNo: `CL-${inv.clientId.replace('client-', '').replace('walkin-', '')}`,
+            fullName: clientName,
+            firstName: nameParts[0] || 'Client',
+            lastName: nameParts.slice(1).join(' ') || '',
+            email: inv.clientEmail || 'client@example.com',
+            mobile: inv.clientPhone || '+971 50 000 0000',
+            phone: inv.clientPhone || '+971 50 000 0000',
+            whatsapp: inv.clientPhone || '+971 50 000 0000',
+            residentialAddress: inv.clientAddress || 'Dubai, UAE',
+            passportNo: inv.clientPassport || '',
+            companyId: inv.companyId || (companies && companies[0]?.id) || 'comp-1',
+            companyName: inv.companyName || 'ADCS Clearing LLC',
+            category: 'Direct Client',
+            type: 'Individual',
+            status: 'active',
+            pricingTier: 'b2c',
+            nationality: 'United Arab Emirates',
+            dob: '1990-01-01',
+            gender: 'Male',
+            passportExpiry: '',
+            emiratesId: '',
+            emiratesIdExpiry: '',
+            assignedAdminId: 'user-master',
+            assignedEmployeeIds: [],
+            avatar: '',
+            calls: [],
+            currentStageId: 'stage-1',
+            currentStageName: 'Active Client',
+            paymentStatus: inv.status || 'unpaid',
+            totalAmount: Number(inv.grandTotal) || 0,
+            paidAmount: Number(inv.amountPaid) || 0,
+            outstandingAmount: Number(inv.balanceAmount) || 0,
+            services: inv.serviceName ? [{
+              id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              clientId: inv.clientId,
+              serviceId: inv.serviceId || 'srv-recovered',
+              serviceName: inv.serviceName,
+              category: 'Corporate PRO & Legal Clearance',
+              price: Number(inv.subtotal) || 0,
+              governmentFees: Number(inv.governmentFees) || 0,
+              advancePaid: Number(inv.amountPaid) || 0,
+              balance: Number(inv.balanceAmount) || 0,
+              invoiceId: inv.id,
+              invoiceNumber: inv.invoiceNumber,
+              status: inv.status === 'paid' ? 'completed' : 'active',
+              currentStageId: 'stage-1',
+              currentStageName: 'Application Processing',
+              assignedEmployeeId: 'user-master',
+              assignedEmployeeName: 'Admin',
+              startDate: inv.createdAt || new Date().toISOString(),
+              targetCompletionDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+              requiredDocs: [],
+              stageHistory: [],
+              referenceNumber: `SRV-${inv.invoiceNumber || Date.now()}`,
+            }] : [],
+            notes: [{
+              id: `note-${Date.now()}`,
+              userId: 'user-system',
+              userName: 'System Recovery',
+              userRole: 'admin',
+              text: `Client record auto-recovered from Invoice #${inv.invoiceNumber}.`,
+              createdAt: new Date().toISOString(),
+              type: 'system',
+            }],
+            tags: ['Active'],
+            createdAt: inv.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          existingClientIds.add(inv.clientId);
+          if (invEmail) existingClientEmails.add(invEmail);
+          recoveredClients.push(recClient);
+        }
       });
+
+      const allHydratedClients = [...cleanClients, ...recoveredClients];
+      setClients(allHydratedClients);
     }
     if (parsed.documents && Array.isArray(parsed.documents)) {
       const cleanDocs = parsed.documents.filter(
         (d: any) => d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))
       );
-      setDocuments((prev) => {
-        if (parsed.forceReset) return cleanDocs;
-        const map = new Map<string, DocumentItem>();
-        (prev || []).forEach((d) => {
-          if (d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))) {
-            map.set(d.id, d);
-          }
-        });
-        cleanDocs.forEach((d) => {
-          if (d && d.id && !deletedDocumentIds.includes(d.id) && (!d.clientId || !deletedClientIds.includes(d.clientId))) {
-            const current = map.get(d.id);
-            map.set(d.id, current ? { ...current, ...d } : d);
-          }
-        });
-        return Array.from(map.values());
-      });
+      setDocuments(cleanDocs);
     }
     if (parsed.tasks && Array.isArray(parsed.tasks)) {
       const cleanTasks = parsed.tasks.filter(
         (t: any) => t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))
       );
-      setTasks((prev) => {
-        if (parsed.forceReset) return cleanTasks;
-        const map = new Map<string, TaskItem>();
-        (prev || []).forEach((t) => {
-          if (t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))) {
-            map.set(t.id, t);
-          }
-        });
-        cleanTasks.forEach((t) => {
-          if (t && t.id && !deletedTaskIds.includes(t.id) && (!t.clientId || !deletedClientIds.includes(t.clientId))) {
-            const current = map.get(t.id);
-            map.set(t.id, current ? { ...current, ...t } : t);
-          }
-        });
-        return Array.from(map.values());
-      });
+      setTasks(cleanTasks);
     }
     if (parsed.invoices && Array.isArray(parsed.invoices)) {
-      const cleanInvoices = parsed.invoices.filter(
-        (i: any) => i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))
-      );
-      setInvoices((prev) => {
-        if (parsed.forceReset) return cleanInvoices;
-        const map = new Map<string, Invoice>();
-        (prev || []).forEach((i) => {
-          if (i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))) {
-            map.set(i.id, i);
-          }
-        });
-        cleanInvoices.forEach((i) => {
-          if (i && i.id && !deletedInvoiceIds.includes(i.id) && (!i.clientId || !deletedClientIds.includes(i.clientId))) {
-            const current = map.get(i.id);
-            map.set(i.id, current ? { ...current, ...i } : i);
-          }
-        });
-        return Array.from(map.values());
-      });
+      setInvoices(cleanInvoices);
     }
     if (parsed.messages && Array.isArray(parsed.messages)) {
       setMessages((prev) => {
@@ -1755,34 +2081,31 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const cleanLeads = parsed.leads.filter(
         (ld: any) => ld && ld.id && !deletedLeadIds.includes(ld.id)
       );
-      setLeads((prev) => {
-        if (parsed.forceReset) return cleanLeads;
-        const map = new Map<string, Lead>();
-        (prev || []).forEach((l) => {
-          if (l && l.id && !deletedLeadIds.includes(l.id)) {
-            map.set(l.id, l);
-          }
-        });
-        cleanLeads.forEach((l) => {
-          if (l && l.id && !deletedLeadIds.includes(l.id)) {
-            const current = map.get(l.id);
-            map.set(l.id, current ? { ...current, ...l } : l);
-          }
-        });
-        return Array.from(map.values());
-      });
+      setLeads(cleanLeads);
     }
     if (parsed.leadCategories && Array.isArray(parsed.leadCategories)) {
-      setLeadCategories((prev) => (parsed.forceReset ? parsed.leadCategories : mergeEntitiesById(prev, parsed.leadCategories, INITIAL_LEAD_CATEGORIES)));
+      const cleanCategories = (parsed.leadCategories as LeadCategory[]).filter(
+        (c) => c && c.id && !deletedLeadCategoryIds.includes(c.id)
+      );
+      setLeadCategories(cleanCategories);
     }
     if (parsed.leadSources && Array.isArray(parsed.leadSources)) {
-      setLeadSources((prev) => (parsed.forceReset ? parsed.leadSources : mergeEntitiesById(prev, parsed.leadSources, INITIAL_LEAD_SOURCES)));
+      const cleanSources = (parsed.leadSources as LeadSource[]).filter(
+        (s) => s && s.id && !deletedLeadSourceIds.includes(s.id)
+      );
+      setLeadSources(cleanSources);
     }
     if (parsed.leadStages && Array.isArray(parsed.leadStages)) {
-      setLeadStages((prev) => (parsed.forceReset ? parsed.leadStages : mergeEntitiesById(prev, parsed.leadStages, INITIAL_LEAD_STAGES)));
+      const cleanStages = (parsed.leadStages as LeadStage[]).filter(
+        (stg) => stg && stg.id && !deletedLeadStageIds.includes(stg.id)
+      );
+      setLeadStages(cleanStages);
     }
     if (parsed.transactions && Array.isArray(parsed.transactions)) {
-      setTransactions((prev) => (parsed.forceReset ? parsed.transactions : mergeEntitiesById(prev, parsed.transactions, [])));
+      const cleanTransactions = (parsed.transactions as Transaction[]).filter(
+        (tx) => tx && tx.id && !deletedTransactionIds.includes(tx.id) && (!tx.clientId || !deletedClientIds.includes(tx.clientId))
+      );
+      setTransactions(cleanTransactions);
     }
 
     if (parsed.visaApplications !== undefined) {
@@ -1940,65 +2263,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Helper to retrieve current local working snapshot from memory and localStorage
   const getCurrentLocalSnapshot = useCallback(() => {
-    try {
-      const saved =
-        localStorage.getItem(LOCAL_STORAGE_KEY) ||
-        localStorage.getItem('adcs_crm_db_v2') ||
-        localStorage.getItem('adcs_crm_db');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') {
-          return {
-            ...parsed,
-            clients: clients.length > 0 ? clients : (parsed.clients || []),
-            leads: leads.length > 0 ? leads : (parsed.leads || []),
-            tasks: tasks.length > 0 ? tasks : (parsed.tasks || []),
-            invoices: invoices.length > 0 ? invoices : (parsed.invoices || []),
-            documents: documents.length > 0 ? documents : (parsed.documents || []),
-            companies: companies.length > 0 ? companies : (parsed.companies || []),
-            users: users.length > 0 ? users : (parsed.users || []),
-            stages: stages.length > 0 ? stages : (parsed.stages || []),
-            workflows: workflows.length > 0 ? workflows : (parsed.workflows || []),
-            serviceCategories: serviceCategories.length > 0 ? serviceCategories : (parsed.serviceCategories || []),
-            serviceClassifications: serviceClassifications.length > 0 ? serviceClassifications : (parsed.serviceClassifications || []),
-            deletedStageIds: (() => {
-              try {
-                const raw = localStorage.getItem(DELETED_STAGES_STORAGE_KEY);
-                return raw ? JSON.parse(raw) : (parsed.deletedStageIds || []);
-              } catch { return parsed.deletedStageIds || []; }
-            })(),
-            deletedServiceCategoryIds: (() => {
-              try {
-                const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
-                return raw ? JSON.parse(raw) : (parsed.deletedServiceCategoryIds || parsed.deletedCategoryIds || []);
-              } catch { return parsed.deletedServiceCategoryIds || []; }
-            })(),
-            deletedCategoryIds: (() => {
-              try {
-                const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
-                return raw ? JSON.parse(raw) : (parsed.deletedCategoryIds || parsed.deletedServiceCategoryIds || []);
-              } catch { return parsed.deletedCategoryIds || []; }
-            })(),
-            deletedServiceClassificationIds: (() => {
-              try {
-                const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
-                return raw ? JSON.parse(raw) : (parsed.deletedServiceClassificationIds || parsed.deletedClassificationIds || []);
-              } catch { return parsed.deletedServiceClassificationIds || []; }
-            })(),
-            deletedClassificationIds: (() => {
-              try {
-                const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
-                return raw ? JSON.parse(raw) : (parsed.deletedClassificationIds || parsed.deletedServiceClassificationIds || []);
-              } catch { return parsed.deletedClassificationIds || []; }
-            })(),
-            hasCustomModifications: hasUserEditedRef.current,
-            lastUpdated: lastAppliedRemoteIsoRef.current || parsed.lastUpdated || new Date().toISOString(),
-          };
-        }
-      }
-    } catch {}
+    const rawTombstones = {
+      deletedClientIds: (() => { try { const r = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedInvoiceIds: (() => { try { const r = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedTaskIds: (() => { try { const r = localStorage.getItem(DELETED_TASKS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedLeadIds: (() => { try { const r = localStorage.getItem(DELETED_LEADS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedDocumentIds: (() => { try { const r = localStorage.getItem(DELETED_DOCUMENTS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedCompanyIds: (() => { try { const r = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedVendorIds: (() => { try { const r = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedUserIds: (() => { try { const r = localStorage.getItem(DELETED_USERS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedStageIds: (() => { try { const r = localStorage.getItem(DELETED_STAGES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedServiceCategoryIds: (() => { try { const r = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedCategoryIds: (() => { try { const r = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedServiceClassificationIds: (() => { try { const r = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedClassificationIds: (() => { try { const r = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedTransactionIds: (() => { try { const r = localStorage.getItem(DELETED_TRANSACTIONS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedDepartmentIds: (() => { try { const r = localStorage.getItem(DELETED_DEPARTMENTS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedRoleIds: (() => { try { const r = localStorage.getItem(DELETED_ROLES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedLeadCategoryIds: (() => { try { const r = localStorage.getItem(DELETED_LEAD_CATEGORIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedLeadSourceIds: (() => { try { const r = localStorage.getItem(DELETED_LEAD_SOURCES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedLeadStageIds: (() => { try { const r = localStorage.getItem(DELETED_LEAD_STAGES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedVisaCountryCodes: (() => { try { const r = localStorage.getItem(DELETED_VISA_COUNTRIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedVisaServiceIds: (() => { try { const r = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+      deletedVisaAppIds: (() => { try { const r = localStorage.getItem(DELETED_VISA_APPS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+    };
 
-    return {
+    const snapshot = {
       currentUserId: currentUser?.id,
       companies,
       departments,
@@ -2023,39 +2313,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       transactions,
       visaApplications,
       visaCountryCatalog,
-      deletedStageIds: (() => {
-        try {
-          const raw = localStorage.getItem(DELETED_STAGES_STORAGE_KEY);
-          return raw ? JSON.parse(raw) : [];
-        } catch { return []; }
-      })(),
-      deletedServiceCategoryIds: (() => {
-        try {
-          const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
-          return raw ? JSON.parse(raw) : [];
-        } catch { return []; }
-      })(),
-      deletedCategoryIds: (() => {
-        try {
-          const raw = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY);
-          return raw ? JSON.parse(raw) : [];
-        } catch { return []; }
-      })(),
-      deletedServiceClassificationIds: (() => {
-        try {
-          const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
-          return raw ? JSON.parse(raw) : [];
-        } catch { return []; }
-      })(),
-      deletedClassificationIds: (() => {
-        try {
-          const raw = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY);
-          return raw ? JSON.parse(raw) : [];
-        } catch { return []; }
-      })(),
+      ...rawTombstones,
       lastUpdated: lastAppliedRemoteIsoRef.current || new Date().toISOString(),
       hasCustomModifications: hasUserEditedRef.current,
     };
+
+    return pruneSnapshotTombstones(snapshot);
   }, [
     currentUser?.id,
     companies,
@@ -2092,19 +2355,18 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const base = getCurrentLocalSnapshot();
         const nowIso = new Date().toISOString();
         const nextRevision = Math.max(Number(base.revision) || 0, Number(lastAppliedRevisionRef.current) || 0) + 1;
-        const snap = {
+        const snap = pruneSnapshotTombstones({
           ...base,
           ...partialUpdates,
           hasCustomModifications: true,
           lastUpdated: nowIso,
           revision: nextRevision,
-        };
+        });
         delete (snap as any).data;
         lastAppliedRemoteIsoRef.current = nowIso;
         lastAppliedRevisionRef.current = nextRevision;
-        const snapStr = JSON.stringify(snap);
-        localStorage.setItem(LOCAL_STORAGE_KEY, snapStr);
-        localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapStr);
+        safeSetLocalStorage(LOCAL_STORAGE_KEY, snap);
+        safeSetLocalStorage(CRM_VAULT_STORAGE_KEY, snap);
         saveToIndexedDbVault('current_working_state', snap).catch(() => {});
         if (broadcastChannelRef.current) {
           broadcastChannelRef.current.postMessage({ type: 'CRM_TAB_UPDATE', snapshot: snap });
@@ -2164,99 +2426,195 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ...new Set([
             ...(localSnap?.deletedClientIds || []),
             ...(remoteSnap?.deletedClientIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
         const combinedDelInvoiceIds = [
           ...new Set([
             ...(localSnap?.deletedInvoiceIds || []),
             ...(remoteSnap?.deletedInvoiceIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_INVOICES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
         const combinedDelTaskIds = [
           ...new Set([
             ...(localSnap?.deletedTaskIds || []),
             ...(remoteSnap?.deletedTaskIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_TASKS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
         const combinedDelLeadIds = [
           ...new Set([
             ...(localSnap?.deletedLeadIds || []),
             ...(remoteSnap?.deletedLeadIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_LEADS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
         const combinedDelVendorIds = [
           ...new Set([
             ...(localSnap?.deletedVendorIds || []),
             ...(remoteSnap?.deletedVendorIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_VENDORS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
         const combinedDelDocIds = [
           ...new Set([
             ...(localSnap?.deletedDocumentIds || []),
             ...(remoteSnap?.deletedDocumentIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_DOCUMENTS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
         const combinedDelCompanyIds = [
           ...new Set([
             ...(localSnap?.deletedCompanyIds || []),
             ...(remoteSnap?.deletedCompanyIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_COMPANIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
         const combinedDelUserIds = [
           ...new Set([
             ...(localSnap?.deletedUserIds || []),
             ...(remoteSnap?.deletedUserIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_USERS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
-
         const combinedDelStageIds = [
           ...new Set([
             ...(localSnap?.deletedStageIds || []),
             ...(remoteSnap?.deletedStageIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_STAGES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
-
         const combinedDelCategoryIds = [
           ...new Set([
             ...(localSnap?.deletedServiceCategoryIds || []),
             ...(localSnap?.deletedCategoryIds || []),
             ...(remoteSnap?.deletedServiceCategoryIds || []),
             ...(remoteSnap?.deletedCategoryIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
-
         const combinedDelClassificationIds = [
           ...new Set([
             ...(localSnap?.deletedServiceClassificationIds || []),
             ...(localSnap?.deletedClassificationIds || []),
             ...(remoteSnap?.deletedServiceClassificationIds || []),
             ...(remoteSnap?.deletedClassificationIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ];
+        const combinedDelCountryCodes = [
+          ...new Set([
+            ...(localSnap?.deletedVisaCountryCodes || []),
+            ...(remoteSnap?.deletedVisaCountryCodes || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_VISA_COUNTRIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ].map((c) => String(c).toLowerCase().trim());
+        const combinedDelServiceIds = [
+          ...new Set([
+            ...(localSnap?.deletedVisaServiceIds || []),
+            ...(remoteSnap?.deletedVisaServiceIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_VISA_SERVICES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ];
+        const combinedDelAppIds = [
+          ...new Set([
+            ...(localSnap?.deletedVisaAppIds || []),
+            ...(remoteSnap?.deletedVisaAppIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_VISA_APPS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ];
+        const combinedDelTransactionIds = [
+          ...new Set([
+            ...(localSnap?.deletedTransactionIds || []),
+            ...(remoteSnap?.deletedTransactionIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_TRANSACTIONS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ];
+        const combinedDelDepartmentIds = [
+          ...new Set([
+            ...(localSnap?.deletedDepartmentIds || []),
+            ...(remoteSnap?.deletedDepartmentIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_DEPARTMENTS_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ];
+        const combinedDelRoleIds = [
+          ...new Set([
+            ...(localSnap?.deletedRoleIds || []),
+            ...(remoteSnap?.deletedRoleIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_ROLES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ];
+        const combinedDelLeadCategoryIds = [
+          ...new Set([
+            ...(localSnap?.deletedLeadCategoryIds || []),
+            ...(remoteSnap?.deletedLeadCategoryIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_LEAD_CATEGORIES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ];
+        const combinedDelLeadSourceIds = [
+          ...new Set([
+            ...(localSnap?.deletedLeadSourceIds || []),
+            ...(remoteSnap?.deletedLeadSourceIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_LEAD_SOURCES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
+          ]),
+        ];
+        const combinedDelLeadStageIds = [
+          ...new Set([
+            ...(localSnap?.deletedLeadStageIds || []),
+            ...(remoteSnap?.deletedLeadStageIds || []),
+            ...(() => { try { const r = localStorage.getItem(DELETED_LEAD_STAGES_STORAGE_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })(),
           ]),
         ];
 
-        const combinedDelCountryCodes = [
-          ...(localSnap?.deletedVisaCountryCodes || []),
-          ...(remoteSnap?.deletedVisaCountryCodes || []),
-        ].map((c) => String(c).toLowerCase().trim());
+        const mergedInvoices = mergeById(localSnap?.invoices, remoteSnap?.invoices)
+          .filter((i: any) => i && i.id && !combinedDelInvoiceIds.includes(i.id));
 
-        const combinedDelServiceIds = [
-          ...(localSnap?.deletedVisaServiceIds || []),
-          ...(remoteSnap?.deletedVisaServiceIds || []),
-        ];
-
-        const combinedDelAppIds = [
-          ...(localSnap?.deletedVisaAppIds || []),
-          ...(remoteSnap?.deletedVisaAppIds || []),
-        ];
-
-        const mergedClients = mergeById(localSnap?.clients, remoteSnap?.clients)
+        const rawMergedClients = mergeById(localSnap?.clients, remoteSnap?.clients)
           .filter((c: any) => c && c.id && !combinedDelClientIds.includes(c.id) && c.id !== 'client-test-1');
+        const existingClientIds = new Set(rawMergedClients.map((c: any) => c?.id).filter(Boolean));
+        const recoveredMergeClients: any[] = [];
+        (mergedInvoices || []).forEach((inv: any) => {
+          if (!inv || !inv.clientId || combinedDelClientIds.includes(inv.clientId) || existingClientIds.has(inv.clientId)) return;
+          const nameParts = (inv.clientName || 'Client').split(' ');
+          recoveredMergeClients.push({
+            id: inv.clientId,
+            refNo: `CL-${inv.clientId.replace('client-', '').replace('walkin-', '')}`,
+            fullName: inv.clientName || 'Client',
+            firstName: nameParts[0] || 'Client',
+            lastName: nameParts.slice(1).join(' ') || '',
+            email: inv.clientEmail || 'client@example.com',
+            mobile: inv.clientPhone || '+971 50 000 0000',
+            phone: inv.clientPhone || '+971 50 000 0000',
+            whatsapp: inv.clientPhone || '+971 50 000 0000',
+            residentialAddress: inv.clientAddress || 'Dubai, UAE',
+            passportNo: inv.clientPassport || '',
+            companyId: inv.companyId || 'comp-1',
+            companyName: inv.companyName || 'ADCS Clearing LLC',
+            category: 'Direct Client',
+            type: 'Individual',
+            status: 'active',
+            pricingTier: 'b2c',
+            nationality: 'United Arab Emirates',
+            currentStageId: 'stage-1',
+            currentStageName: 'Active Client',
+            paymentStatus: inv.status || 'unpaid',
+            totalAmount: Number(inv.grandTotal) || 0,
+            paidAmount: Number(inv.amountPaid) || 0,
+            outstandingAmount: Number(inv.balanceAmount) || 0,
+            services: [],
+            notes: [],
+            tags: ['Active'],
+            createdAt: inv.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          existingClientIds.add(inv.clientId);
+        });
+        const mergedClients = [...rawMergedClients, ...recoveredMergeClients];
         const mergedLeads = mergeById(localSnap?.leads, remoteSnap?.leads)
           .filter((l: any) => l && l.id && !combinedDelLeadIds.includes(l.id));
         const mergedTasks = mergeById(localSnap?.tasks, remoteSnap?.tasks)
           .filter((t: any) => t && t.id && !combinedDelTaskIds.includes(t.id));
-        const mergedInvoices = mergeById(localSnap?.invoices, remoteSnap?.invoices)
-          .filter((i: any) => i && i.id && !combinedDelInvoiceIds.includes(i.id));
         const mergedDocs = mergeById(localSnap?.documents, remoteSnap?.documents)
           .filter((d: any) => d && d.id && !combinedDelDocIds.includes(d.id));
         const mergedVendors = mergeById(localSnap?.vendors, remoteSnap?.vendors)
@@ -2265,7 +2623,10 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           .filter((u: any) => u && u.id && !combinedDelUserIds.includes(u.id));
         const mergedCompanies = mergeById(localSnap?.companies, remoteSnap?.companies)
           .filter((co: any) => co && co.id && !combinedDelCompanyIds.includes(co.id));
-        const mergedDepartments = mergeById(localSnap?.departments, remoteSnap?.departments);
+        const mergedDepartments = mergeById(localSnap?.departments, remoteSnap?.departments)
+          .filter((d: any) => d && d.id && !combinedDelDepartmentIds.includes(d.id));
+        const mergedRoles = mergeById(localSnap?.roles, remoteSnap?.roles)
+          .filter((r: any) => r && r.id && !combinedDelRoleIds.includes(r.id));
 
         // Stages: preserve customized order and config, strictly filter deleted
         const rawStages = Array.isArray(localSnap?.stages) && localSnap.stages.length > 0
@@ -2277,7 +2638,15 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           .filter((c: any) => c && c.id && !combinedDelCategoryIds.includes(c.id));
         const mergedClassifications = mergeById(localSnap?.serviceClassifications, remoteSnap?.serviceClassifications)
           .filter((c: any) => c && c.id && !combinedDelClassificationIds.includes(c.id));
-        const mergedTransactions = mergeById(localSnap?.transactions, remoteSnap?.transactions);
+        const mergedTransactions = mergeById(localSnap?.transactions, remoteSnap?.transactions)
+          .filter((t: any) => t && t.id && !combinedDelTransactionIds.includes(t.id) && (!t.clientId || !combinedDelClientIds.includes(t.clientId)));
+        const mergedLeadCategories = mergeById(localSnap?.leadCategories, remoteSnap?.leadCategories)
+          .filter((c: any) => c && c.id && !combinedDelLeadCategoryIds.includes(c.id));
+        const mergedLeadSources = mergeById(localSnap?.leadSources, remoteSnap?.leadSources)
+          .filter((s: any) => s && s.id && !combinedDelLeadSourceIds.includes(s.id));
+        const mergedLeadStages = mergeById(localSnap?.leadStages, remoteSnap?.leadStages)
+          .filter((stg: any) => stg && stg.id && !combinedDelLeadStageIds.includes(stg.id));
+
         const mergedMessages = mergeById(localSnap?.messages, remoteSnap?.messages);
         const mergedNotifications = mergeById(localSnap?.notifications, remoteSnap?.notifications);
         const mergedAuditLogs = mergeById(localSnap?.auditLogs, remoteSnap?.auditLogs);
@@ -2305,6 +2674,9 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ...(localSnap || {}),
           clients: mergedClients,
           leads: mergedLeads,
+          leadCategories: mergedLeadCategories,
+          leadSources: mergedLeadSources,
+          leadStages: mergedLeadStages,
           tasks: mergedTasks,
           invoices: mergedInvoices,
           documents: mergedDocs,
@@ -2312,6 +2684,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           users: mergedUsers,
           companies: mergedCompanies,
           departments: mergedDepartments,
+          roles: mergedRoles,
           stages: mergedStages,
           workflows: Array.isArray(localSnap?.workflows) && localSnap.workflows.length > 0 ? localSnap.workflows : (remoteSnap?.workflows || []),
           serviceCategories: mergedCategories,
@@ -2338,6 +2711,12 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           deletedCategoryIds: combinedDelCategoryIds,
           deletedServiceClassificationIds: combinedDelClassificationIds,
           deletedClassificationIds: combinedDelClassificationIds,
+          deletedTransactionIds: combinedDelTransactionIds,
+          deletedDepartmentIds: combinedDelDepartmentIds,
+          deletedRoleIds: combinedDelRoleIds,
+          deletedLeadCategoryIds: combinedDelLeadCategoryIds,
+          deletedLeadSourceIds: combinedDelLeadSourceIds,
+          deletedLeadStageIds: combinedDelLeadStageIds,
           clientSyncId: clientSyncIdRef.current,
           lastUpdated: updatedIso,
           revision: nextRevision,
@@ -2353,13 +2732,29 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setLastServerSyncTime(new Date().toLocaleTimeString());
 
         try {
-          const snapJson = JSON.stringify(mergedSnapshot);
-          localStorage.setItem(LOCAL_STORAGE_KEY, snapJson);
-          localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapJson);
+          safeSetLocalStorage(LOCAL_STORAGE_KEY, mergedSnapshot);
+          safeSetLocalStorage(CRM_VAULT_STORAGE_KEY, mergedSnapshot);
           saveToIndexedDbVault('current_working_state', mergedSnapshot).catch(() => {});
+          localStorage.setItem(DELETED_CLIENTS_STORAGE_KEY, JSON.stringify(combinedDelClientIds));
+          localStorage.setItem(DELETED_INVOICES_STORAGE_KEY, JSON.stringify(combinedDelInvoiceIds));
+          localStorage.setItem(DELETED_TASKS_STORAGE_KEY, JSON.stringify(combinedDelTaskIds));
+          localStorage.setItem(DELETED_LEADS_STORAGE_KEY, JSON.stringify(combinedDelLeadIds));
+          localStorage.setItem(DELETED_DOCUMENTS_STORAGE_KEY, JSON.stringify(combinedDelDocIds));
+          localStorage.setItem(DELETED_COMPANIES_STORAGE_KEY, JSON.stringify(combinedDelCompanyIds));
+          localStorage.setItem(DELETED_VENDORS_STORAGE_KEY, JSON.stringify(combinedDelVendorIds));
+          localStorage.setItem(DELETED_USERS_STORAGE_KEY, JSON.stringify(combinedDelUserIds));
           localStorage.setItem(DELETED_STAGES_STORAGE_KEY, JSON.stringify(combinedDelStageIds));
           localStorage.setItem(DELETED_SERVICE_CATEGORIES_STORAGE_KEY, JSON.stringify(combinedDelCategoryIds));
           localStorage.setItem(DELETED_SERVICE_CLASSIFICATIONS_STORAGE_KEY, JSON.stringify(combinedDelClassificationIds));
+          localStorage.setItem(DELETED_TRANSACTIONS_STORAGE_KEY, JSON.stringify(combinedDelTransactionIds));
+          localStorage.setItem(DELETED_DEPARTMENTS_STORAGE_KEY, JSON.stringify(combinedDelDepartmentIds));
+          localStorage.setItem(DELETED_ROLES_STORAGE_KEY, JSON.stringify(combinedDelRoleIds));
+          localStorage.setItem(DELETED_LEAD_CATEGORIES_STORAGE_KEY, JSON.stringify(combinedDelLeadCategoryIds));
+          localStorage.setItem(DELETED_LEAD_SOURCES_STORAGE_KEY, JSON.stringify(combinedDelLeadSourceIds));
+          localStorage.setItem(DELETED_LEAD_STAGES_STORAGE_KEY, JSON.stringify(combinedDelLeadStageIds));
+          localStorage.setItem(DELETED_VISA_COUNTRIES_STORAGE_KEY, JSON.stringify(combinedDelCountryCodes));
+          localStorage.setItem(DELETED_VISA_SERVICES_STORAGE_KEY, JSON.stringify(combinedDelServiceIds));
+          localStorage.setItem(DELETED_VISA_APPS_STORAGE_KEY, JSON.stringify(combinedDelAppIds));
         } catch {}
 
         syncSnapshot(mergedSnapshot);
@@ -2547,9 +2942,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       hydrateStateFromSnapshot({ ...remoteData, forceReset: true });
 
       try {
-        const snapJson = JSON.stringify(remoteData);
-        localStorage.setItem(LOCAL_STORAGE_KEY, snapJson);
-        localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapJson);
+        safeSetLocalStorage(LOCAL_STORAGE_KEY, remoteData);
+        safeSetLocalStorage(CRM_VAULT_STORAGE_KEY, remoteData);
         saveToIndexedDbVault('current_working_state', remoteData).catch(() => {});
       } catch {}
 
@@ -2966,9 +3360,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // 1. Synchronously save to local storage and persistent browser vaults
     try {
-      const snapJson = JSON.stringify(snapshot);
-      localStorage.setItem(LOCAL_STORAGE_KEY, snapJson);
-      localStorage.setItem(CRM_VAULT_STORAGE_KEY, snapJson);
+      safeSetLocalStorage(LOCAL_STORAGE_KEY, snapshot);
+      safeSetLocalStorage(CRM_VAULT_STORAGE_KEY, snapshot);
       saveToIndexedDbVault('current_working_state', snapshot).catch(() => {});
     } catch (e) {
       console.error('Failed to save CRM state to localStorage', e);
@@ -4280,21 +4673,32 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const pricingTier: 'b2b' | 'b2c' = isDirectClient ? 'b2c' : (targetClient.pricingTier || 'b2b');
 
       const b2cBasePrice = srvCat.priceB2C ?? srvCat.defaultPrice ?? 0;
-      const corporateDiscountPercent = compObj?.corporateDiscountPercent ?? srvCat.b2bDiscountPercent ?? 15;
+      // B2B discount reset to manual only - do NOT automatically apply corporateDiscountPercent or corporateDiscountValue
+      const manualDiscountPercent = targetClient.discountValue !== undefined && targetClient.discountValue !== null
+        ? Number(targetClient.discountValue)
+        : (targetClient.corporateDiscountPercent !== undefined && targetClient.corporateDiscountPercent !== null ? Number(targetClient.corporateDiscountPercent) : 0);
 
       let finalPrice = b2cBasePrice;
       let discountAmount = 0;
       let discountPercent = 0;
 
       if (pricingTier === 'b2b') {
-        if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0) {
+        if (targetClient.customServiceRate !== undefined && targetClient.customServiceRate > 0) {
+          finalPrice = targetClient.customServiceRate;
+          discountAmount = Math.max(0, b2cBasePrice - targetClient.customServiceRate);
+          discountPercent = b2cBasePrice > 0 ? Math.round((discountAmount / b2cBasePrice) * 100) : 0;
+        } else if (manualDiscountPercent > 0) {
+          discountPercent = manualDiscountPercent;
+          discountAmount = Math.round(b2cBasePrice * (manualDiscountPercent / 100));
+          finalPrice = Math.max(0, b2cBasePrice - discountAmount);
+        } else if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0) {
           finalPrice = srvCat.priceB2B;
           discountAmount = Math.max(0, b2cBasePrice - srvCat.priceB2B);
-          discountPercent = b2cBasePrice > 0 ? Math.round((discountAmount / b2cBasePrice) * 100) : corporateDiscountPercent;
+          discountPercent = b2cBasePrice > 0 ? Math.round((discountAmount / b2cBasePrice) * 100) : 0;
         } else {
-          discountPercent = corporateDiscountPercent;
-          discountAmount = Math.round(b2cBasePrice * (corporateDiscountPercent / 100));
-          finalPrice = Math.max(0, b2cBasePrice - discountAmount);
+          finalPrice = b2cBasePrice;
+          discountAmount = 0;
+          discountPercent = 0;
         }
       }
 
@@ -4595,8 +4999,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const pricingTier: 'b2b' | 'b2c' = clientData.pricingTier || (clientData.companyId ? 'b2b' : 'b2c');
           const baseB2C = srvCat.priceB2C ?? srvCat.defaultPrice ?? 0;
           
-          const clientDiscountType: DiscountType = clientData.discountType || companyObj?.corporateDiscountType || 'percentage';
-          const clientDiscountVal = clientData.discountValue ?? (clientDiscountType === 'fixed' ? (companyObj?.corporateDiscountValue ?? 500) : (clientData.corporateDiscountPercent ?? companyObj?.corporateDiscountPercent ?? 15));
+          const clientDiscountType: DiscountType = clientData.discountType || 'percentage';
+          // B2B discount reset to manual only - do NOT automatically apply corporateDiscountPercent or corporateDiscountValue
+          const clientDiscountVal = clientData.discountValue !== undefined && clientData.discountValue !== null
+            ? Number(clientData.discountValue)
+            : (clientData.corporateDiscountPercent !== undefined && clientData.corporateDiscountPercent !== null ? Number(clientData.corporateDiscountPercent) : 0);
 
           let price = baseB2C;
           let discountAmount = 0;
@@ -4607,19 +5014,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               price = clientData.customServiceRate;
               discountAmount = Math.max(0, baseB2C - clientData.customServiceRate);
               discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
-            } else if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0 && !clientData.discountValue) {
+            } else if (clientDiscountVal > 0) {
+              if (clientDiscountType === 'fixed') {
+                discountAmount = Math.min(baseB2C, clientDiscountVal);
+                discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+                price = Math.max(0, baseB2C - discountAmount);
+              } else {
+                // percentage
+                discountPercent = clientDiscountVal;
+                discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
+                price = Math.max(0, baseB2C - discountAmount);
+              }
+            } else if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0) {
               price = srvCat.priceB2B;
               discountAmount = Math.max(0, baseB2C - srvCat.priceB2B);
-              discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : (clientDiscountType === 'percentage' ? clientDiscountVal : 15);
-            } else if (clientDiscountType === 'fixed') {
-              discountAmount = Math.min(baseB2C, clientDiscountVal);
               discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
-              price = Math.max(0, baseB2C - discountAmount);
             } else {
-              // percentage
-              discountPercent = clientDiscountVal;
-              discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
-              price = Math.max(0, baseB2C - discountAmount);
+              price = baseB2C;
+              discountAmount = 0;
+              discountPercent = 0;
             }
           }
 
@@ -5229,8 +5642,11 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const pricingTier: 'b2b' | 'b2c' = targetClient.pricingTier || (targetClient.companyId ? 'b2b' : 'b2c');
       const baseB2C = srvCat.priceB2C ?? srvCat.defaultPrice ?? 0;
       
-      const clientDiscountType: DiscountType = targetClient.discountType || companyObj?.corporateDiscountType || 'percentage';
-      const clientDiscountVal = targetClient.discountValue ?? (clientDiscountType === 'fixed' ? (companyObj?.corporateDiscountValue ?? 500) : (targetClient.corporateDiscountPercent ?? companyObj?.corporateDiscountPercent ?? 15));
+      const clientDiscountType: DiscountType = targetClient.discountType || 'percentage';
+      // B2B discount reset to manual only - do NOT automatically apply corporateDiscountPercent or corporateDiscountValue
+      const clientDiscountVal = targetClient.discountValue !== undefined && targetClient.discountValue !== null
+        ? Number(targetClient.discountValue)
+        : (targetClient.corporateDiscountPercent !== undefined && targetClient.corporateDiscountPercent !== null ? Number(targetClient.corporateDiscountPercent) : 0);
 
       let price = baseB2C;
       let discountAmount = 0;
@@ -5245,19 +5661,25 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           price = targetClient.customServiceRate;
           discountAmount = Math.max(0, baseB2C - targetClient.customServiceRate);
           discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
-        } else if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0 && !targetClient.discountValue) {
+        } else if (clientDiscountVal > 0) {
+          if (clientDiscountType === 'fixed') {
+            discountAmount = Math.min(baseB2C, clientDiscountVal);
+            discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
+            price = Math.max(0, baseB2C - discountAmount);
+          } else {
+            // percentage
+            discountPercent = clientDiscountVal;
+            discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
+            price = Math.max(0, baseB2C - discountAmount);
+          }
+        } else if (srvCat.priceB2B !== undefined && srvCat.priceB2B > 0) {
           price = srvCat.priceB2B;
           discountAmount = Math.max(0, baseB2C - srvCat.priceB2B);
-          discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : (clientDiscountType === 'percentage' ? clientDiscountVal : 15);
-        } else if (clientDiscountType === 'fixed') {
-          discountAmount = Math.min(baseB2C, clientDiscountVal);
           discountPercent = baseB2C > 0 ? Math.round((discountAmount / baseB2C) * 100) : 0;
-          price = Math.max(0, baseB2C - discountAmount);
         } else {
-          // percentage
-          discountPercent = clientDiscountVal;
-          discountAmount = Math.round(baseB2C * (clientDiscountVal / 100));
-          price = Math.max(0, baseB2C - discountAmount);
+          price = baseB2C;
+          discountAmount = 0;
+          discountPercent = 0;
         }
       }
 
@@ -5799,6 +6221,30 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         clients: nextClientsList,
       });
 
+      // Offload file binary to IndexedDB and server disk storage to prevent memory & localStorage bloat
+      if (docData.fileUrl && typeof docData.fileUrl === 'string' && docData.fileUrl.startsWith('data:')) {
+        saveDocumentFileToDb(newDoc.id, docData.fileUrl).catch(() => {});
+        fetch('/api/documents/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dataUrl: docData.fileUrl,
+            name: newDoc.name,
+            type: newDoc.fileType,
+            docId: newDoc.id,
+          }),
+        })
+          .then((res) => res.json())
+          .then((result) => {
+            if (result.success && result.fileUrl) {
+              setDocuments((prev) =>
+                (prev || []).map((d) => (d.id === newDoc.id ? { ...d, fileUrl: result.fileUrl } : d))
+              );
+            }
+          })
+          .catch((err) => console.warn('Document storage offload notice:', err));
+      }
+
       recordAuditLog('Document Uploaded', 'Documents', `Uploaded document "${newDoc.name}" (${newDoc.category}) for client ID ${docData.clientId}`);
 
       // Notification
@@ -6123,9 +6569,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const nameParts = clientName.split(' ');
         const firstName = nameParts[0] || 'Walk-in';
         const lastName = nameParts.slice(1).join(' ') || 'Client';
-        const newClientId = (newInv.clientId && !newInv.clientId.startsWith('client-walkin-'))
-          ? newInv.clientId
-          : `cli-${Date.now()}`;
+        const newClientId = newInv.clientId || `cli-${Date.now()}`;
         newInv.clientId = newClientId;
 
         const prefix = newInv.companyId === 'comp-2' ? 'AUH' : 'DXB';
@@ -6374,7 +6818,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setInvoices(nextInvoices);
 
       // Adjust client financial balance and linked service instance
-      const nextClients = (clients || []).map((c) => {
+      let nextClients = (clients || []).map((c) => {
         const isMatch = existingInv
           ? isInvoiceForClient(existingInv, c) || (targetClientId && c.id === targetClientId)
           : c.id === targetClientId;
@@ -6434,6 +6878,102 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           updatedAt: new Date().toISOString(),
         };
       });
+
+      // Guarantee the target client is present in nextClients so recording payment NEVER wipes or drops them
+      const isTargetClientPresent = nextClients.some((c) =>
+        existingInv
+          ? isInvoiceForClient(existingInv, c) || (targetClientId && c.id === targetClientId)
+          : (targetClientId && c.id === targetClientId)
+      );
+
+      if (!isTargetClientPresent && (targetClientId || existingInv?.clientId)) {
+        const targetInv = nextInvoices.find((i) => i.id === invoiceId) || existingInv;
+        const cId = targetClientId || existingInv?.clientId || `cli-${Date.now()}`;
+        const cName = clientName || existingInv?.clientName || 'Client';
+        const nameParts = cName.split(' ');
+        const recoveredClient: Client = {
+          id: cId,
+          refNo: `CL-${cId.replace('client-', '').replace('walkin-', '')}`,
+          fullName: cName,
+          firstName: nameParts[0] || 'Client',
+          lastName: nameParts.slice(1).join(' ') || '',
+          email: existingInv?.clientEmail || 'client@example.com',
+          mobile: existingInv?.clientPhone || '+971 50 000 0000',
+          phone: existingInv?.clientPhone || '+971 50 000 0000',
+          whatsapp: existingInv?.clientPhone || '+971 50 000 0000',
+          residentialAddress: existingInv?.clientAddress || 'Dubai, UAE',
+          passportNo: existingInv?.clientPassport || '',
+          companyId: existingInv?.companyId || (companies && companies[0]?.id) || 'comp-1',
+          companyName: existingInv?.companyName || 'ADCS Clearing LLC',
+          nationality: 'United Arab Emirates',
+          dob: '1990-01-01',
+          gender: 'Male',
+          passportExpiry: '',
+          emiratesId: '',
+          emiratesIdExpiry: '',
+          assignedAdminId: 'user-master',
+          assignedEmployeeIds: [],
+          avatar: '',
+          calls: [],
+          currentStageId: 'stage-1',
+          currentStageName: 'Active Client',
+          category: 'Direct Client',
+          type: 'Individual',
+          status: 'active',
+          pricingTier: 'b2c',
+          paymentStatus: (targetInv && targetInv.balanceAmount === 0) ? 'paid' : 'partially_paid',
+          totalAmount: targetInv ? Number(targetInv.grandTotal) || 0 : amount,
+          paidAmount: targetInv ? Number(targetInv.amountPaid) || 0 : amount,
+          outstandingAmount: targetInv ? Number(targetInv.balanceAmount) || 0 : 0,
+          services: targetInv?.serviceName ? [{
+            id: `srv-${Date.now()}`,
+            clientId: cId,
+            serviceId: targetInv.serviceId || 'srv-recovered',
+            serviceName: targetInv.serviceName,
+            category: 'Corporate PRO & Legal Clearance',
+            price: Number(targetInv.subtotal) || 0,
+            governmentFees: Number(targetInv.governmentFees) || 0,
+            advancePaid: Number(targetInv.amountPaid) || 0,
+            balance: Number(targetInv.balanceAmount) || 0,
+            invoiceId: targetInv.id,
+            invoiceNumber: targetInv.invoiceNumber,
+            status: targetInv.status === 'paid' ? 'completed' : 'active',
+            currentStageId: 'stage-1',
+            currentStageName: 'Application Processing',
+            assignedEmployeeId: 'user-master',
+            assignedEmployeeName: 'Admin',
+            startDate: new Date().toISOString(),
+            targetCompletionDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+            requiredDocs: [],
+            stageHistory: [],
+            referenceNumber: `SRV-${targetInv.invoiceNumber || Date.now()}`,
+          }] : [],
+          notes: [{
+            id: `note-${Date.now()}`,
+            userId: currentUser.id,
+            userName: currentUser.name,
+            userRole: currentUser.role,
+            text: `Payment of AED ${amount.toLocaleString()} recorded for Invoice #${targetInv?.invoiceNumber || invoiceId}`,
+            createdAt: new Date().toISOString(),
+            type: 'system',
+          }],
+          tags: ['Active'],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        nextClients = [recoveredClient, ...nextClients];
+      }
+
+      // Safeguard: Remove any accidental client tombstone
+      try {
+        const storedDel = localStorage.getItem(DELETED_CLIENTS_STORAGE_KEY);
+        if (storedDel && (targetClientId || existingInv?.clientId)) {
+          const cId = targetClientId || existingInv?.clientId;
+          const parsedDel = JSON.parse(storedDel).filter((id: string) => id !== cId);
+          localStorage.setItem(DELETED_CLIENTS_STORAGE_KEY, JSON.stringify(parsedDel));
+        }
+      } catch {}
+
       setClients(nextClients);
 
       hasUserEditedRef.current = true;
@@ -6548,8 +7088,24 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             : (subtotal + governmentFees + computedVat);
           if (isNaN(grandTotal)) grandTotal = (subtotal + governmentFees + computedVat) || 0;
 
-          const amountPaid = cleanUpdates.amountPaid !== undefined ? Number(cleanUpdates.amountPaid) : Number(i.amountPaid || 0);
-          const balanceAmount = cleanUpdates.balanceAmount !== undefined && cleanUpdates.balanceAmount !== null && !isNaN(Number(cleanUpdates.balanceAmount))
+          // Check for verified linked transactions
+          const linkedTxs = (transactions || []).filter(
+            (t) => t && t.invoiceId === invoiceId && t.status !== 'cancelled' && t.status !== 'reversed' && t.status !== 'failed'
+          );
+          const netTxsPaid = linkedTxs.length > 0
+            ? Math.max(
+                0,
+                linkedTxs.filter((t) => !['refund', 'expense', 'withdrawal'].includes(t.type)).reduce((sum, t) => sum + (Number(t.amount) || 0), 0) -
+                linkedTxs.filter((t) => t.type === 'refund').reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
+              )
+            : 0;
+
+          let rawPaid = cleanUpdates.amountPaid !== undefined ? Number(cleanUpdates.amountPaid) : Number(i.amountPaid || 0);
+          if (netTxsPaid > 0 && (cleanUpdates.amountPaid === undefined || rawPaid < netTxsPaid)) {
+            rawPaid = Math.max(rawPaid, netTxsPaid);
+          }
+          const amountPaid = Math.min(grandTotal, rawPaid);
+          const balanceAmount = cleanUpdates.balanceAmount !== undefined && cleanUpdates.balanceAmount !== null && !isNaN(Number(cleanUpdates.balanceAmount)) && cleanUpdates.amountPaid !== undefined
             ? Number(cleanUpdates.balanceAmount)
             : Math.max(0, grandTotal - amountPaid);
 
@@ -6985,8 +7541,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
 
+      const fallbackB2C = srvData.priceB2C ?? srvData.defaultPrice ?? 0;
+      const b2bPrice = srvData.priceB2B !== undefined && srvData.priceB2B >= 0
+        ? srvData.priceB2B
+        : fallbackB2C;
+      const b2bDisc = srvData.b2bDiscountPercent !== undefined && srvData.b2bDiscountPercent >= 0
+        ? srvData.b2bDiscountPercent
+        : (fallbackB2C > 0 && b2bPrice < fallbackB2C ? Math.round(((fallbackB2C - b2bPrice) / fallbackB2C) * 100) : 0);
+
       const newService: ServiceCategory = {
         ...srvData,
+        priceB2C: fallbackB2C,
+        priceB2B: b2bPrice,
+        b2bDiscountPercent: b2bDisc,
         id: `srv-${Date.now()}`,
       };
 
@@ -7198,11 +7765,14 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         formattedDate = `${formattedDate.trim()}T${timePart}`;
       }
 
+      const targetInvoice = txData.invoiceId ? (invoices || []).find((i) => i.id === txData.invoiceId) : undefined;
       const newTx: Transaction = {
         ...txData,
         date: formattedDate,
         id: `tx-${Date.now()}`,
         transactionNumber: txNumber,
+        invoiceId: targetInvoice ? targetInvoice.id : txData.invoiceId,
+        invoiceNumber: targetInvoice ? targetInvoice.invoiceNumber : txData.invoiceNumber,
         createdAt: nowIso,
         recordedByUserId: currentUser.id,
         recordedByUserName: currentUser.name,
@@ -7215,13 +7785,124 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nextTransactions = [newTx, ...(transactions || [])];
       setTransactions(nextTransactions);
 
-      // If linked to a client, adjust client financial ledger balances
-      let updatedClients: Client[] | undefined = undefined;
-      if (newTx.clientId) {
+      // If linked to an invoice and is an inflow, sync invoice status and amount paid
+      let nextInvoices = invoices || [];
+      let updatedClients: Client[] | undefined = clients || [];
+      let nextVisaApps = visaApplications || [];
+
+      if (targetInvoice && !['refund', 'expense', 'withdrawal'].includes(newTx.type) && newTx.status === 'completed') {
+        // Recalculate target invoice
+        const linkedTxs = nextTransactions.filter(
+          (t) => t && t.invoiceId === targetInvoice.id && t.status !== 'cancelled' && t.status !== 'reversed' && t.status !== 'failed'
+        );
+        const inflowTotal = linkedTxs
+          .filter((t) => !['refund', 'expense', 'withdrawal'].includes(t.type))
+          .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        const refundTotal = linkedTxs
+          .filter((t) => t.type === 'refund')
+          .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        const netTxsPaid = Math.max(0, inflowTotal - refundTotal);
+
+        const newPaid = Math.min(targetInvoice.grandTotal, Math.max(netTxsPaid, (Number(targetInvoice.amountPaid) || 0) + newTx.amount));
+        const newBalance = Math.max(0, targetInvoice.grandTotal - newPaid);
+        const newStatus: Invoice['status'] = newBalance === 0 && targetInvoice.grandTotal > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid';
+
+        nextInvoices = nextInvoices.map((inv) => {
+          if (inv.id === targetInvoice.id) {
+            return {
+              ...inv,
+              amountPaid: newPaid,
+              balanceAmount: newBalance,
+              status: newStatus,
+              paymentMethod: (newTx.paymentMethod as any) || inv.paymentMethod,
+              paidDate: newStatus === 'paid' ? inv.paidDate || nowIso.split('T')[0] : undefined,
+            };
+          }
+          return inv;
+        });
+        setInvoices(nextInvoices);
+
+        // Update client services and ledger
+        updatedClients = (clients || []).map((c) => {
+          const isMatch = isInvoiceForClient(targetInvoice, c) || (targetInvoice.clientId && c.id === targetInvoice.clientId) || (newTx.clientId && c.id === newTx.clientId);
+          if (!isMatch) return c;
+
+          const updatedServices = (c.services || []).map((s) => {
+            if (
+              s.invoiceId === targetInvoice.id ||
+              s.invoiceNumber === targetInvoice.invoiceNumber ||
+              (targetInvoice.serviceId && s.serviceId === targetInvoice.serviceId) ||
+              (targetInvoice.serviceName && s.serviceName && s.serviceName.trim().toLowerCase() === targetInvoice.serviceName.trim().toLowerCase())
+            ) {
+              return {
+                ...s,
+                invoiceId: targetInvoice.id,
+                invoiceNumber: targetInvoice.invoiceNumber,
+                advancePaid: newPaid,
+                balance: newBalance,
+              };
+            }
+            return s;
+          });
+
+          const clientInvs = nextInvoices.filter((i) => isInvoiceForClient(i, c) || i.clientId === c.id);
+          const totalAmount = clientInvs.reduce((sum, i) => sum + (Number(i.grandTotal) || 0), 0);
+          const paidAmount = clientInvs.reduce((sum, i) => sum + (Number(i.amountPaid) || 0), 0);
+          const outstandingAmount = clientInvs.reduce((sum, i) => {
+            if (i.balanceAmount !== undefined && i.balanceAmount !== null && !isNaN(Number(i.balanceAmount))) {
+              return sum + Math.max(0, Number(i.balanceAmount));
+            }
+            return sum + Math.max(0, (Number(i.grandTotal) || 0) - (Number(i.amountPaid) || 0));
+          }, 0);
+
+          return {
+            ...c,
+            totalAmount: clientInvs.length > 0 ? totalAmount : c.totalAmount,
+            paidAmount: clientInvs.length > 0 ? paidAmount : c.paidAmount + newTx.amount,
+            outstandingAmount: clientInvs.length > 0 ? outstandingAmount : Math.max(0, c.totalAmount - (c.paidAmount + newTx.amount)),
+            paymentStatus: outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid',
+            services: updatedServices,
+            updatedAt: nowIso,
+          };
+        });
+        setClients(updatedClients);
+
+        // Update visa applications
+        nextVisaApps = nextVisaApps.map((app) => {
+          const isAppMatch =
+            app.invoiceId === targetInvoice.id ||
+            (targetInvoice.serviceId && (app as any).serviceId === targetInvoice.serviceId) ||
+            (targetInvoice.invoiceNumber && (app.invoiceNumber === targetInvoice.invoiceNumber || app.applicationNumber === targetInvoice.invoiceNumber)) ||
+            (targetInvoice.clientPassport && app.clientPassportNo === targetInvoice.clientPassport);
+          if (isAppMatch) {
+            const tlEvent: VisaTimelineEvent = {
+              id: `tl-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+              stage: app.status || 'payment_completed',
+              title: 'Payment Reconciled & Balance Updated',
+              description: `AED ${newTx.amount.toLocaleString()} received via ${newTx.paymentMethod} (Tx #${txNumber}) reconciled for Invoice #${targetInvoice.invoiceNumber}. Remaining balance: AED ${newBalance.toLocaleString()}.`,
+              timestamp: nowIso,
+              status: 'completed',
+              updatedBy: currentUser.name,
+            };
+            return {
+              ...app,
+              invoiceId: targetInvoice.id,
+              invoiceNumber: targetInvoice.invoiceNumber,
+              paidAmount: newPaid,
+              paymentStatus: (newStatus === 'paid' ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid') as any,
+              timeline: [tlEvent, ...(app.timeline || [])],
+              updatedAt: nowIso,
+            };
+          }
+          return app;
+        });
+        setVisaApplications(nextVisaApps);
+      } else if (newTx.clientId) {
+        // If not linked to an invoice but linked to a client
         updatedClients = (clients || []).map((c) => {
           if (c.id === newTx.clientId) {
             let newPaid = c.paidAmount;
-            if (['deposit', 'service_fee', 'typing_fee', 'vat_payment'].includes(newTx.type)) {
+            if (!['refund', 'expense', 'withdrawal'].includes(newTx.type)) {
               newPaid += newTx.amount;
             } else if (newTx.type === 'refund') {
               newPaid = Math.max(0, newPaid - newTx.amount);
@@ -7231,8 +7912,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               ...c,
               paidAmount: newPaid,
               outstandingAmount: newOutstanding,
-              paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
-              updatedAt: new Date().toISOString(),
+              paymentStatus: newOutstanding === 0 && c.totalAmount > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
+              updatedAt: nowIso,
             };
           }
           return c;
@@ -7243,17 +7924,19 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       persistAndSyncImmediate({
         transactions: nextTransactions,
         clients: updatedClients,
+        invoices: nextInvoices,
+        visaApplications: nextVisaApps,
       });
 
       recordAuditLog(
         'Transaction Recorded',
         'Transactions',
-        `Recorded ${newTx.type.toUpperCase()} transaction #${txNumber} for AED ${newTx.amount.toLocaleString()} (${newTx.category}) with date & time`
+        `Recorded ${newTx.type.toUpperCase()} transaction #${txNumber} for AED ${newTx.amount.toLocaleString()} (${newTx.category})${newTx.invoiceNumber ? ` connected to Invoice #${newTx.invoiceNumber}` : ''}`
       );
 
       return newTx;
     },
-    [currentUser, transactions, clients, recordAuditLog, persistAndSyncImmediate]
+    [currentUser, transactions, invoices, clients, visaApplications, isInvoiceForClient, recordAuditLog, persistAndSyncImmediate]
   );
 
   const updateTransaction = useCallback(
@@ -7262,6 +7945,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nowIso = new Date().toISOString();
       lastAppliedRemoteIsoRef.current = nowIso;
       isLocalDebounceSavingRef.current = true;
+
+      const existingTx = (transactions || []).find((t) => t && t.id === id);
 
       const nextList = (transactions || []).map((tx) => {
         if (tx.id === id) {
@@ -7289,13 +7974,104 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       setTransactions(nextList);
 
+      // Reconcile invoices if transaction has an invoice linked or changed
+      const affectedInvoiceIds = new Set<string>();
+      if (existingTx?.invoiceId) affectedInvoiceIds.add(existingTx.invoiceId);
+      if (updates.invoiceId) affectedInvoiceIds.add(updates.invoiceId);
+
+      let nextInvoices = invoices || [];
+      let nextClients = clients || [];
+
+      if (affectedInvoiceIds.size > 0) {
+        affectedInvoiceIds.forEach((invId) => {
+          const inv = nextInvoices.find((i) => i.id === invId);
+          if (!inv) return;
+
+          const linkedTxs = nextList.filter(
+            (t) => t && t.invoiceId === inv.id && t.status !== 'cancelled' && t.status !== 'reversed' && t.status !== 'failed'
+          );
+          const inflowTotal = linkedTxs
+            .filter((t) => !['refund', 'expense', 'withdrawal'].includes(t.type))
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const refundTotal = linkedTxs
+            .filter((t) => t.type === 'refund')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const netTxsPaid = Math.max(0, inflowTotal - refundTotal);
+          const cappedPaid = Math.min(inv.grandTotal, netTxsPaid);
+          const newBalance = Math.max(0, inv.grandTotal - cappedPaid);
+          const newStatus: Invoice['status'] =
+            newBalance === 0 && inv.grandTotal > 0 ? 'paid' : cappedPaid > 0 ? 'partially_paid' : 'unpaid';
+
+          nextInvoices = nextInvoices.map((i) =>
+            i.id === inv.id
+              ? {
+                  ...i,
+                  amountPaid: cappedPaid,
+                  balanceAmount: newBalance,
+                  status: newStatus,
+                  paidDate: newStatus === 'paid' ? i.paidDate || nowIso.split('T')[0] : undefined,
+                }
+              : i
+          );
+        });
+        setInvoices(nextInvoices);
+
+        // Sync client services and balances
+        nextClients = (clients || []).map((c) => {
+          const hasMatchedInvoice = nextInvoices.some(
+            (inv) => affectedInvoiceIds.has(inv.id) && (isInvoiceForClient(inv, c) || inv.clientId === c.id)
+          );
+          if (!hasMatchedInvoice) return c;
+
+          const updatedServices = (c.services || []).map((s) => {
+            const matchedInv = nextInvoices.find(
+              (inv) =>
+                affectedInvoiceIds.has(inv.id) &&
+                (s.invoiceId === inv.id ||
+                  s.invoiceNumber === inv.invoiceNumber ||
+                  (inv.serviceId && s.serviceId === inv.serviceId) ||
+                  (inv.serviceName && s.serviceName && s.serviceName.trim().toLowerCase() === inv.serviceName.trim().toLowerCase()))
+            );
+            if (matchedInv) {
+              return {
+                ...s,
+                advancePaid: matchedInv.amountPaid,
+                balance: matchedInv.balanceAmount,
+              };
+            }
+            return s;
+          });
+
+          const clientInvs = nextInvoices.filter((i) => isInvoiceForClient(i, c) || i.clientId === c.id);
+          const totalAmount = clientInvs.reduce((sum, i) => sum + (Number(i.grandTotal) || 0), 0);
+          const paidAmount = clientInvs.reduce((sum, i) => sum + (Number(i.amountPaid) || 0), 0);
+          const outstandingAmount = clientInvs.reduce(
+            (sum, i) => sum + Math.max(0, (i.balanceAmount !== undefined ? Number(i.balanceAmount) : (Number(i.grandTotal) || 0) - (Number(i.amountPaid) || 0))),
+            0
+          );
+
+          return {
+            ...c,
+            totalAmount: clientInvs.length > 0 ? totalAmount : c.totalAmount,
+            paidAmount: clientInvs.length > 0 ? paidAmount : c.paidAmount,
+            outstandingAmount: clientInvs.length > 0 ? outstandingAmount : c.outstandingAmount,
+            paymentStatus: outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid',
+            services: updatedServices,
+            updatedAt: nowIso,
+          };
+        });
+        setClients(nextClients);
+      }
+
       persistAndSyncImmediate({
         transactions: nextList,
+        invoices: nextInvoices,
+        clients: nextClients,
       });
 
       recordAuditLog('Transaction Updated', 'Transactions', `Updated transaction ID ${id}`);
     },
-    [transactions, recordAuditLog, persistAndSyncImmediate]
+    [transactions, invoices, clients, isInvoiceForClient, recordAuditLog, persistAndSyncImmediate]
   );
 
   const deleteTransaction = useCallback(
@@ -7307,12 +8083,90 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isLocalDebounceSavingRef.current = true;
 
       const tx = (transactions || []).find((t) => t && t.id === id);
-      let updatedClients: Client[] | undefined = undefined;
-      if (tx && tx.clientId) {
+      const nextList = (transactions || []).filter((item) => item && item.id !== id);
+      setTransactions(nextList);
+
+      let nextInvoices = invoices || [];
+      let updatedClients: Client[] | undefined = clients || [];
+
+      // If deleted transaction was connected to an invoice, restore invoice balance
+      if (tx && tx.invoiceId) {
+        const inv = nextInvoices.find((i) => i.id === tx.invoiceId);
+        if (inv) {
+          const linkedTxs = nextList.filter(
+            (t) => t && t.invoiceId === inv.id && t.status !== 'cancelled' && t.status !== 'reversed' && t.status !== 'failed'
+          );
+          const inflowTotal = linkedTxs
+            .filter((t) => !['refund', 'expense', 'withdrawal'].includes(t.type))
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const refundTotal = linkedTxs
+            .filter((t) => t.type === 'refund')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const netTxsPaid = Math.max(0, inflowTotal - refundTotal);
+          const cappedPaid = Math.min(inv.grandTotal, netTxsPaid);
+          const newBalance = Math.max(0, inv.grandTotal - cappedPaid);
+          const newStatus: Invoice['status'] =
+            newBalance === 0 && inv.grandTotal > 0 ? 'paid' : cappedPaid > 0 ? 'partially_paid' : 'unpaid';
+
+          nextInvoices = nextInvoices.map((i) =>
+            i.id === inv.id
+              ? {
+                  ...i,
+                  amountPaid: cappedPaid,
+                  balanceAmount: newBalance,
+                  status: newStatus,
+                  paidDate: newStatus === 'paid' ? i.paidDate : undefined,
+                }
+              : i
+          );
+          setInvoices(nextInvoices);
+
+          // Update client services and totals
+          updatedClients = (clients || []).map((c) => {
+            const isMatch = isInvoiceForClient(inv, c) || (inv.clientId && c.id === inv.clientId) || (tx.clientId && c.id === tx.clientId);
+            if (!isMatch) return c;
+
+            const updatedServices = (c.services || []).map((s) => {
+              if (
+                s.invoiceId === inv.id ||
+                s.invoiceNumber === inv.invoiceNumber ||
+                (inv.serviceId && s.serviceId === inv.serviceId) ||
+                (inv.serviceName && s.serviceName && s.serviceName.trim().toLowerCase() === inv.serviceName.trim().toLowerCase())
+              ) {
+                return {
+                  ...s,
+                  advancePaid: cappedPaid,
+                  balance: newBalance,
+                };
+              }
+              return s;
+            });
+
+            const clientInvs = nextInvoices.filter((i) => isInvoiceForClient(i, c) || i.clientId === c.id);
+            const totalAmount = clientInvs.reduce((sum, i) => sum + (Number(i.grandTotal) || 0), 0);
+            const paidAmount = clientInvs.reduce((sum, i) => sum + (Number(i.amountPaid) || 0), 0);
+            const outstandingAmount = clientInvs.reduce(
+              (sum, i) => sum + Math.max(0, (i.balanceAmount !== undefined ? Number(i.balanceAmount) : (Number(i.grandTotal) || 0) - (Number(i.amountPaid) || 0))),
+              0
+            );
+
+            return {
+              ...c,
+              totalAmount: clientInvs.length > 0 ? totalAmount : c.totalAmount,
+              paidAmount: clientInvs.length > 0 ? paidAmount : Math.max(0, c.paidAmount - tx.amount),
+              outstandingAmount: clientInvs.length > 0 ? outstandingAmount : Math.max(0, c.totalAmount - Math.max(0, c.paidAmount - tx.amount)),
+              paymentStatus: outstandingAmount === 0 && totalAmount > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid',
+              services: updatedServices,
+              updatedAt: nowIso,
+            };
+          });
+          setClients(updatedClients);
+        }
+      } else if (tx && tx.clientId) {
         updatedClients = (clients || []).map((c) => {
           if (c.id === tx.clientId) {
             let newPaid = c.paidAmount;
-            if (['deposit', 'service_fee', 'typing_fee', 'vat_payment'].includes(tx.type)) {
+            if (!['refund', 'expense', 'withdrawal'].includes(tx.type)) {
               newPaid = Math.max(0, newPaid - tx.amount);
             } else if (tx.type === 'refund') {
               newPaid += tx.amount;
@@ -7322,8 +8176,8 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               ...c,
               paidAmount: newPaid,
               outstandingAmount: newOutstanding,
-              paymentStatus: newOutstanding === 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
-              updatedAt: new Date().toISOString(),
+              paymentStatus: newOutstanding === 0 && c.totalAmount > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'unpaid',
+              updatedAt: nowIso,
             };
           }
           return c;
@@ -7331,17 +8185,301 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setClients(updatedClients);
       }
 
-      const nextList = (transactions || []).filter((item) => item && item.id !== id);
-      setTransactions(nextList);
-
       persistAndSyncImmediate({
         transactions: nextList,
         clients: updatedClients,
+        invoices: nextInvoices,
       });
 
       recordAuditLog('Transaction Deleted', 'Transactions', `Deleted transaction record ID ${id}`);
     },
-    [transactions, clients, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
+    [transactions, invoices, clients, isInvoiceForClient, recordAuditLog, checkDeletePermission, persistAndSyncImmediate]
+  );
+
+  const connectTransactionToInvoice = useCallback(
+    (transactionId: string, invoiceId: string | null, syncInvoiceBalance = true) => {
+      if (currentUser.role !== 'master' && currentUser.role !== 'admin') {
+        alert('Permission Denied: Only Master and Admin roles have permission to connect transactions with invoices.');
+        return;
+      }
+
+      const tx = (transactions || []).find((t) => t && t.id === transactionId);
+      if (!tx) return;
+
+      hasUserEditedRef.current = true;
+      const nowIso = new Date().toISOString();
+      lastAppliedRemoteIsoRef.current = nowIso;
+      isLocalDebounceSavingRef.current = true;
+
+      const previousInvoiceId = tx.invoiceId;
+      const targetInvoice = invoiceId ? (invoices || []).find((i) => i.id === invoiceId) : null;
+
+      // Update the transaction record with target invoice details and mark completed
+      const nextTransactions = (transactions || []).map((item) => {
+        if (item.id === transactionId) {
+          if (targetInvoice) {
+            return {
+              ...item,
+              invoiceId: targetInvoice.id,
+              invoiceNumber: targetInvoice.invoiceNumber,
+              clientId: targetInvoice.clientId || item.clientId,
+              clientName: targetInvoice.clientName || item.clientName,
+              companyId: targetInvoice.companyId || item.companyId,
+              companyName: targetInvoice.companyName || item.companyName,
+              serviceId: item.serviceId || targetInvoice.serviceId,
+              serviceName: item.serviceName || targetInvoice.serviceName,
+              status: 'completed' as const,
+            };
+          } else {
+            const updated = { ...item };
+            delete updated.invoiceId;
+            delete updated.invoiceNumber;
+            return updated;
+          }
+        }
+        return item;
+      });
+
+      setTransactions(nextTransactions);
+
+      let nextInvoices = invoices || [];
+      let nextClients = clients || [];
+      let nextVisaApps = visaApplications || [];
+
+      if (syncInvoiceBalance) {
+        // Universal invoice recalculation helper
+        const recalculateInvoice = (inv: Invoice, isAdditionForThisInv: boolean): Invoice => {
+          const linkedTxs = nextTransactions.filter(
+            (t) => t && t.invoiceId === inv.id && t.status !== 'cancelled' && t.status !== 'reversed' && t.status !== 'failed'
+          );
+
+          // All inflows: deposit, service_fee, typing_fee, gov_fee, etc. (anything not refund/expense/withdrawal)
+          const inflowTotal = linkedTxs
+            .filter((t) => !['refund', 'expense', 'withdrawal'].includes(t.type))
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const refundTotal = linkedTxs
+            .filter((t) => t.type === 'refund')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+          const netTxsPaid = Math.max(0, inflowTotal - refundTotal);
+
+          // Determine effective paid amount
+          let effectivePaid = netTxsPaid;
+          if (isAdditionForThisInv) {
+            // When connecting an unlinked transaction, ensure the invoice paid amount increases and balance reduces
+            const prevInvPaid = Number(inv.amountPaid) || 0;
+            effectivePaid = Math.min(inv.grandTotal, Math.max(netTxsPaid, prevInvPaid + (previousInvoiceId !== inv.id ? Number(tx.amount) : 0)));
+          } else {
+            // When disconnecting or recalculating from remaining transactions
+            effectivePaid = Math.min(inv.grandTotal, netTxsPaid);
+          }
+
+          const cappedPaid = Math.min(inv.grandTotal, effectivePaid);
+          const newBalance = Math.max(0, inv.grandTotal - cappedPaid);
+          const newStatus: Invoice['status'] =
+            newBalance === 0 && inv.grandTotal > 0
+              ? 'paid'
+              : cappedPaid > 0
+              ? 'partially_paid'
+              : 'unpaid';
+
+          return {
+            ...inv,
+            amountPaid: cappedPaid,
+            balanceAmount: newBalance,
+            status: newStatus,
+            paymentMethod: targetInvoice?.id === inv.id && tx.paymentMethod ? (tx.paymentMethod as any) : inv.paymentMethod,
+            paidDate: newStatus === 'paid' ? inv.paidDate || nowIso.split('T')[0] : undefined,
+          };
+        };
+
+        // Recalculate target invoice if connected
+        if (targetInvoice) {
+          nextInvoices = nextInvoices.map((inv) =>
+            inv.id === targetInvoice.id ? recalculateInvoice(inv, true) : inv
+          );
+        }
+
+        // Recalculate previous invoice if disconnected/transferred
+        if (previousInvoiceId && (!targetInvoice || targetInvoice.id !== previousInvoiceId)) {
+          nextInvoices = nextInvoices.map((inv) =>
+            inv.id === previousInvoiceId ? recalculateInvoice(inv, false) : inv
+          );
+        }
+
+        setInvoices(nextInvoices);
+
+        // Identify ALL affected clients
+        const updatedTargetInv = targetInvoice ? nextInvoices.find((i) => i.id === targetInvoice.id) : null;
+        const updatedPrevInv = previousInvoiceId ? nextInvoices.find((i) => i.id === previousInvoiceId) : null;
+
+        const isClientAffected = (c: Client): boolean => {
+          if (targetInvoice && (isInvoiceForClient(targetInvoice, c) || (targetInvoice.clientId && c.id === targetInvoice.clientId))) return true;
+          if (previousInvoiceId) {
+            const prevInv = (invoices || []).find((i) => i.id === previousInvoiceId);
+            if (prevInv && (isInvoiceForClient(prevInv, c) || (prevInv.clientId && c.id === prevInv.clientId))) return true;
+          }
+          if (tx.clientId && c.id === tx.clientId) return true;
+          if (targetInvoice?.clientName && c.fullName && targetInvoice.clientName.trim().toLowerCase() === c.fullName.trim().toLowerCase()) return true;
+          return false;
+        };
+
+        // Synchronize client dossiers: services, financial totals, and audit notes everywhere
+        nextClients = (clients || []).map((c) => {
+          if (!isClientAffected(c)) return c;
+
+          // 1. Reduce / update balance on matching client services
+          const updatedServices = (c.services || []).map((s) => {
+            if (
+              updatedTargetInv &&
+              (s.invoiceId === updatedTargetInv.id ||
+                s.invoiceNumber === updatedTargetInv.invoiceNumber ||
+                (updatedTargetInv.serviceId && s.serviceId === updatedTargetInv.serviceId) ||
+                (updatedTargetInv.serviceName && s.serviceName && s.serviceName.trim().toLowerCase() === updatedTargetInv.serviceName.trim().toLowerCase()))
+            ) {
+              return {
+                ...s,
+                invoiceId: updatedTargetInv.id,
+                invoiceNumber: updatedTargetInv.invoiceNumber,
+                advancePaid: updatedTargetInv.amountPaid,
+                balance: updatedTargetInv.balanceAmount,
+              };
+            }
+
+            if (
+              updatedPrevInv &&
+              (s.invoiceId === updatedPrevInv.id ||
+                s.invoiceNumber === updatedPrevInv.invoiceNumber ||
+                (updatedPrevInv.serviceId && s.serviceId === updatedPrevInv.serviceId) ||
+                (updatedPrevInv.serviceName && s.serviceName && s.serviceName.trim().toLowerCase() === updatedPrevInv.serviceName.trim().toLowerCase()))
+            ) {
+              return {
+                ...s,
+                advancePaid: updatedPrevInv.amountPaid,
+                balance: updatedPrevInv.balanceAmount,
+              };
+            }
+
+            return s;
+          });
+
+          // 2. Recalculate client financial totals across all invoices
+          const clientInvs = nextInvoices.filter((i) => isInvoiceForClient(i, c) || i.clientId === c.id);
+          const totalAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0);
+          const paidAmount = clientInvs.reduce((sum, inv) => sum + (Number(inv.amountPaid) || 0), 0);
+          const outstandingAmount = clientInvs.reduce(
+            (sum, inv) =>
+              sum +
+              Math.max(
+                0,
+                inv.balanceAmount !== undefined && inv.balanceAmount !== null && !isNaN(Number(inv.balanceAmount))
+                  ? Number(inv.balanceAmount)
+                  : (Number(inv.grandTotal) || 0) - (Number(inv.amountPaid) || 0)
+              ),
+            0
+          );
+          const paymentStatus: 'paid' | 'partially_paid' | 'unpaid' =
+            outstandingAmount === 0 && totalAmount > 0
+              ? 'paid'
+              : paidAmount > 0
+              ? 'partially_paid'
+              : 'unpaid';
+
+          // 3. Append reconciliation note to client dossier notes
+          let updatedNotes = c.notes || [];
+          if (targetInvoice && updatedTargetInv) {
+            const auditNote: InternalNote = {
+              id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+              userRole: currentUser.role,
+              userAvatar: currentUser.avatar,
+              text: `💳 [Payment Reconciled] Transaction #${tx.transactionNumber} for AED ${tx.amount.toLocaleString()} (${tx.paymentMethod}) connected to Invoice #${updatedTargetInv.invoiceNumber}. Remaining invoice balance: AED ${updatedTargetInv.balanceAmount.toLocaleString()}. Client outstanding balance: AED ${outstandingAmount.toLocaleString()}.`,
+              createdAt: nowIso,
+            };
+            updatedNotes = [auditNote, ...updatedNotes];
+          } else if (previousInvoiceId) {
+            const unlinkNote: InternalNote = {
+              id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+              userId: currentUser.id,
+              userName: currentUser.name,
+              userRole: currentUser.role,
+              userAvatar: currentUser.avatar,
+              text: `🔄 [Payment Disconnected] Transaction #${tx.transactionNumber} (AED ${tx.amount.toLocaleString()}) unlinked from invoice. Client outstanding balance recalculated: AED ${outstandingAmount.toLocaleString()}.`,
+              createdAt: nowIso,
+            };
+            updatedNotes = [unlinkNote, ...updatedNotes];
+          }
+
+          return {
+            ...c,
+            totalAmount: clientInvs.length > 0 ? totalAmount : c.totalAmount,
+            paidAmount: clientInvs.length > 0 ? paidAmount : c.paidAmount,
+            outstandingAmount: clientInvs.length > 0 ? outstandingAmount : c.outstandingAmount,
+            paymentStatus,
+            services: updatedServices,
+            notes: updatedNotes,
+            updatedAt: nowIso,
+          };
+        });
+        setClients(nextClients);
+
+        // 4. Synchronize linked Visa Applications
+        if (targetInvoice && updatedTargetInv) {
+          nextVisaApps = nextVisaApps.map((app) => {
+            const isMatch =
+              app.invoiceId === targetInvoice.id ||
+              (targetInvoice.serviceId && (app as any).serviceId === targetInvoice.serviceId) ||
+              (targetInvoice.invoiceNumber && (app.invoiceNumber === targetInvoice.invoiceNumber || app.applicationNumber === targetInvoice.invoiceNumber)) ||
+              (targetInvoice.clientPassport && app.clientPassportNo === targetInvoice.clientPassport);
+            if (isMatch) {
+              const tlEvent: VisaTimelineEvent = {
+                id: `tl-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+                stage: app.status || 'payment_completed',
+                title: 'Payment Reconciled & Balance Updated',
+                description: `AED ${tx.amount.toLocaleString()} received via ${tx.paymentMethod} (Tx #${tx.transactionNumber}) reconciled with Invoice #${updatedTargetInv.invoiceNumber}. Remaining balance: AED ${updatedTargetInv.balanceAmount.toLocaleString()}.`,
+                timestamp: nowIso,
+                status: 'completed',
+                updatedBy: currentUser.name,
+              };
+              return {
+                ...app,
+                invoiceId: updatedTargetInv.id,
+                invoiceNumber: updatedTargetInv.invoiceNumber,
+                paidAmount: updatedTargetInv.amountPaid,
+                paymentStatus: (updatedTargetInv.status === 'paid' ? 'paid' : updatedTargetInv.amountPaid > 0 ? 'partially_paid' : 'unpaid') as any,
+                timeline: [tlEvent, ...(app.timeline || [])],
+                updatedAt: nowIso,
+              };
+            }
+            return app;
+          });
+          setVisaApplications(nextVisaApps);
+        }
+      }
+
+      persistAndSyncImmediate({
+        transactions: nextTransactions,
+        invoices: nextInvoices,
+        clients: nextClients,
+        visaApplications: nextVisaApps,
+      });
+
+      if (targetInvoice) {
+        recordAuditLog(
+          'Transaction Connected to Invoice',
+          'Transactions',
+          `${currentUser.name} (${currentUser.role}) connected transaction #${tx.transactionNumber} (AED ${tx.amount.toLocaleString()}) to invoice #${targetInvoice.invoiceNumber}`
+        );
+      } else {
+        recordAuditLog(
+          'Transaction Disconnected from Invoice',
+          'Transactions',
+          `${currentUser.name} (${currentUser.role}) unlinked transaction #${tx.transactionNumber} from invoice`
+        );
+      }
+    },
+    [currentUser, transactions, invoices, clients, visaApplications, isInvoiceForClient, recordAuditLog, persistAndSyncImmediate]
   );
 
   // Leads Management
@@ -11834,6 +12972,7 @@ export const CRMProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addTransaction,
         updateTransaction,
         deleteTransaction,
+        connectTransactionToInvoice,
 
         addLead,
         updateLead,

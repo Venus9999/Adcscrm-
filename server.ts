@@ -20,6 +20,7 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const STORE_FILE = path.join(DATA_DIR, 'crm-store.json');
 const VAULT_FILE = path.join(DATA_DIR, 'crm-store-vault.json');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 
 // Ensure persistent directories exist safely
 try {
@@ -35,6 +36,13 @@ try {
   }
 } catch (e) {
   console.warn('[Directory Init] Notice on BACKUPS_DIR:', e);
+}
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[Directory Init] Notice on UPLOADS_DIR:', e);
 }
 
 // Upgrade Shield: Calculate comprehensive metrics across all CRM collections in a JSON file or object
@@ -928,6 +936,87 @@ async function startServer() {
     }
   });
 
+  // GET /api/documents/file/:filename - Serve uploaded document binaries with correct Content-Type
+  app.get('/api/documents/file/:filename', (req, res) => {
+    try {
+      const filename = path.basename(req.params.filename);
+      const filePath = path.join(UPLOADS_DIR, filename);
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).send('File not found');
+      }
+      const ext = path.extname(filename).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.txt': 'text/plain',
+        '.csv': 'text/csv',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      };
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      const stream = fs.createReadStream(filePath);
+      stream.pipe(res);
+    } catch (err: any) {
+      res.status(500).send('Error reading document file');
+    }
+  });
+
+  // POST /api/documents/upload - Store document file safely on disk and return lightweight URL
+  app.post('/api/documents/upload', (req, res) => {
+    try {
+      const { dataUrl, name, type, docId } = req.body || {};
+      if (!dataUrl || typeof dataUrl !== 'string') {
+        return res.status(400).json({ success: false, error: 'dataUrl is required' });
+      }
+
+      let mimeType = type || 'application/pdf';
+      let base64Data = dataUrl;
+      const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        mimeType = match[1];
+        base64Data = match[2];
+      }
+
+      let ext = '.pdf';
+      if (mimeType.includes('pdf')) ext = '.pdf';
+      else if (mimeType.includes('png')) ext = '.png';
+      else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = '.jpg';
+      else if (mimeType.includes('webp')) ext = '.webp';
+      else if (name && path.extname(name)) ext = path.extname(name);
+
+      const safeDocId = (docId || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filename = `${safeDocId}${ext}`;
+      const filePath = path.join(UPLOADS_DIR, filename);
+
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(filePath, buffer);
+
+      const fileUrl = `/api/documents/file/${filename}`;
+      const sizeKB = Math.round(buffer.length / 1024);
+      const sizeText = sizeKB > 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${sizeKB} KB`;
+
+      return res.json({
+        success: true,
+        fileUrl,
+        filename,
+        size: buffer.length,
+        sizeText,
+        mimeType,
+      });
+    } catch (err: any) {
+      console.error('Document upload error:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Failed to save document file' });
+    }
+  });
+
   // GET /api/crm/status - Fast lightweight polling endpoint for real-time cross-browser sync
   app.get('/api/crm/status', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1024,6 +1113,12 @@ async function startServer() {
         if (!data.deletedVisaServiceIds || !Array.isArray(data.deletedVisaServiceIds)) data.deletedVisaServiceIds = [];
         if (!data.deletedVisaAppIds || !Array.isArray(data.deletedVisaAppIds)) data.deletedVisaAppIds = [];
         if (!data.deletedStageIds || !Array.isArray(data.deletedStageIds)) data.deletedStageIds = [];
+        if (!data.deletedTransactionIds || !Array.isArray(data.deletedTransactionIds)) data.deletedTransactionIds = [];
+        if (!data.deletedDepartmentIds || !Array.isArray(data.deletedDepartmentIds)) data.deletedDepartmentIds = [];
+        if (!data.deletedRoleIds || !Array.isArray(data.deletedRoleIds)) data.deletedRoleIds = [];
+        if (!data.deletedLeadCategoryIds || !Array.isArray(data.deletedLeadCategoryIds)) data.deletedLeadCategoryIds = [];
+        if (!data.deletedLeadSourceIds || !Array.isArray(data.deletedLeadSourceIds)) data.deletedLeadSourceIds = [];
+        if (!data.deletedLeadStageIds || !Array.isArray(data.deletedLeadStageIds)) data.deletedLeadStageIds = [];
         if (!data.deletedServiceCategoryIds || !Array.isArray(data.deletedServiceCategoryIds)) {
           data.deletedServiceCategoryIds = Array.isArray(data.deletedCategoryIds) ? data.deletedCategoryIds : [];
         }
@@ -1054,21 +1149,56 @@ async function startServer() {
         if (data.companies && Array.isArray(data.companies)) {
           data.companies = data.companies.filter((c: any) => c && c.id && !data.deletedCompanyIds.includes(c.id));
         }
-        // Protect active invoices and clients from inadvertent deletion markers
-        const activeInvoiceIdsInStore = new Set<string>();
-        (data.clients || []).forEach((c: any) => {
-          (c?.services || []).forEach((s: any) => { if (s?.invoiceId) activeInvoiceIdsInStore.add(s.invoiceId); });
-        });
-        (data.transactions || []).forEach((tx: any) => { if (tx?.invoiceId) activeInvoiceIdsInStore.add(tx.invoiceId); });
-        data.deletedInvoiceIds = (data.deletedInvoiceIds || []).filter((id: string) => !activeInvoiceIdsInStore.has(id));
 
-        const activeClientIdsInStore = new Set<string>((data.clients || []).map((c: any) => c?.id).filter(Boolean));
-        data.deletedClientIds = (data.deletedClientIds || []).filter((id: string) => !activeClientIdsInStore.has(id));
+        if (data.users && Array.isArray(data.users)) {
+          data.users = data.users.filter(
+            (u: any) => u && u.id && !data.deletedUserIds.includes(u.id) && (!u.email || !data.deletedUserIds.includes(u.email.toLowerCase().trim()))
+          );
+        }
+
+        if (data.transactions && Array.isArray(data.transactions)) {
+          data.transactions = data.transactions.filter(
+            (tx: any) => tx && tx.id && !data.deletedTransactionIds.includes(tx.id) && (!tx.clientId || !data.deletedClientIds.includes(tx.clientId)) && (!tx.invoiceId || !data.deletedInvoiceIds.includes(tx.invoiceId))
+          );
+        }
 
         if (data.invoices && Array.isArray(data.invoices)) {
-          data.invoices = data.invoices.filter(
+          const rawInvoices = data.invoices.filter(
             (i: any) => i && i.id && !data.deletedInvoiceIds.includes(i.id) && (!i.clientId || !data.deletedClientIds.includes(i.clientId))
           );
+
+          // Reconcile invoices with verified transactions
+          data.invoices = rawInvoices.map((inv: any) => {
+            const linkedTxs = (data.transactions || []).filter(
+              (t: any) => t && t.invoiceId === inv.id && t.status !== 'cancelled' && t.status !== 'reversed' && t.status !== 'failed'
+            );
+            if (linkedTxs.length === 0) return inv;
+
+            const inflowTotal = linkedTxs
+              .filter((t: any) => !['refund', 'expense', 'withdrawal'].includes(t.type))
+              .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+            const refundTotal = linkedTxs
+              .filter((t: any) => t.type === 'refund')
+              .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+
+            const netTxsPaid = Math.max(0, inflowTotal - refundTotal);
+            if (netTxsPaid > 0 && ((Number(inv.amountPaid) || 0) < netTxsPaid || inv.status === 'unpaid')) {
+              const grandTotal = Number(inv.grandTotal) || 0;
+              const effectivePaid = Math.max(Number(inv.amountPaid) || 0, netTxsPaid);
+              const cappedPaid = Math.min(grandTotal, effectivePaid);
+              const newBalance = Math.max(0, grandTotal - cappedPaid);
+              const newStatus = newBalance === 0 && grandTotal > 0 ? 'paid' : cappedPaid > 0 ? 'partially_paid' : (inv.status || 'unpaid');
+              return {
+                ...inv,
+                amountPaid: cappedPaid,
+                balanceAmount: newBalance,
+                status: newStatus,
+                paidDate: newStatus === 'paid' ? (inv.paidDate || linkedTxs[0]?.date || new Date().toISOString().split('T')[0]) : inv.paidDate,
+                paymentMethod: inv.paymentMethod || linkedTxs[0]?.paymentMethod || 'Nomod',
+              };
+            }
+            return inv;
+          });
         }
 
         if (data.clients && Array.isArray(data.clients)) {
@@ -1147,6 +1277,26 @@ async function startServer() {
           );
         } else {
           data.visaApplications = [];
+        }
+        if (data.transactions && Array.isArray(data.transactions)) {
+          data.transactions = data.transactions.filter(
+            (tx: any) => tx && tx.id && !data.deletedTransactionIds.includes(tx.id) && (!tx.clientId || !data.deletedClientIds.includes(tx.clientId)) && (!tx.invoiceId || !data.deletedInvoiceIds.includes(tx.invoiceId))
+          );
+        }
+        if (data.departments && Array.isArray(data.departments)) {
+          data.departments = data.departments.filter((d: any) => d && d.id && !data.deletedDepartmentIds.includes(d.id));
+        }
+        if (data.roles && Array.isArray(data.roles)) {
+          data.roles = data.roles.filter((r: any) => r && r.id && !data.deletedRoleIds.includes(r.id));
+        }
+        if (data.leadCategories && Array.isArray(data.leadCategories)) {
+          data.leadCategories = data.leadCategories.filter((c: any) => c && c.id && !data.deletedLeadCategoryIds.includes(c.id));
+        }
+        if (data.leadSources && Array.isArray(data.leadSources)) {
+          data.leadSources = data.leadSources.filter((s: any) => s && s.id && !data.deletedLeadSourceIds.includes(s.id));
+        }
+        if (data.leadStages && Array.isArray(data.leadStages)) {
+          data.leadStages = data.leadStages.filter((s: any) => s && s.id && !data.deletedLeadStageIds.includes(s.id));
         }
         const metrics = calculateStoreMetrics(data);
         return res.json({
@@ -1356,6 +1506,55 @@ async function startServer() {
         ]),
       ];
 
+      const combinedDeletedTransactionIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedTransactionIds) ? payload.deletedTransactionIds : []),
+          ...(Array.isArray(existing.deletedTransactionIds) ? existing.deletedTransactionIds : []),
+        ]),
+      ];
+
+      const combinedDeletedDepartmentIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedDepartmentIds) ? payload.deletedDepartmentIds : []),
+          ...(Array.isArray(existing.deletedDepartmentIds) ? existing.deletedDepartmentIds : []),
+        ]),
+      ];
+
+      const combinedDeletedRoleIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedRoleIds) ? payload.deletedRoleIds : []),
+          ...(Array.isArray(existing.deletedRoleIds) ? existing.deletedRoleIds : []),
+        ]),
+      ];
+
+      const combinedDeletedLeadCategoryIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedLeadCategoryIds) ? payload.deletedLeadCategoryIds : []),
+          ...(Array.isArray(existing.deletedLeadCategoryIds) ? existing.deletedLeadCategoryIds : []),
+        ]),
+      ];
+
+      const combinedDeletedLeadSourceIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedLeadSourceIds) ? payload.deletedLeadSourceIds : []),
+          ...(Array.isArray(existing.deletedLeadSourceIds) ? existing.deletedLeadSourceIds : []),
+        ]),
+      ];
+
+      const combinedDeletedLeadStageIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedLeadStageIds) ? payload.deletedLeadStageIds : []),
+          ...(Array.isArray(existing.deletedLeadStageIds) ? existing.deletedLeadStageIds : []),
+        ]),
+      ];
+
+      const combinedDeletedUserIds: string[] = [
+        ...new Set([
+          ...(Array.isArray(payload.deletedUserIds) ? payload.deletedUserIds : []),
+          ...(Array.isArray(existing.deletedUserIds) ? existing.deletedUserIds : []),
+        ]),
+      ];
+
       // Handle companies
       let cleanCompanies: any[] = [];
       if (Array.isArray(payload.companies)) {
@@ -1366,66 +1565,107 @@ async function startServer() {
         cleanCompanies = initialCompanies.filter((c: any) => c && c.id && !combinedDeletedCompanyIds.includes(c.id));
       }
 
-      // Safeguard: Never mark an invoice or client deleted if it is actively present in payload or referenced by active services/transactions
-      const activeInvoiceIdSet = new Set<string>();
-      if (Array.isArray(payload.invoices)) {
-        payload.invoices.forEach((i: any) => { if (i?.id) activeInvoiceIdSet.add(i.id); });
-      }
-      if (Array.isArray(payload.clients)) {
-        payload.clients.forEach((c: any) => {
-          (c?.services || []).forEach((s: any) => { if (s?.invoiceId) activeInvoiceIdSet.add(s.invoiceId); });
+      // Safe helper for non-destructive entity merging by ID
+      const safeMergeEntityList = (existingList: any[] = [], incomingList: any[] = [], deletedIds: string[] = []): any[] => {
+        const map = new Map<string, any>();
+        (existingList || []).forEach((item) => {
+          if (item && item.id && !deletedIds.includes(item.id)) {
+            map.set(item.id, item);
+          }
         });
-      }
-      if (Array.isArray(existing.clients)) {
-        existing.clients.forEach((c: any) => {
-          (c?.services || []).forEach((s: any) => { if (s?.invoiceId) activeInvoiceIdSet.add(s.invoiceId); });
+        (incomingList || []).forEach((item) => {
+          if (item && item.id && !deletedIds.includes(item.id)) {
+            const existingItem = map.get(item.id);
+            map.set(item.id, existingItem ? { ...existingItem, ...item } : item);
+          }
         });
-      }
-      if (Array.isArray(payload.transactions)) {
-        payload.transactions.forEach((tx: any) => { if (tx?.invoiceId) activeInvoiceIdSet.add(tx.invoiceId); });
-      }
-      if (Array.isArray(existing.transactions)) {
-        existing.transactions.forEach((tx: any) => { if (tx?.invoiceId) activeInvoiceIdSet.add(tx.invoiceId); });
-      }
-      const safeDeletedInvoiceIds = combinedDeletedInvoiceIds.filter((id) => !activeInvoiceIdSet.has(id));
+        return Array.from(map.values());
+      };
 
-      const activeClientIdSet = new Set<string>();
-      if (Array.isArray(payload.clients)) {
-        payload.clients.forEach((c: any) => { if (c?.id) activeClientIdSet.add(c.id); });
-      }
-      const safeDeletedClientIds = combinedDeletedClientIds.filter((id) => !activeClientIdSet.has(id));
-
-      // Handle invoices: merge non-destructively and strictly filter out deleted invoices or invoices belonging to deleted clients
-      let mergedInvoices: any[] = [];
-      if (Array.isArray(payload.invoices) && payload.invoices.length > 0) {
-        mergedInvoices = mergeCollection(existing.invoices || [], payload.invoices);
-      } else if (Array.isArray(existing.invoices) && existing.invoices.length > 0) {
-        const explicitlyDeleted = (existing.invoices || []).filter((i: any) => i && i.id && safeDeletedInvoiceIds.includes(i.id));
-        if (explicitlyDeleted.length === existing.invoices.length && explicitlyDeleted.length > 0 && Array.isArray(payload.invoices)) {
-          mergedInvoices = [];
-        } else {
-          mergedInvoices = existing.invoices;
-        }
-      }
+      // Handle invoices: non-destructive merge
+      const mergedInvoices = safeMergeEntityList(existing.invoices, payload.invoices, combinedDeletedInvoiceIds);
       const cleanInvoices = mergedInvoices.filter(
-        (i: any) => i && i.id && !safeDeletedInvoiceIds.includes(i.id) && (!i.clientId || !safeDeletedClientIds.includes(i.clientId))
+        (i: any) => i && i.id && !combinedDeletedInvoiceIds.includes(i.id) && (!i.clientId || !combinedDeletedClientIds.includes(i.clientId))
       );
 
-      // Handle clients: merge non-destructively and strictly filter out deleted clients
-      let mergedClients: any[] = [];
-      if (Array.isArray(payload.clients) && payload.clients.length > 0) {
-        mergedClients = mergeCollection(existing.clients || [], payload.clients);
-      } else if (Array.isArray(existing.clients) && existing.clients.length > 0) {
-        // If incoming clients is empty, check if all clients were explicitly marked for deletion
-        const explicitlyDeleted = (existing.clients || []).filter((c: any) => c && c.id && safeDeletedClientIds.includes(c.id));
-        if (explicitlyDeleted.length === existing.clients.length && Array.isArray(payload.clients)) {
-          mergedClients = [];
-        } else {
-          mergedClients = existing.clients;
+      // Handle clients: non-destructive merge
+      const rawMergedClients = safeMergeEntityList(existing.clients, payload.clients, combinedDeletedClientIds);
+
+      // Auto-recover clients referenced by invoices or transactions if missing from clients array
+      const existingClientIds = new Set(rawMergedClients.map((c: any) => c?.id).filter(Boolean));
+      const existingClientEmails = new Set(rawMergedClients.map((c: any) => (c?.email || '').toLowerCase().trim()).filter(Boolean));
+      const recoveredClients: any[] = [];
+
+      (cleanInvoices || []).forEach((inv: any) => {
+        if (!inv || !inv.clientId) return;
+        if (combinedDeletedClientIds.includes(inv.clientId)) return;
+        const invEmail = (inv.clientEmail || '').toLowerCase().trim();
+        const alreadyHasId = existingClientIds.has(inv.clientId);
+        const alreadyHasEmail = invEmail && existingClientEmails.has(invEmail);
+
+        if (!alreadyHasId && !alreadyHasEmail) {
+          const clientName = inv.clientName || 'Client';
+          const nameParts = clientName.split(' ');
+          const recClient = {
+            id: inv.clientId,
+            refNo: `CL-${inv.clientId.replace('client-', '').replace('walkin-', '')}`,
+            fullName: clientName,
+            firstName: nameParts[0] || 'Client',
+            lastName: nameParts.slice(1).join(' ') || '',
+            email: inv.clientEmail || 'client@example.com',
+            mobile: inv.clientPhone || '+971 50 000 0000',
+            phone: inv.clientPhone || '+971 50 000 0000',
+            whatsapp: inv.clientPhone || '+971 50 000 0000',
+            residentialAddress: inv.clientAddress || 'Dubai, UAE',
+            passportNo: inv.clientPassport || '',
+            companyId: inv.companyId || 'comp-1',
+            companyName: inv.companyName || 'ADCS Clearing LLC',
+            category: 'Direct Client',
+            type: 'Individual',
+            status: 'active',
+            pricingTier: 'b2c',
+            nationality: 'United Arab Emirates',
+            currentStageId: 'stage-1',
+            currentStageName: 'Active Client',
+            paymentStatus: inv.status || 'unpaid',
+            totalAmount: Number(inv.grandTotal) || 0,
+            paidAmount: Number(inv.amountPaid) || 0,
+            outstandingAmount: Number(inv.balanceAmount) || 0,
+            services: inv.serviceName ? [{
+              id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              clientId: inv.clientId,
+              serviceName: inv.serviceName,
+              category: 'Corporate PRO & Legal Clearance',
+              price: Number(inv.subtotal) || 0,
+              governmentFees: Number(inv.governmentFees) || 0,
+              advancePaid: Number(inv.amountPaid) || 0,
+              balance: Number(inv.balanceAmount) || 0,
+              invoiceId: inv.id,
+              invoiceNumber: inv.invoiceNumber,
+              status: inv.status === 'paid' ? 'completed' : 'active',
+              currentStageId: 'stage-1',
+              currentStageName: 'Application Processing',
+              referenceNumber: `SRV-${inv.invoiceNumber || Date.now()}`,
+            }] : [],
+            notes: [{
+              id: `note-${Date.now()}`,
+              text: `Client record auto-recovered from Invoice #${inv.invoiceNumber}.`,
+              createdAt: new Date().toISOString(),
+              type: 'system',
+            }],
+            tags: ['Active'],
+            createdAt: inv.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          existingClientIds.add(inv.clientId);
+          if (invEmail) existingClientEmails.add(invEmail);
+          recoveredClients.push(recClient);
         }
-      }
+      });
+
+      const mergedClients = [...rawMergedClients, ...recoveredClients];
       const cleanClients = mergedClients
-        .filter((c: any) => c && c.id && c.id !== 'client-test-1' && !safeDeletedClientIds.includes(c.id))
+        .filter((c: any) => c && c.id && c.id !== 'client-test-1' && !combinedDeletedClientIds.includes(c.id))
         .map((c: any) => {
           const clientInvs = (cleanInvoices || []).filter((inv: any) =>
             inv && (inv.clientId === c.id || (inv.clientName && c.fullName && inv.clientName.trim().toLowerCase() === c.fullName.trim().toLowerCase()))
@@ -1464,69 +1704,64 @@ async function startServer() {
           };
         });
 
-      // Handle documents: merge non-destructively and strictly filter out deleted documents or documents belonging to deleted clients
-      let mergedDocs: any[] = [];
-      if (Array.isArray(payload.documents) && payload.documents.length > 0) {
-        mergedDocs = mergeCollection(existing.documents || [], payload.documents);
-      } else if (Array.isArray(existing.documents)) {
-        mergedDocs = existing.documents;
+      // Handle documents: offload base64 to disk if needed and non-destructively merge
+      let sanitizedPayloadDocs = payload.documents;
+      if (Array.isArray(payload.documents)) {
+        sanitizedPayloadDocs = payload.documents.map((d: any) => {
+          if (!d || typeof d !== 'object') return d;
+          if (typeof d.fileUrl === 'string' && d.fileUrl.startsWith('data:') && d.fileUrl.length > 2000) {
+            try {
+              const match = d.fileUrl.match(/^data:([^;]+);base64,(.+)$/);
+              if (match) {
+                const mimeType = match[1];
+                let ext = '.pdf';
+                if (mimeType.includes('png')) ext = '.png';
+                else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = '.jpg';
+                else if (d.name && path.extname(d.name)) ext = path.extname(d.name);
+                const safeId = (d.id || `doc_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+                const filename = `${safeId}${ext}`;
+                const filePath = path.join(UPLOADS_DIR, filename);
+                fs.writeFileSync(filePath, Buffer.from(match[2], 'base64'));
+                return { ...d, fileUrl: `/api/documents/file/${filename}` };
+              }
+            } catch (offloadErr) {
+              console.warn('Notice offloading doc to disk:', offloadErr);
+            }
+          }
+          return d;
+        });
       }
+
+      const mergedDocs = safeMergeEntityList(existing.documents, sanitizedPayloadDocs, combinedDeletedDocumentIds);
       const cleanDocs = mergedDocs.filter(
-        (d: any) => d && d.id && !combinedDeletedDocumentIds.includes(d.id) && (!d.clientId || !safeDeletedClientIds.includes(d.clientId))
+        (d: any) => d && d.id && !combinedDeletedDocumentIds.includes(d.id) && (!d.clientId || !combinedDeletedClientIds.includes(d.clientId))
       );
 
-      // Handle tasks: merge non-destructively and strictly filter out deleted tasks or tasks belonging to deleted clients
-      let mergedTasks: any[] = [];
-      if (Array.isArray(payload.tasks) && payload.tasks.length > 0) {
-        mergedTasks = mergeCollection(existing.tasks || [], payload.tasks);
-      } else if (Array.isArray(existing.tasks)) {
-        mergedTasks = existing.tasks;
-      }
+      // Handle tasks: non-destructive merge
+      const mergedTasks = safeMergeEntityList(existing.tasks, payload.tasks, combinedDeletedTaskIds);
       const cleanTasks = mergedTasks.filter(
-        (t: any) => t && t.id && !combinedDeletedTaskIds.includes(t.id) && (!t.clientId || !safeDeletedClientIds.includes(t.clientId))
+        (t: any) => t && t.id && !combinedDeletedTaskIds.includes(t.id) && (!t.clientId || !combinedDeletedClientIds.includes(t.clientId))
       );
 
-      // Handle leads: merge non-destructively and strictly filter out deleted leads
-      let mergedLeads: any[] = [];
-      if (Array.isArray(payload.leads) && payload.leads.length > 0) {
-        mergedLeads = mergeCollection(existing.leads || [], payload.leads);
-      } else if (Array.isArray(existing.leads) && existing.leads.length > 0) {
-        const explicitlyDeleted = (existing.leads || []).filter((ld: any) => ld && ld.id && combinedDeletedLeadIds.includes(ld.id));
-        if (explicitlyDeleted.length === existing.leads.length && explicitlyDeleted.length > 0 && Array.isArray(payload.leads)) {
-          mergedLeads = [];
-        } else {
-          mergedLeads = existing.leads;
-        }
-      }
+      // Handle leads: non-destructive merge
+      const mergedLeads = safeMergeEntityList(existing.leads, payload.leads, combinedDeletedLeadIds);
       const cleanLeads = mergedLeads.filter(
         (ld: any) => ld && ld.id && !combinedDeletedLeadIds.includes(ld.id)
       );
 
-      // Handle transactions: merge non-destructively
-      let mergedTransactions: any[] = [];
-      if (Array.isArray(payload.transactions) && payload.transactions.length > 0) {
-        mergedTransactions = mergeCollection(existing.transactions || [], payload.transactions);
-      } else if (Array.isArray(existing.transactions)) {
-        mergedTransactions = existing.transactions;
-      }
+      // Handle transactions: non-destructive merge
+      const mergedTransactions = safeMergeEntityList(existing.transactions, payload.transactions, combinedDeletedTransactionIds);
+      const cleanTransactions = mergedTransactions.filter(
+        (tx: any) => tx && tx.id && !combinedDeletedTransactionIds.includes(tx.id) && (!tx.clientId || !combinedDeletedClientIds.includes(tx.clientId))
+      );
 
       // Handle billingSettings: retain non-empty settings
       const mergedBillingSettings = (payload.billingSettings && typeof payload.billingSettings === 'object' && Object.keys(payload.billingSettings).length > 0)
         ? { ...(existing.billingSettings || {}), ...payload.billingSettings }
         : (existing.billingSettings || payload.billingSettings || undefined);
 
-      // Handle vendors: merge non-destructively and strictly filter out deleted vendors
-      let mergedVendors: any[] = [];
-      if (Array.isArray(payload.vendors) && payload.vendors.length > 0) {
-        mergedVendors = mergeCollection(existing.vendors || [], payload.vendors);
-      } else if (Array.isArray(existing.vendors) && existing.vendors.length > 0) {
-        const explicitlyDeleted = (existing.vendors || []).filter((v: any) => v && v.id && combinedDeletedVendorIds.includes(v.id));
-        if (explicitlyDeleted.length === existing.vendors.length && Array.isArray(payload.vendors)) {
-          mergedVendors = [];
-        } else {
-          mergedVendors = existing.vendors;
-        }
-      }
+      // Handle vendors: non-destructive merge
+      const mergedVendors = safeMergeEntityList(existing.vendors, payload.vendors, combinedDeletedVendorIds);
       const cleanVendors = mergedVendors.filter(
         (v: any) => v && v.id && !combinedDeletedVendorIds.includes(v.id)
       );
@@ -1534,6 +1769,14 @@ async function startServer() {
       // Handle worldwide visa country catalog: respect deletions strictly
       let sourceVisaCatalog: any[] = [];
       if (Array.isArray(payload.visaCountryCatalog)) {
+        if (Array.isArray(existing.visaCountryCatalog)) {
+          existing.visaCountryCatalog.forEach((c: any) => {
+            const code = String(c?.countryCode || '').toLowerCase().trim();
+            if (code && !payload.visaCountryCatalog.some((pc: any) => String(pc?.countryCode || '').toLowerCase().trim() === code)) {
+              combinedDeletedVisaCountryCodes.push(code);
+            }
+          });
+        }
         sourceVisaCatalog = payload.visaCountryCatalog;
       } else if (Array.isArray(existing.visaCountryCatalog)) {
         sourceVisaCatalog = existing.visaCountryCatalog;
@@ -1551,6 +1794,13 @@ async function startServer() {
       // Handle worldwide visa applications: respect deletions strictly
       let sourceVisaApps: any[] = [];
       if (Array.isArray(payload.visaApplications)) {
+        if (Array.isArray(existing.visaApplications)) {
+          existing.visaApplications.forEach((a: any) => {
+            if (a?.id && !payload.visaApplications.some((pa: any) => pa?.id === a.id)) {
+              combinedDeletedVisaAppIds.push(a.id);
+            }
+          });
+        }
         sourceVisaApps = payload.visaApplications;
       } else if (Array.isArray(existing.visaApplications)) {
         sourceVisaApps = existing.visaApplications;
@@ -1563,6 +1813,13 @@ async function startServer() {
       // Handle work pipeline stages: respect modifications and deletions strictly
       let cleanStages: any[] = [];
       if (Array.isArray(payload.stages)) {
+        if (Array.isArray(existing.stages)) {
+          existing.stages.forEach((s: any) => {
+            if (s?.id && !payload.stages.some((ps: any) => ps?.id === s.id)) {
+              combinedDeletedStageIds.push(s.id);
+            }
+          });
+        }
         cleanStages = payload.stages.filter((s: any) => s && s.id && !combinedDeletedStageIds.includes(s.id));
       } else if (Array.isArray(existing.stages)) {
         cleanStages = existing.stages.filter((s: any) => s && s.id && !combinedDeletedStageIds.includes(s.id));
@@ -1571,6 +1828,13 @@ async function startServer() {
       // Handle service categories: respect modifications and deletions strictly
       let cleanServiceCategories: any[] = [];
       if (Array.isArray(payload.serviceCategories)) {
+        if (Array.isArray(existing.serviceCategories)) {
+          existing.serviceCategories.forEach((s: any) => {
+            if (s?.id && !payload.serviceCategories.some((ps: any) => ps?.id === s.id)) {
+              combinedDeletedServiceCategoryIds.push(s.id);
+            }
+          });
+        }
         cleanServiceCategories = payload.serviceCategories.filter(
           (s: any) => s && s.id && !combinedDeletedServiceCategoryIds.includes(s.id)
         );
@@ -1583,6 +1847,13 @@ async function startServer() {
       // Handle service classifications: respect modifications and deletions strictly
       let cleanServiceClassifications: any[] = [];
       if (Array.isArray(payload.serviceClassifications)) {
+        if (Array.isArray(existing.serviceClassifications)) {
+          existing.serviceClassifications.forEach((c: any) => {
+            if (c?.id && !payload.serviceClassifications.some((pc: any) => pc?.id === c.id)) {
+              combinedDeletedServiceClassificationIds.push(c.id);
+            }
+          });
+        }
         cleanServiceClassifications = payload.serviceClassifications.filter(
           (c: any) => c && c.id && !combinedDeletedServiceClassificationIds.includes(c.id)
         );
@@ -1592,17 +1863,168 @@ async function startServer() {
         );
       }
 
+      // Handle departments: respect deletions
+      let cleanDepartments: any[] = [];
+      if (Array.isArray(payload.departments)) {
+        if (Array.isArray(existing.departments)) {
+          existing.departments.forEach((d: any) => {
+            if (d?.id && !payload.departments.some((pd: any) => pd?.id === d.id)) {
+              combinedDeletedDepartmentIds.push(d.id);
+            }
+          });
+        }
+        cleanDepartments = payload.departments.filter((d: any) => d && d.id && !combinedDeletedDepartmentIds.includes(d.id));
+      } else if (Array.isArray(existing.departments)) {
+        cleanDepartments = existing.departments.filter((d: any) => d && d.id && !combinedDeletedDepartmentIds.includes(d.id));
+      }
+
+      // Handle roles: respect deletions
+      let cleanRoles: any[] = [];
+      if (Array.isArray(payload.roles)) {
+        if (Array.isArray(existing.roles)) {
+          existing.roles.forEach((r: any) => {
+            if (r?.id && !payload.roles.some((pr: any) => pr?.id === r.id)) {
+              combinedDeletedRoleIds.push(r.id);
+            }
+          });
+        }
+        cleanRoles = payload.roles.filter((r: any) => r && r.id && !combinedDeletedRoleIds.includes(r.id));
+      } else if (Array.isArray(existing.roles)) {
+        cleanRoles = existing.roles.filter((r: any) => r && r.id && !combinedDeletedRoleIds.includes(r.id));
+      }
+
+      // Handle leadCategories: respect deletions
+      let cleanLeadCategories: any[] = [];
+      if (Array.isArray(payload.leadCategories)) {
+        if (Array.isArray(existing.leadCategories)) {
+          existing.leadCategories.forEach((c: any) => {
+            if (c?.id && !payload.leadCategories.some((pc: any) => pc?.id === c.id)) {
+              combinedDeletedLeadCategoryIds.push(c.id);
+            }
+          });
+        }
+        cleanLeadCategories = payload.leadCategories.filter((c: any) => c && c.id && !combinedDeletedLeadCategoryIds.includes(c.id));
+      } else if (Array.isArray(existing.leadCategories)) {
+        cleanLeadCategories = existing.leadCategories.filter((c: any) => c && c.id && !combinedDeletedLeadCategoryIds.includes(c.id));
+      }
+
+      // Handle leadSources: respect deletions
+      let cleanLeadSources: any[] = [];
+      if (Array.isArray(payload.leadSources)) {
+        if (Array.isArray(existing.leadSources)) {
+          existing.leadSources.forEach((s: any) => {
+            if (s?.id && !payload.leadSources.some((ps: any) => ps?.id === s.id)) {
+              combinedDeletedLeadSourceIds.push(s.id);
+            }
+          });
+        }
+        cleanLeadSources = payload.leadSources.filter((s: any) => s && s.id && !combinedDeletedLeadSourceIds.includes(s.id));
+      } else if (Array.isArray(existing.leadSources)) {
+        cleanLeadSources = existing.leadSources.filter((s: any) => s && s.id && !combinedDeletedLeadSourceIds.includes(s.id));
+      }
+
+      // Handle leadStages: respect deletions
+      let cleanLeadStages: any[] = [];
+      if (Array.isArray(payload.leadStages)) {
+        if (Array.isArray(existing.leadStages)) {
+          existing.leadStages.forEach((st: any) => {
+            if (st?.id && !payload.leadStages.some((pst: any) => pst?.id === st.id)) {
+              combinedDeletedLeadStageIds.push(st.id);
+            }
+          });
+        }
+        cleanLeadStages = payload.leadStages.filter((st: any) => st && st.id && !combinedDeletedLeadStageIds.includes(st.id));
+      } else if (Array.isArray(existing.leadStages)) {
+        cleanLeadStages = existing.leadStages.filter((st: any) => st && st.id && !combinedDeletedLeadStageIds.includes(st.id));
+      }
+
+      // Handle users: respect deletions
+      let cleanUsers: any[] = [];
+      if (Array.isArray(payload.users)) {
+        if (Array.isArray(existing.users)) {
+          existing.users.forEach((u: any) => {
+            if (u?.id && !payload.users.some((pu: any) => pu?.id === u.id)) {
+              combinedDeletedUserIds.push(u.id);
+              if (u.email) combinedDeletedUserIds.push(u.email.toLowerCase().trim());
+            }
+          });
+        }
+        cleanUsers = payload.users.filter(
+          (u: any) => u && u.id && !combinedDeletedUserIds.includes(u.id) && (!u.email || !combinedDeletedUserIds.includes(u.email.toLowerCase().trim()))
+        );
+      } else if (Array.isArray(existing.users)) {
+        cleanUsers = existing.users.filter(
+          (u: any) => u && u.id && !combinedDeletedUserIds.includes(u.id) && (!u.email || !combinedDeletedUserIds.includes(u.email.toLowerCase().trim()))
+        );
+      }
+
+      // Reconcile invoices with verified transactions
+      const reconciledInvoices = cleanInvoices.map((inv: any) => {
+        const linkedTxs = (cleanTransactions || []).filter(
+          (t: any) => t && t.invoiceId === inv.id && t.status !== 'cancelled' && t.status !== 'reversed' && t.status !== 'failed'
+        );
+        if (linkedTxs.length === 0) return inv;
+
+        const inflowTotal = linkedTxs
+          .filter((t: any) => !['refund', 'expense', 'withdrawal'].includes(t.type))
+          .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+        const refundTotal = linkedTxs
+          .filter((t: any) => t.type === 'refund')
+          .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+
+        const netTxsPaid = Math.max(0, inflowTotal - refundTotal);
+        if (netTxsPaid > 0 && ((Number(inv.amountPaid) || 0) < netTxsPaid || inv.status === 'unpaid')) {
+          const grandTotal = Number(inv.grandTotal) || 0;
+          const effectivePaid = Math.max(Number(inv.amountPaid) || 0, netTxsPaid);
+          const cappedPaid = Math.min(grandTotal, effectivePaid);
+          const newBalance = Math.max(0, grandTotal - cappedPaid);
+          const newStatus = newBalance === 0 && grandTotal > 0 ? 'paid' : cappedPaid > 0 ? 'partially_paid' : (inv.status || 'unpaid');
+          return {
+            ...inv,
+            amountPaid: cappedPaid,
+            balanceAmount: newBalance,
+            status: newStatus,
+            paidDate: newStatus === 'paid' ? (inv.paidDate || linkedTxs[0]?.date || new Date().toISOString().split('T')[0]) : inv.paidDate,
+            paymentMethod: inv.paymentMethod || linkedTxs[0]?.paymentMethod || 'Nomod',
+          };
+        }
+        return inv;
+      });
+
+      // Update clients with reconciled invoices
+      const reconciledClients = cleanClients.map((c: any) => {
+        const clientInvs = (reconciledInvoices || []).filter((inv: any) =>
+          inv && (inv.clientId === c.id || (inv.clientName && c.fullName && inv.clientName.trim().toLowerCase() === c.fullName.trim().toLowerCase()))
+        );
+        if (clientInvs.length === 0) return c;
+        const computedTotal = clientInvs.reduce((s: number, inv: any) => s + (Number(inv.grandTotal) || 0), 0);
+        const computedPaid = clientInvs.reduce((s: number, inv: any) => s + (Number(inv.amountPaid) || 0), 0);
+        const computedOutstanding = clientInvs.reduce((s: number, inv: any) => s + Math.max(0, Number(inv.balanceAmount || 0)), 0);
+        const computedStatus = computedOutstanding === 0 && computedTotal > 0
+          ? 'paid'
+          : computedOutstanding > 0
+          ? (computedPaid > 0 ? 'partially_paid' : 'unpaid')
+          : (c.paymentStatus || 'unpaid');
+        return {
+          ...c,
+          totalAmount: computedTotal,
+          paidAmount: computedPaid,
+          outstandingAmount: computedOutstanding,
+          paymentStatus: computedStatus,
+        };
+      });
+
       // Build merged object respecting deletions from client payload snapshot
       const merged = {
         ...existing,
         ...payload,
-        clients: cleanClients,
+        clients: reconciledClients,
         documents: cleanDocs,
         tasks: cleanTasks,
-        invoices: cleanInvoices,
+        invoices: reconciledInvoices,
         leads: cleanLeads,
         vendors: cleanVendors,
-        transactions: mergedTransactions,
+        transactions: cleanTransactions,
         billingSettings: mergedBillingSettings,
         messages: Array.isArray(payload.messages) ? payload.messages : (existing.messages || []),
         stages: cleanStages,
@@ -1611,17 +2033,19 @@ async function startServer() {
         serviceClassifications: cleanServiceClassifications,
         auditLogs: Array.isArray(payload.auditLogs) ? payload.auditLogs : (existing.auditLogs || []),
         notifications: Array.isArray(payload.notifications) ? payload.notifications : (existing.notifications || []),
-        departments: Array.isArray(payload.departments) ? payload.departments : (existing.departments || []),
-        leadCategories: Array.isArray(payload.leadCategories) ? payload.leadCategories : (existing.leadCategories || []),
-        leadSources: Array.isArray(payload.leadSources) ? payload.leadSources : (existing.leadSources || []),
-        leadStages: Array.isArray(payload.leadStages) ? payload.leadStages : (existing.leadStages || []),
-        users: Array.isArray(payload.users) ? payload.users : (existing.users || []),
+        departments: cleanDepartments,
+        roles: cleanRoles,
+        leadCategories: cleanLeadCategories,
+        leadSources: cleanLeadSources,
+        leadStages: cleanLeadStages,
+        users: cleanUsers,
         companies: cleanCompanies,
+        deletedUserIds: combinedDeletedUserIds,
         deletedCompanyIds: combinedDeletedCompanyIds,
-        deletedClientIds: safeDeletedClientIds,
+        deletedClientIds: combinedDeletedClientIds,
         deletedDocumentIds: combinedDeletedDocumentIds,
         deletedTaskIds: combinedDeletedTaskIds,
-        deletedInvoiceIds: safeDeletedInvoiceIds,
+        deletedInvoiceIds: combinedDeletedInvoiceIds,
         deletedLeadIds: combinedDeletedLeadIds,
         deletedVendorIds: combinedDeletedVendorIds,
         deletedStageIds: combinedDeletedStageIds,
@@ -1629,6 +2053,12 @@ async function startServer() {
         deletedCategoryIds: combinedDeletedServiceCategoryIds,
         deletedServiceClassificationIds: combinedDeletedServiceClassificationIds,
         deletedClassificationIds: combinedDeletedServiceClassificationIds,
+        deletedTransactionIds: combinedDeletedTransactionIds,
+        deletedDepartmentIds: combinedDeletedDepartmentIds,
+        deletedRoleIds: combinedDeletedRoleIds,
+        deletedLeadCategoryIds: combinedDeletedLeadCategoryIds,
+        deletedLeadSourceIds: combinedDeletedLeadSourceIds,
+        deletedLeadStageIds: combinedDeletedLeadStageIds,
         visaApplications: cleanVisaApps,
         visaCountryCatalog: cleanVisaCatalog,
         deletedVisaCountryCodes: combinedDeletedVisaCountryCodes,

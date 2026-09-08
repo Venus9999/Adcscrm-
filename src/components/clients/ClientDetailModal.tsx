@@ -35,6 +35,7 @@ import {
   ExternalLink,
   Paperclip,
   Lock,
+  Banknote,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
 import { useGmail } from '../../context/GmailContext';
@@ -145,8 +146,10 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
     if (client.customServiceRate !== undefined && client.customServiceRate > 0) {
       return client.customServiceRate;
     }
-    const dType = client.discountType || company?.corporateDiscountType || 'percentage';
-    const dVal = client.discountValue ?? (dType === 'fixed' ? (company?.corporateDiscountValue ?? 0) : (client.corporateDiscountPercent ?? company?.corporateDiscountPercent ?? 15));
+    const dType = client.discountType || 'percentage';
+    const dVal = client.discountValue !== undefined && client.discountValue !== null
+      ? Number(client.discountValue)
+      : (client.corporateDiscountPercent !== undefined && client.corporateDiscountPercent !== null ? Number(client.corporateDiscountPercent) : 0);
     if (dType === 'fixed' && dVal > 0) {
       return Math.max(0, baseB2C - dVal);
     }
@@ -461,9 +464,9 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
       vendorId: client.vendorId || '',
       referredBy: client.referredBy || '',
       pricingTier: client.pricingTier || (client.isDirectRegistration ? 'b2c' : 'b2b'),
-      discountType: client.discountType || company?.corporateDiscountType || 'percentage',
-      discountValue: client.discountValue ?? (company?.corporateDiscountValue || 0),
-      corporateDiscountPercent: client.corporateDiscountPercent ?? (company?.corporateDiscountPercent || 15),
+      discountType: client.discountType || 'percentage',
+      discountValue: client.discountValue ?? 0,
+      corporateDiscountPercent: client.corporateDiscountPercent ?? 0,
       customServiceRate: client.customServiceRate || 0,
       assignedEmployeeIds: client.assignedEmployeeIds || (client.assignedAdminId ? [client.assignedAdminId] : []),
     });
@@ -1116,7 +1119,7 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                         </span>
                       ) : (
                         <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                          ({client.corporateDiscountPercent ?? company?.corporateDiscountPercent ?? 15}% OFF)
+                          ({client.corporateDiscountPercent ?? company?.corporateDiscountPercent ?? 0}% OFF)
                         </span>
                       )}
                     </div>
@@ -1616,14 +1619,31 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
                       </button>
 
                       {(inv.balanceAmount ?? 0) > 0 && (
-                        <button
-                          onClick={() => setNomodInvoice(inv)}
-                          className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-                          title="Pay via Nomod Gateway"
-                        >
-                          <CreditCard className="w-3 h-3" />
-                          <span>Pay via Nomod</span>
-                        </button>
+                        <>
+                          <button
+                            onClick={() => {
+                              setSelectedInvoiceId(inv.id);
+                              setPayAmount(inv.balanceAmount || 0);
+                              setPayMethod('Cash');
+                              setPayRef(`RCP-${Math.floor(100000 + Math.random() * 900000)}`);
+                              setShowPayModal(true);
+                            }}
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                            title="Record Cash or Bank Settlement"
+                          >
+                            <Banknote className="w-3 h-3" />
+                            <span>Record Payment</span>
+                          </button>
+
+                          <button
+                            onClick={() => setNomodInvoice(inv)}
+                            className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                            title="Pay via Nomod Gateway"
+                          >
+                            <CreditCard className="w-3 h-3" />
+                            <span>Pay via Nomod</span>
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -2858,71 +2878,184 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({ clientId, 
         )}
 
         {/* Modal: Record Payment */}
-        {showPayModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">Record Payment</h3>
-              <form onSubmit={handleRecordPaymentSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Amount Paid (AED) *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={payAmount}
-                    onChange={(e) => setPayAmount(Number(e.target.value))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Payment Method
-                  </label>
-                  <select
-                    value={payMethod}
-                    onChange={(e) => setPayMethod(e.target.value as Invoice['paymentMethod'])}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold text-blue-600 dark:text-blue-400"
-                  >
-                    <option value="Nomod">Nomod Live Gateway (Credit / Debit Card)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Transaction / Reference Number
-                  </label>
-                  <input
-                    type="text"
-                    value={payRef}
-                    onChange={(e) => setPayRef(e.target.value)}
-                    placeholder="e.g. TX-984210"
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3">
+        {showPayModal && (() => {
+          const activeInv = clientInvoices.find((i) => i.id === selectedInvoiceId);
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl">
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Record Client Payment</h3>
+                    <p className="text-xs text-slate-500">
+                      {activeInv ? (
+                        <>Invoice <strong className="font-mono">{activeInv.invoiceNumber}</strong> &bull; {activeInv.serviceName || client.fullName}</>
+                      ) : (
+                        `Client: ${client.fullName}`
+                      )}
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowPayModal(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300"
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none cursor-pointer"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold"
-                  >
-                    Confirm Payment
+                    &times;
                   </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
 
+                {activeInv && (
+                  <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                      <span>Invoice Total:</span>
+                      <span className="font-mono font-semibold text-slate-900 dark:text-white">AED {(activeInv.grandTotal || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                      <span>Previously Paid:</span>
+                      <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">AED {(activeInv.amountPaid || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-800 dark:text-slate-200 font-bold pt-1 border-t border-slate-200 dark:border-slate-700">
+                      <span>Remaining Balance:</span>
+                      <span className="font-mono text-amber-600 dark:text-amber-400">AED {(activeInv.balanceAmount || 0).toLocaleString()}</span>
+                    </div>
+                    {payAmount > 0 && (
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-dashed border-slate-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 font-semibold">
+                        <span>Balance After Payment:</span>
+                        <span className="font-mono">AED {Math.max(0, (activeInv.balanceAmount || 0) - payAmount).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <form onSubmit={handleRecordPaymentSubmit} className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                        Amount Paid (AED) *
+                      </label>
+                      {activeInv && (
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setPayAmount(activeInv.balanceAmount || 0)}
+                            className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded text-[10px] font-bold cursor-pointer"
+                          >
+                            Full Balance
+                          </button>
+                          {(activeInv.balanceAmount || 0) > 100 && (
+                            <button
+                              type="button"
+                              onClick={() => setPayAmount(Math.round((activeInv.balanceAmount || 0) / 2))}
+                              className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-semibold cursor-pointer"
+                            >
+                              50%
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(Number(e.target.value))}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-emerald-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Payment Method *
+                    </label>
+
+                    {/* Quick Selection Chips */}
+                    <div className="grid grid-cols-3 gap-1.5 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setPayMethod('Cash')}
+                        className={`px-2 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-1 ${
+                          payMethod === 'Cash'
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Banknote className="w-3.5 h-3.5" />
+                        <span>Cash</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPayMethod('Bank Transfer')}
+                        className={`px-2 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-1 ${
+                          payMethod === 'Bank Transfer'
+                            ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>Bank Wire</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPayMethod('Nomod')}
+                        className={`px-2 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-1 ${
+                          payMethod === 'Nomod'
+                            ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Nomod</span>
+                      </button>
+                    </div>
+
+                    <select
+                      value={payMethod}
+                      onChange={(e) => setPayMethod(e.target.value as Invoice['paymentMethod'])}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-slate-200"
+                    >
+                      <option value="Cash">Cash (Counter Receipt)</option>
+                      <option value="Bank Transfer">Bank Transfer / Wire (ENBD, ADCB, FAB)</option>
+                      <option value="Nomod">Nomod Live Gateway (Credit / Debit Card)</option>
+                      <option value="Credit Card">Credit Card (POS Terminal)</option>
+                      <option value="Cheque">Corporate Cheque</option>
+                      <option value="Online Gateway">Online Gateway</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Transaction / Reference Number
+                    </label>
+                    <input
+                      type="text"
+                      value={payRef}
+                      onChange={(e) => setPayRef(e.target.value)}
+                      placeholder="e.g. CASH-RCP-109 or ENBD-WT-98201"
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-mono"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowPayModal(false)}
+                      className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Confirm & Reduce Balance</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        })()}
         {/* Modal: Call Log */}
         {showCallLogModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">

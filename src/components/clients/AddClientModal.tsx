@@ -40,7 +40,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
     residentialAddress: '',
     companyId: selectedCompanyId !== 'all' ? selectedCompanyId : companies[0]?.id || 'comp-1',
     pricingTier: 'b2b' as 'b2b' | 'b2c',
-    corporateDiscountPercent: 15,
+    corporateDiscountPercent: 0,
     vendorId: '',
     referredBy: '',
     assignedAdminId: currentUser.role === 'admin' || currentUser.role === 'master' ? currentUser.id : 'user-master',
@@ -50,16 +50,10 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
     initialServiceId: serviceCategories[0]?.id || '',
   });
 
-  // When company selection changes, synchronize default discount
+  // B2B corporate discount is manual only
   useEffect(() => {
-    const targetComp = companies.find((c) => c.id === formData.companyId);
-    if (targetComp) {
-      setFormData((prev) => ({
-        ...prev,
-        corporateDiscountPercent: targetComp.corporateDiscountPercent ?? 15,
-      }));
-    }
-  }, [formData.companyId, companies]);
+    // Keep discount 0 / manual only on company change unless user enters it
+  }, [formData.companyId]);
 
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Cash' | 'Cheque' | 'Online Gateway' | 'Nomod'>('Nomod');
@@ -216,7 +210,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                 >
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.corporateDiscountPercent ?? 15}% Discount)
+                      {c.name} ({c.corporateDiscountPercent ?? 0}% Discount)
                     </option>
                   ))}
                 </select>
@@ -554,7 +548,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
                 <option value="">-- No Service (Register Client Profile Only) --</option>
                 {serviceCategories.map((s) => {
                   const b2cRate = s.priceB2C ?? s.defaultPrice;
-                  const b2bRate = s.priceB2B ?? Math.round(b2cRate * (1 - (formData.corporateDiscountPercent / 100)));
+                  const b2bRate = s.priceB2B ?? (formData.corporateDiscountPercent > 0 ? Math.round(b2cRate * (1 - (formData.corporateDiscountPercent / 100))) : b2cRate);
                   return (
                     <option key={s.id} value={s.id}>
                       {s.name} — {formData.pricingTier === 'b2b' ? `B2B Rate: AED ${b2bRate.toLocaleString()}` : `B2C Rate: AED ${b2cRate.toLocaleString()}`} + Gov: AED {s.governmentFees.toLocaleString()}
@@ -574,7 +568,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose 
 
               const isB2B = formData.pricingTier === 'b2b';
               const b2cBasePrice = selectedSrv.priceB2C ?? selectedSrv.defaultPrice ?? 0;
-              const discPercent = formData.corporateDiscountPercent ?? 15;
+              const discPercent = formData.corporateDiscountPercent ?? 0;
 
               let finalPrice = b2cBasePrice;
               let discountAmount = 0;

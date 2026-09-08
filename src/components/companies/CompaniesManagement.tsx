@@ -92,8 +92,8 @@ export const CompaniesManagement: React.FC = () => {
     whatsapp: '+971 50 000 0000',
     currency: 'AED',
     corporateDiscountType: 'percentage' as 'percentage' | 'fixed',
-    corporateDiscountValue: 15,
-    corporateDiscountPercent: 15,
+    corporateDiscountValue: 0,
+    corporateDiscountPercent: 0,
     assignedAdminIds: [] as string[],
     employeeIds: [] as string[],
     bankName: 'Emirates NBD Business Banking',
@@ -201,8 +201,8 @@ export const CompaniesManagement: React.FC = () => {
         whatsapp: parentObj.whatsapp || '+971 50 000 0000',
         currency: parentObj.currency || 'AED',
         corporateDiscountType: parentObj.corporateDiscountType || 'percentage',
-        corporateDiscountValue: parentObj.corporateDiscountValue ?? parentObj.corporateDiscountPercent ?? 15,
-        corporateDiscountPercent: parentObj.corporateDiscountPercent ?? 15,
+        corporateDiscountValue: parentObj.corporateDiscountValue ?? parentObj.corporateDiscountPercent ?? 0,
+        corporateDiscountPercent: parentObj.corporateDiscountPercent ?? 0,
         assignedAdminIds: [currentUser.id],
         employeeIds: [] as string[],
         bankName: parentObj.bankDetails?.bankName || 'Emirates NBD Business Banking',
@@ -233,8 +233,8 @@ export const CompaniesManagement: React.FC = () => {
         whatsapp: '+971 50 829 1100',
         currency: 'AED',
         corporateDiscountType: 'percentage',
-        corporateDiscountValue: 15,
-        corporateDiscountPercent: 15,
+        corporateDiscountValue: 0,
+        corporateDiscountPercent: 0,
         assignedAdminIds: [currentUser.id],
         employeeIds: [] as string[],
         bankName: 'Emirates NBD Business Banking',
@@ -307,7 +307,7 @@ export const CompaniesManagement: React.FC = () => {
     setSelectedParentId(comp.parentCompanyId || '');
 
     const discType = comp.corporateDiscountType || 'percentage';
-    const discVal = comp.corporateDiscountValue ?? comp.corporateDiscountPercent ?? 15;
+    const discVal = comp.corporateDiscountValue ?? comp.corporateDiscountPercent ?? 0;
 
     setFormData({
       name: comp.name ?? '',
@@ -326,7 +326,7 @@ export const CompaniesManagement: React.FC = () => {
       currency: comp.currency ?? 'AED',
       corporateDiscountType: discType,
       corporateDiscountValue: discVal,
-      corporateDiscountPercent: discType === 'percentage' ? discVal : (comp.corporateDiscountPercent ?? 15),
+      corporateDiscountPercent: discType === 'percentage' ? discVal : (comp.corporateDiscountPercent ?? 0),
       assignedAdminIds: comp.assignedAdminIds || (comp.adminId ? [comp.adminId] : []),
       employeeIds: comp.employeeIds || [],
       bankName: comp.bankDetails?.bankName || 'Emirates NBD Business Banking',
@@ -832,7 +832,7 @@ export const CompaniesManagement: React.FC = () => {
                           </>
                         ) : (
                           <>
-                            <span>{comp.corporateDiscountValue ?? comp.corporateDiscountPercent ?? 15}%</span>
+                            <span>{comp.corporateDiscountValue ?? comp.corporateDiscountPercent ?? 0}%</span>
                             <span className="opacity-75 font-normal">Catalog Rate</span>
                           </>
                         )}
@@ -1340,7 +1340,7 @@ export const CompaniesManagement: React.FC = () => {
                               : formData.corporateDiscountPercent,
                         })
                       }
-                      placeholder={formData.corporateDiscountType === 'percentage' ? '15' : '500'}
+                      placeholder={formData.corporateDiscountType === 'percentage' ? '0' : '0'}
                       className="w-full p-2 pl-3 pr-10 bg-white dark:bg-slate-900 rounded-xl text-xs font-bold font-mono text-center border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none">

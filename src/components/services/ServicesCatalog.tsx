@@ -106,8 +106,8 @@ export const ServicesCatalog: React.FC = () => {
     category: 'Visa Processing',
     defaultPrice: 3500,
     priceB2C: 3500,
-    priceB2B: 2975,
-    b2bDiscountPercent: 15,
+    priceB2B: 3500,
+    b2bDiscountPercent: 0,
     pricingTierAvailable: 'all' as 'all' | 'b2b_only' | 'b2c_only',
     governmentFees: 1800,
     estimatedDays: 7,
@@ -130,8 +130,8 @@ export const ServicesCatalog: React.FC = () => {
       category: initialCat,
       defaultPrice: 3500,
       priceB2C: 3500,
-      priceB2B: 2975,
-      b2bDiscountPercent: 15,
+      priceB2B: 3500,
+      b2bDiscountPercent: 0,
       pricingTierAvailable: 'all',
       governmentFees: 1800,
       estimatedDays: 7,
@@ -146,10 +146,10 @@ export const ServicesCatalog: React.FC = () => {
     if (e) e.stopPropagation();
     setEditingService(service);
     const b2c = service.priceB2C !== undefined ? service.priceB2C : service.defaultPrice;
-    const b2b = service.priceB2B !== undefined ? service.priceB2B : Math.round(b2c * 0.85);
+    const b2b = service.priceB2B !== undefined ? service.priceB2B : b2c;
     const disc = service.b2bDiscountPercent !== undefined 
       ? service.b2bDiscountPercent 
-      : (b2c > 0 ? Math.round(((b2c - b2b) / b2c) * 100) : 15);
+      : (b2c > 0 && b2b < b2c ? Math.round(((b2c - b2b) / b2c) * 100) : 0);
 
     setFormData({
       name: service.name,
@@ -170,8 +170,8 @@ export const ServicesCatalog: React.FC = () => {
   };
 
   const handleB2CChange = (newB2C: number) => {
-    const disc = formData.b2bDiscountPercent || 15;
-    const calculatedB2B = Math.max(0, Math.round(newB2C * (1 - disc / 100)));
+    const disc = formData.b2bDiscountPercent ?? 0;
+    const calculatedB2B = disc > 0 ? Math.max(0, Math.round(newB2C * (1 - disc / 100))) : newB2C;
     setFormData((prev) => ({
       ...prev,
       priceB2C: newB2C,
@@ -181,18 +181,19 @@ export const ServicesCatalog: React.FC = () => {
   };
 
   const handleDiscountPercentChange = (newPercent: number) => {
+    const disc = Math.min(100, Math.max(0, newPercent));
     const b2c = formData.priceB2C || formData.defaultPrice || 0;
-    const calculatedB2B = Math.max(0, Math.round(b2c * (1 - newPercent / 100)));
+    const calculatedB2B = disc > 0 ? Math.max(0, Math.round(b2c * (1 - disc / 100))) : b2c;
     setFormData((prev) => ({
       ...prev,
-      b2bDiscountPercent: newPercent,
+      b2bDiscountPercent: disc,
       priceB2B: calculatedB2B,
     }));
   };
 
   const handleB2BChange = (newB2B: number) => {
     const b2c = formData.priceB2C || formData.defaultPrice || 0;
-    const disc = b2c > 0 ? Math.max(0, Math.min(100, Math.round(((b2c - newB2B) / b2c) * 100))) : 0;
+    const disc = b2c > 0 && newB2B < b2c ? Math.max(0, Math.min(100, Math.round(((b2c - newB2B) / b2c) * 100))) : 0;
     setFormData((prev) => ({
       ...prev,
       priceB2B: newB2B,
@@ -239,9 +240,11 @@ export const ServicesCatalog: React.FC = () => {
       return;
     }
 
-    const b2cPrice = Number(formData.priceB2C) || Number(formData.defaultPrice);
-    const b2bPrice = Number(formData.priceB2B) || Math.round(b2cPrice * 0.85);
-    const b2bDisc = Number(formData.b2bDiscountPercent) || (b2cPrice > 0 ? Math.round(((b2cPrice - b2bPrice) / b2cPrice) * 100) : 15);
+    const b2cPrice = Number(formData.priceB2C) || Number(formData.defaultPrice) || 0;
+    const b2bPrice = formData.priceB2B !== undefined && formData.priceB2B !== null && !isNaN(Number(formData.priceB2B)) && Number(formData.priceB2B) >= 0
+      ? Number(formData.priceB2B)
+      : b2cPrice;
+    const b2bDisc = Number(formData.b2bDiscountPercent) || (b2cPrice > 0 && b2bPrice < b2cPrice ? Math.round(((b2cPrice - b2bPrice) / b2cPrice) * 100) : 0);
 
     if (editingService) {
       updateServiceCategory(editingService.id, {
@@ -510,8 +513,8 @@ export const ServicesCatalog: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayServices.map((srv) => {
           const b2c = srv.priceB2C !== undefined ? srv.priceB2C : srv.defaultPrice;
-          const b2b = srv.priceB2B !== undefined ? srv.priceB2B : Math.round(b2c * 0.85);
-          const disc = srv.b2bDiscountPercent !== undefined ? srv.b2bDiscountPercent : (b2c > 0 ? Math.round(((b2c - b2b) / b2c) * 100) : 15);
+          const b2b = srv.priceB2B !== undefined ? srv.priceB2B : b2c;
+          const disc = srv.b2bDiscountPercent !== undefined ? srv.b2bDiscountPercent : (b2c > 0 && b2b < b2c ? Math.round(((b2c - b2b) / b2c) * 100) : 0);
           const gov = srv.governmentFees || 0;
 
           // Find classification color
@@ -611,7 +614,7 @@ export const ServicesCatalog: React.FC = () => {
                             B2B Corporate Rate:
                           </span>
                           <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">
-                            {disc}% Baseline Discount
+                            {disc > 0 ? `${disc}% Manual Discount` : 'Standard Rate (0% Disc)'}
                           </span>
                         </div>
                       </div>
@@ -619,9 +622,11 @@ export const ServicesCatalog: React.FC = () => {
                         <span className="font-bold font-mono text-indigo-700 dark:text-indigo-400 text-xs block">
                           AED {b2b.toLocaleString()}
                         </span>
-                        <span className="text-[9px] text-slate-400 line-through font-mono">
-                          AED {b2c.toLocaleString()}
-                        </span>
+                        {b2b < b2c && (
+                          <span className="text-[9px] text-slate-400 line-through font-mono">
+                            AED {b2c.toLocaleString()}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -701,8 +706,8 @@ export const ServicesCatalog: React.FC = () => {
 
                 {(() => {
                   const b2c = selectedService.priceB2C !== undefined ? selectedService.priceB2C : selectedService.defaultPrice;
-                  const b2b = selectedService.priceB2B !== undefined ? selectedService.priceB2B : Math.round(b2c * 0.85);
-                  const disc = selectedService.b2bDiscountPercent !== undefined ? selectedService.b2bDiscountPercent : (b2c > 0 ? Math.round(((b2c - b2b) / b2c) * 100) : 15);
+                  const b2b = selectedService.priceB2B !== undefined ? selectedService.priceB2B : b2c;
+                  const disc = selectedService.b2bDiscountPercent !== undefined ? selectedService.b2bDiscountPercent : (b2c > 0 && b2b < b2c ? Math.round(((b2c - b2b) / b2c) * 100) : 0);
                   const gov = selectedService.governmentFees || 0;
 
                   return (
@@ -728,9 +733,15 @@ export const ServicesCatalog: React.FC = () => {
                               <span className="text-[10px] font-bold text-indigo-800 dark:text-indigo-300">
                                 B2B (Corporate)
                               </span>
-                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">
-                                {disc}% OFF
-                              </span>
+                              {disc > 0 ? (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">
+                                  {disc}% OFF
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                  Standard Rate
+                                </span>
+                              )}
                             </div>
                             <span className="text-sm font-bold font-mono text-indigo-700 dark:text-indigo-400 block mt-0.5">
                               AED {b2b.toLocaleString()}
@@ -1197,15 +1208,74 @@ export const ServicesCatalog: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Flexible Corporate B2B Note */}
-                <div className="p-3 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-900 dark:text-indigo-200 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-indigo-800 dark:text-indigo-300">
-                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Flexible Corporate B2B Rates:</span>
+                {/* Manual B2B Corporate Pricing Controls */}
+                <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-200 text-xs">
+                      <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <span>B2B Corporate Pricing (Manual Only)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const b2c = Number(formData.priceB2C) || Number(formData.defaultPrice) || 0;
+                        setFormData((prev) => ({
+                          ...prev,
+                          priceB2B: b2c,
+                          b2bDiscountPercent: 0,
+                        }));
+                      }}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    >
+                      Reset to Standard Rate (0% Disc)
+                    </button>
                   </div>
-                  <p className="text-[10px] leading-relaxed text-indigo-800/80 dark:text-indigo-300/80">
-                    Corporate rates are not fixed in the catalog. Every time a corporate client or company is interested in a product, admins and staff can specify or negotiate a custom manual rate or tailored discount on the spot.
+
+                  <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300/80 leading-relaxed">
+                    By default, services have <b>0% automated B2B discount</b> (Standard Rate). If a corporate discount is required, enter the manual corporate rate or discount percentage below.
                   </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-200">
+                        Manual B2B Fee (AED)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.priceB2B ?? ''}
+                        onChange={(e) => handleB2BChange(Number(e.target.value))}
+                        placeholder="e.g. 3500"
+                        className="w-full p-2 bg-white dark:bg-slate-800 rounded-lg border border-indigo-200 dark:border-indigo-800 font-mono font-bold text-xs text-indigo-900 dark:text-indigo-100"
+                      />
+                      <span className="text-[10px] text-indigo-600/80 dark:text-indigo-400/80 block">
+                        Direct B2B partner baseline fee
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-indigo-900 dark:text-indigo-200">
+                        Manual Discount (%)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={formData.b2bDiscountPercent ?? 0}
+                          onChange={(e) => handleDiscountPercentChange(Number(e.target.value))}
+                          placeholder="0"
+                          className="w-full p-2 bg-white dark:bg-slate-800 rounded-lg border border-indigo-200 dark:border-indigo-800 font-mono font-bold text-xs text-indigo-900 dark:text-indigo-100"
+                        />
+                        <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 shrink-0">
+                          {Number(formData.b2bDiscountPercent) > 0 ? `${formData.b2bDiscountPercent}% OFF` : '0% (Standard)'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-indigo-600/80 dark:text-indigo-400/80 block">
+                        0% = No discount (Standard retail fee)
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 

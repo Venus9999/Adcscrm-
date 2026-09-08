@@ -5,9 +5,10 @@
  */
 
 const DB_NAME = 'adcs_crm_vault_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_VAULT = 'crm_vault';
 const STORE_SNAPSHOTS = 'crm_snapshots';
+const STORE_FILES = 'crm_files';
 
 function openDatabase(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
@@ -27,6 +28,9 @@ function openDatabase(): Promise<IDBDatabase | null> {
         if (!db.objectStoreNames.contains(STORE_SNAPSHOTS)) {
           const snapStore = db.createObjectStore(STORE_SNAPSHOTS, { keyPath: 'id' });
           snapStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(STORE_FILES)) {
+          db.createObjectStore(STORE_FILES, { keyPath: 'id' });
         }
       };
 
@@ -176,3 +180,63 @@ export async function getLatestIndexedDbSnapshot(): Promise<any | null> {
     return null;
   }
 }
+
+/**
+ * Save document binary / data URL to IndexedDB file vault
+ */
+export async function saveDocumentFileToDb(docId: string, dataUrl: string): Promise<boolean> {
+  try {
+    const db = await openDatabase();
+    if (!db) return false;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(STORE_FILES, 'readwrite');
+        const store = tx.objectStore(STORE_FILES);
+        const record = {
+          id: docId,
+          dataUrl,
+          savedAt: new Date().toISOString(),
+        };
+        const putReq = store.put(record);
+        putReq.onsuccess = () => resolve(true);
+        putReq.onerror = () => resolve(false);
+      } catch {
+        resolve(false);
+      }
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Retrieve document binary / data URL from IndexedDB file vault
+ */
+export async function getDocumentFileFromDb(docId: string): Promise<string | null> {
+  try {
+    const db = await openDatabase();
+    if (!db) return null;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(STORE_FILES, 'readonly');
+        const store = tx.objectStore(STORE_FILES);
+        const getReq = store.get(docId);
+        getReq.onsuccess = () => {
+          if (getReq.result && getReq.result.dataUrl) {
+            resolve(getReq.result.dataUrl);
+          } else {
+            resolve(null);
+          }
+        };
+        getReq.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+

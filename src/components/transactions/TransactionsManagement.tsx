@@ -21,33 +21,48 @@ import {
   Printer,
   ChevronDown,
   Sparkles,
+  Link2,
+  Unlink,
+  ExternalLink,
+  AlertCircle,
 } from 'lucide-react';
 import { useCRM } from '../../context/CRMContext';
-import { Transaction } from '../../types/crm';
+import { Transaction, Invoice } from '../../types/crm';
 import { formatDateTime, toDateTimeLocalString } from '../../utils/dateTimeFormat';
 
 export const TransactionsManagement: React.FC = () => {
   const {
     transactions,
     filteredTransactions,
+    invoices,
     addTransaction,
     updateTransaction,
     deleteTransaction,
+    connectTransactionToInvoice,
     clients,
     companies,
     currentUser,
     selectedCompanyId,
   } = useCRM();
 
+  const isMasterOrAdmin = currentUser.role === 'master' || currentUser.role === 'admin';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'connected' | 'unlinked'>('all');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connectingTx, setConnectingTx] = useState<Transaction | null>(null);
+  const [connectSelectedInvoiceId, setConnectSelectedInvoiceId] = useState<string>('');
+  const [connectSyncBalance, setConnectSyncBalance] = useState<boolean>(true);
+  const [connectSearchTerm, setConnectSearchTerm] = useState<string>('');
+  const [connectShowAllInvoices, setConnectShowAllInvoices] = useState<boolean>(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   // Form State
@@ -58,6 +73,8 @@ export const TransactionsManagement: React.FC = () => {
     companyName: '',
     serviceId: '',
     serviceName: '',
+    invoiceId: '',
+    invoiceNumber: '',
     type: 'deposit' as Transaction['type'],
     category: 'Client Retainer Payment',
     amount: 5000,
@@ -84,10 +101,14 @@ export const TransactionsManagement: React.FC = () => {
       const matchMethod = methodFilter === 'all' || tx.paymentMethod === methodFilter;
       const matchClient = clientFilter === 'all' || tx.clientId === clientFilter;
       const matchStatus = statusFilter === 'all' || tx.status === statusFilter;
+      const matchInvoice =
+        invoiceFilter === 'all' ||
+        (invoiceFilter === 'connected' && Boolean(tx.invoiceId)) ||
+        (invoiceFilter === 'unlinked' && !tx.invoiceId);
 
-      return Boolean(matchSearch && matchType && matchMethod && matchClient && matchStatus);
+      return Boolean(matchSearch && matchType && matchMethod && matchClient && matchStatus && matchInvoice);
     });
-  }, [filteredTransactions, searchTerm, typeFilter, methodFilter, clientFilter, statusFilter]);
+  }, [filteredTransactions, searchTerm, typeFilter, methodFilter, clientFilter, statusFilter, invoiceFilter]);
 
   // Financial Summaries
   const metrics = useMemo(() => {
@@ -156,6 +177,8 @@ export const TransactionsManagement: React.FC = () => {
       companyName: targetComp?.name || 'ADCS Dubai Global Gateway PRO LLC',
       serviceId: '',
       serviceName: '',
+      invoiceId: '',
+      invoiceNumber: '',
       type: 'deposit',
       category: 'Client Retainer Payment',
       amount: 5000,
@@ -178,6 +201,8 @@ export const TransactionsManagement: React.FC = () => {
       companyName: tx.companyName || '',
       serviceId: tx.serviceId || '',
       serviceName: tx.serviceName || '',
+      invoiceId: tx.invoiceId || '',
+      invoiceNumber: tx.invoiceNumber || '',
       type: tx.type,
       category: tx.category,
       amount: tx.amount,
@@ -189,6 +214,32 @@ export const TransactionsManagement: React.FC = () => {
       notes: tx.notes || '',
     });
     setShowEditModal(true);
+  };
+
+  const handleOpenConnect = (tx: Transaction) => {
+    setConnectingTx(tx);
+    setConnectSelectedInvoiceId(tx.invoiceId || '');
+    setConnectSyncBalance(true);
+    setConnectSearchTerm('');
+    setConnectShowAllInvoices(false);
+    setShowConnectModal(true);
+  };
+
+  const handleSaveConnect = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!connectingTx) return;
+    connectTransactionToInvoice(connectingTx.id, connectSelectedInvoiceId || null, connectSyncBalance);
+    setShowConnectModal(false);
+    setConnectingTx(null);
+  };
+
+  const handleUnlinkInvoice = (txId: string) => {
+    if (window.confirm('Are you sure you want to disconnect this transaction from its invoice?')) {
+      connectTransactionToInvoice(txId, null, true);
+      if (connectingTx?.id === txId) {
+        setConnectSelectedInvoiceId('');
+      }
+    }
   };
 
   const handleOpenReceipt = (tx: Transaction) => {
@@ -208,6 +259,8 @@ export const TransactionsManagement: React.FC = () => {
       companyName: comp?.name || formData.companyName,
       serviceId: formData.serviceId || undefined,
       serviceName: formData.serviceName || undefined,
+      invoiceId: formData.invoiceId || undefined,
+      invoiceNumber: formData.invoiceNumber || undefined,
       type: formData.type,
       category: formData.category,
       amount: Number(formData.amount) || 0,
@@ -229,6 +282,10 @@ export const TransactionsManagement: React.FC = () => {
     const comp = companies.find((c) => c.id === formData.companyId);
     const client = clients.find((cl) => cl.id === formData.clientId);
 
+    if (isMasterOrAdmin && formData.invoiceId !== (selectedTx.invoiceId || '')) {
+      connectTransactionToInvoice(selectedTx.id, formData.invoiceId || null, true);
+    }
+
     updateTransaction(selectedTx.id, {
       clientId: formData.clientId || undefined,
       clientName: client ? client.fullName : formData.clientName || undefined,
@@ -236,6 +293,8 @@ export const TransactionsManagement: React.FC = () => {
       companyName: comp?.name || formData.companyName,
       serviceId: formData.serviceId || undefined,
       serviceName: formData.serviceName || undefined,
+      invoiceId: formData.invoiceId || undefined,
+      invoiceNumber: formData.invoiceNumber || undefined,
       type: formData.type,
       category: formData.category,
       amount: Number(formData.amount) || 0,
@@ -468,6 +527,17 @@ export const TransactionsManagement: React.FC = () => {
             <option value="Cash">Cash</option>
           </select>
 
+          {/* Invoice Connection Filter */}
+          <select
+            value={invoiceFilter}
+            onChange={(e) => setInvoiceFilter(e.target.value as any)}
+            className="px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium"
+          >
+            <option value="all">All Invoices (Linked & Unlinked)</option>
+            <option value="connected">Connected to Invoice</option>
+            <option value="unlinked">Unlinked Transactions</option>
+          </select>
+
           {/* Client Filter */}
           <select
             value={clientFilter}
@@ -520,6 +590,7 @@ export const TransactionsManagement: React.FC = () => {
                 <th className="p-3.5">Account / Client</th>
                 <th className="p-3.5">Company Branch</th>
                 <th className="p-3.5">Payment Details</th>
+                <th className="p-3.5">Connected Invoice</th>
                 <th className="p-3.5 font-right">Amount (AED)</th>
                 <th className="p-3.5">Recorded By</th>
                 <th className="p-3.5 text-right">Actions</th>
@@ -528,7 +599,7 @@ export const TransactionsManagement: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {displayTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-400">
+                  <td colSpan={9} className="p-8 text-center text-slate-400">
                     No transactions recorded matching the selected filter criteria.
                   </td>
                 </tr>
@@ -599,6 +670,54 @@ export const TransactionsManagement: React.FC = () => {
                       </td>
 
                       <td className="p-3.5">
+                        {tx.invoiceId ? (
+                          <div className="space-y-1">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-mono font-bold">
+                              <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                              <span>#{tx.invoiceNumber || tx.invoiceId}</span>
+                            </div>
+                            {isMasterOrAdmin && (
+                              <div className="flex items-center gap-1.5 text-[10px]">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenConnect(tx)}
+                                  className="text-blue-600 hover:text-blue-700 dark:text-blue-400 underline font-medium cursor-pointer"
+                                  title="Change connected invoice"
+                                >
+                                  Change
+                                </button>
+                                <span className="text-slate-300 dark:text-slate-600">&bull;</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnlinkInvoice(tx.id)}
+                                  className="text-rose-500 hover:text-rose-600 dark:text-rose-400 underline font-medium cursor-pointer"
+                                  title="Unlink from invoice"
+                                >
+                                  Unlink
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            {isMasterOrAdmin ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenConnect(tx)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-50/60 dark:bg-slate-800/40 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition-colors text-[11px] font-medium cursor-pointer"
+                                title="Connect this transaction to an invoice (Master & Admin privilege)"
+                              >
+                                <Link2 className="w-3 h-3 text-blue-500" />
+                                <span>+ Link Invoice</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">Unlinked</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="p-3.5">
                         <div className={`font-mono font-bold text-sm ${style.color}`}>
                           {style.prefix} AED {tx.amount.toLocaleString()}
                         </div>
@@ -616,6 +735,20 @@ export const TransactionsManagement: React.FC = () => {
 
                       <td className="p-3.5 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {isMasterOrAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenConnect(tx)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                tx.invoiceId
+                                  ? 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40'
+                                  : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                              title={tx.invoiceId ? `Connected to Invoice #${tx.invoiceNumber} (Click to manage)` : 'Connect to Invoice (Master / Admin)'}
+                            >
+                              <Link2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleOpenReceipt(tx)}
                             className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg"
@@ -649,7 +782,7 @@ export const TransactionsManagement: React.FC = () => {
             {/* Table Footer with Total summary */}
             <tfoot className="bg-slate-50 dark:bg-slate-800/90 border-t-2 border-slate-200 dark:border-slate-700 font-semibold">
               <tr>
-                <td colSpan={5} className="p-4">
+                <td colSpan={6} className="p-4">
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
                     <div className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">
                       Total ({visibleTotals.count} records)
@@ -824,6 +957,74 @@ export const TransactionsManagement: React.FC = () => {
                   </select>
                 </div>
               </div>
+
+              {/* Master / Admin Invoice Link Selector */}
+              {isMasterOrAdmin && (
+                <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Connect to Invoice (Master & Admin Option)</span>
+                    </label>
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300">
+                      Master / Admin
+                    </span>
+                  </div>
+                  <select
+                    value={formData.invoiceId ?? ''}
+                    onChange={(e) => {
+                      const invId = e.target.value;
+                      const inv = invoices.find((i) => i.id === invId);
+                      if (inv) {
+                        setFormData({
+                          ...formData,
+                          invoiceId: inv.id,
+                          invoiceNumber: inv.invoiceNumber,
+                          clientId: inv.clientId || formData.clientId,
+                          clientName: inv.clientName || formData.clientName,
+                          companyId: inv.companyId || formData.companyId,
+                          companyName: inv.companyName || formData.companyName,
+                          serviceId: inv.serviceId || formData.serviceId,
+                          serviceName: inv.serviceName || formData.serviceName,
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          invoiceId: '',
+                          invoiceNumber: '',
+                        });
+                      }
+                    }}
+                    className="w-full p-2.5 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-200 dark:border-blue-800 text-slate-800 dark:text-slate-200 font-medium"
+                  >
+                    <option value="">-- No Linked Invoice (Standalone Transaction) --</option>
+                    {invoices
+                      .filter((inv) => !formData.clientId || inv.clientId === formData.clientId)
+                      .map((inv) => (
+                        <option key={inv.id} value={inv.id}>
+                          #{inv.invoiceNumber} &bull; {inv.clientName} &bull; Balance: AED {inv.balanceAmount.toLocaleString()} / Total: AED {inv.grandTotal.toLocaleString()} ({inv.status})
+                        </option>
+                      ))}
+                    {formData.clientId && invoices.filter((inv) => inv.clientId !== formData.clientId).length > 0 && (
+                      <optgroup label="Other Clients' Invoices">
+                        {invoices
+                          .filter((inv) => inv.clientId !== formData.clientId)
+                          .map((inv) => (
+                            <option key={inv.id} value={inv.id}>
+                              #{inv.invoiceNumber} &bull; {inv.clientName} &bull; Balance: AED {inv.balanceAmount.toLocaleString()} / Total: AED {inv.grandTotal.toLocaleString()} ({inv.status})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  {formData.invoiceId && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-blue-700 dark:text-blue-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span>Linked to Invoice #{formData.invoiceNumber}. Balance will adjust automatically upon recording.</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Category & Amount */}
               <div className="grid grid-cols-2 gap-3">
@@ -1043,6 +1244,81 @@ export const TransactionsManagement: React.FC = () => {
                 </div>
               </div>
 
+              {/* Master / Admin Invoice Link Selector */}
+              {isMasterOrAdmin && (
+                <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Connected Invoice (Master & Admin)</span>
+                    </label>
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300">
+                      Master / Admin
+                    </span>
+                  </div>
+                  <select
+                    value={formData.invoiceId ?? ''}
+                    onChange={(e) => {
+                      const invId = e.target.value;
+                      const inv = invoices.find((i) => i.id === invId);
+                      if (inv) {
+                        setFormData({
+                          ...formData,
+                          invoiceId: inv.id,
+                          invoiceNumber: inv.invoiceNumber,
+                          clientId: inv.clientId || formData.clientId,
+                          clientName: inv.clientName || formData.clientName,
+                          companyId: inv.companyId || formData.companyId,
+                          companyName: inv.companyName || formData.companyName,
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          invoiceId: '',
+                          invoiceNumber: '',
+                        });
+                      }
+                    }}
+                    className="w-full p-2.5 bg-white dark:bg-slate-800 rounded-xl text-xs border border-blue-200 dark:border-blue-800 text-slate-800 dark:text-slate-200 font-medium"
+                  >
+                    <option value="">-- No Linked Invoice (Standalone) --</option>
+                    {invoices
+                      .filter((inv) => !formData.clientId || inv.clientId === formData.clientId)
+                      .map((inv) => (
+                        <option key={inv.id} value={inv.id}>
+                          #{inv.invoiceNumber} &bull; {inv.clientName} &bull; Balance: AED {inv.balanceAmount.toLocaleString()} / Total: AED {inv.grandTotal.toLocaleString()} ({inv.status})
+                        </option>
+                      ))}
+                    {formData.clientId && invoices.filter((inv) => inv.clientId !== formData.clientId).length > 0 && (
+                      <optgroup label="Other Clients' Invoices">
+                        {invoices
+                          .filter((inv) => inv.clientId !== formData.clientId)
+                          .map((inv) => (
+                            <option key={inv.id} value={inv.id}>
+                              #{inv.invoiceNumber} &bull; {inv.clientName} &bull; Balance: AED {inv.balanceAmount.toLocaleString()} / Total: AED {inv.grandTotal.toLocaleString()} ({inv.status})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  {formData.invoiceId && (
+                    <div className="flex items-center justify-between text-[11px] text-blue-700 dark:text-blue-300">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span>Connected to #{formData.invoiceNumber}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, invoiceId: '', invoiceNumber: '' })}
+                        className="text-rose-500 hover:text-rose-600 dark:text-rose-400 underline font-medium cursor-pointer"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Notes</label>
                 <textarea
@@ -1141,6 +1417,277 @@ export const TransactionsManagement: React.FC = () => {
               >
                 Done
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated Connect Transaction to Invoice Modal (Master & Admin) */}
+      {showConnectModal && connectingTx && isMasterOrAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-xl w-full shadow-2xl animate-in fade-in max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+                  <Link2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Connect Transaction to Invoice</span>
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300">
+                      Master / Admin Only
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Link transaction #{connectingTx.transactionNumber} to an official corporate invoice
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConnectModal(false);
+                  setConnectingTx(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto py-4 space-y-4 text-xs pr-1">
+              {/* Transaction Summary Card */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3.5 border border-slate-200 dark:border-slate-700/70">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">
+                  Transaction Information
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Reference:</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">{connectingTx.transactionNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Amount:</span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">AED {connectingTx.amount.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Type / Method:</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{connectingTx.type} ({connectingTx.paymentMethod})</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Client / Account:</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{connectingTx.clientName || 'General Company'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Connection Status */}
+              {connectingTx.invoiceId ? (
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <div>
+                      <span className="font-bold text-blue-950 dark:text-blue-200">
+                        Currently Connected to Invoice #{connectingTx.invoiceNumber || connectingTx.invoiceId}
+                      </span>
+                      <span className="text-[11px] text-blue-700 dark:text-blue-300 block">
+                        Select another invoice below to transfer this transaction, or disconnect it.
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleUnlinkInvoice(connectingTx.id);
+                      setShowConnectModal(false);
+                      setConnectingTx(null);
+                    }}
+                    className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-xs font-semibold shrink-0 cursor-pointer flex items-center gap-1"
+                  >
+                    <Unlink className="w-3 h-3" />
+                    <span>Unlink Invoice</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-center gap-2 text-amber-800 dark:text-amber-300 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>This transaction is currently unlinked. Choose an invoice below to link them and balance the invoice ledger.</span>
+                </div>
+              )}
+
+              {/* Invoice Selection Section */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Choose Target Invoice:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={connectShowAllInvoices}
+                        onChange={(e) => setConnectShowAllInvoices(e.target.checked)}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Show all clients' invoices</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by invoice #, client name, or service..."
+                    value={connectSearchTerm}
+                    onChange={(e) => setConnectSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400"
+                  />
+                </div>
+
+                {/* Invoice List */}
+                <div className="border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 max-h-56 overflow-y-auto bg-slate-50/50 dark:bg-slate-900/50">
+                  {/* Standalone option */}
+                  <label
+                    className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors ${
+                      connectSelectedInvoiceId === '' ? 'bg-blue-50/70 dark:bg-blue-950/30' : ''
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="selectedInvoice"
+                      value=""
+                      checked={connectSelectedInvoiceId === ''}
+                      onChange={() => setConnectSelectedInvoiceId('')}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <div className="font-semibold text-slate-700 dark:text-slate-300">
+                        None (Disconnect from Invoices)
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        Keep or set this transaction as a standalone general record without an associated invoice.
+                      </div>
+                    </div>
+                  </label>
+
+                  {invoices
+                    .filter((inv) => {
+                      if (!connectShowAllInvoices && connectingTx.clientId) {
+                        if (inv.clientId !== connectingTx.clientId) return false;
+                      }
+                      if (!connectSearchTerm) return true;
+                      const q = connectSearchTerm.toLowerCase();
+                      return (
+                        inv.invoiceNumber?.toLowerCase().includes(q) ||
+                        inv.clientName?.toLowerCase().includes(q) ||
+                        inv.serviceName?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((inv) => {
+                      const isSelected = connectSelectedInvoiceId === inv.id;
+                      return (
+                        <label
+                          key={inv.id}
+                          className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors ${
+                            isSelected ? 'bg-blue-50/80 dark:bg-blue-950/40' : ''
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="selectedInvoice"
+                            value={inv.id}
+                            checked={isSelected}
+                            onChange={() => setConnectSelectedInvoiceId(inv.id)}
+                            className="text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                <span>#{inv.invoiceNumber}</span>
+                              </span>
+                              <span
+                                className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
+                                  inv.status === 'paid'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300'
+                                    : inv.status === 'partially_paid'
+                                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300'
+                                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300'
+                                }`}
+                              >
+                                {inv.status}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate mt-0.5">
+                              Client: <span className="font-medium text-slate-800 dark:text-slate-200">{inv.clientName}</span>
+                              {inv.serviceName && <span className="text-slate-400"> &bull; {inv.serviceName}</span>}
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500 mt-1">
+                              <span>Total: AED {inv.grandTotal.toLocaleString()}</span>
+                              <span>&bull;</span>
+                              <span>Paid: AED {(inv.amountPaid || 0).toLocaleString()}</span>
+                              <span>&bull;</span>
+                              <span className="font-bold text-amber-600 dark:text-amber-400">
+                                Balance: AED {(inv.balanceAmount || 0).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Sync Options */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={connectSyncBalance}
+                    onChange={(e) => setConnectSyncBalance(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-0.5"
+                  />
+                  <div>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 block text-xs">
+                      Reconcile Invoice Balances & Client Ledgers Automatically
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                      Recalculates amount paid, remaining balance, and invoice status based on all connected transactions.
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <span className="text-[11px] text-slate-400">
+                Role: <strong className="text-slate-700 dark:text-slate-300 uppercase">{currentUser.role}</strong>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowConnectModal(false);
+                    setConnectingTx(null);
+                  }}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveConnect}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Link2 className="w-3.5 h-3.5" />
+                  <span>Save Invoice Connection</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -605,8 +605,8 @@ export const INITIAL_COMPANIES: Company[] = [
     entityType: 'company',
     isBranch: false,
     corporateDiscountType: 'percentage',
-    corporateDiscountValue: 15,
-    corporateDiscountPercent: 15,
+    corporateDiscountValue: 0,
+    corporateDiscountPercent: 0,
     bankDetails: {
       bankName: 'Emirates NBD Business Banking',
       accountName: 'ADCS Document Clearing LLC',
@@ -638,8 +638,8 @@ export const INITIAL_COMPANIES: Company[] = [
     entityType: 'company',
     isBranch: false,
     corporateDiscountType: 'fixed',
-    corporateDiscountValue: 500, // Fixed AED 500 off
-    corporateDiscountPercent: 12,
+    corporateDiscountValue: 0,
+    corporateDiscountPercent: 0,
     bankDetails: {
       bankName: 'Abu Dhabi Commercial Bank (ADCB)',
       accountName: 'Al Etihad Global Business LLC',
@@ -676,8 +676,8 @@ export const INITIAL_COMPANIES: Company[] = [
     branchLocation: 'Al Reem Island, Abu Dhabi',
     branchName: 'Abu Dhabi Branch',
     corporateDiscountType: 'percentage',
-    corporateDiscountValue: 15,
-    corporateDiscountPercent: 15,
+    corporateDiscountValue: 0,
+    corporateDiscountPercent: 0,
     bankDetails: {
       bankName: 'Emirates NBD Business Banking',
       accountName: 'ADCS Document Clearing LLC - AUH Branch',

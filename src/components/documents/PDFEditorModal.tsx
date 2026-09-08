@@ -55,6 +55,7 @@ import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import { useCRM } from '../../context/CRMContext';
 import { DocumentItem, Client } from '../../types/crm';
+import { getDocumentFileFromDb } from '../../utils/indexedDbStorage';
 import { SignaturePadModal } from './SignaturePadModal';
 import {
   AcrobatMode,
@@ -524,6 +525,29 @@ export const PDFEditorModal: React.FC<PDFEditorModalProps> = ({
           }
         } catch (fetchErr) {
           console.warn('Could not fetch PDF from URL:', url, fetchErr);
+        }
+      }
+
+      // IndexedDB local file vault fallback if network fetch or decoding was not available
+      if ((!rawBytes || !isValidPdfBuffer(rawBytes)) && initialDocument?.id) {
+        try {
+          const cachedDataUrl = await getDocumentFileFromDb(initialDocument.id);
+          if (cachedDataUrl && cachedDataUrl.startsWith('data:')) {
+            const parts = cachedDataUrl.split(',');
+            if (parts.length > 1) {
+              const base64Data = parts[1].replace(/\s/g, '');
+              const binaryString = window.atob(base64Data);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+              }
+              if (isValidPdfBuffer(bytes)) {
+                rawBytes = bytes;
+              }
+            }
+          }
+        } catch (dbErr) {
+          console.warn('IndexedDB document file cache lookup notice:', dbErr);
         }
       }
 

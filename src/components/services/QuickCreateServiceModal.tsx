@@ -65,6 +65,12 @@ export const QuickCreateServiceModal: React.FC<QuickCreateServiceModalProps> = (
   const [estimatedDays, setEstimatedDays] = useState<number>(7);
   const [description, setDescription] = useState('');
   const [pricingTierAvailable, setPricingTierAvailable] = useState<'all' | 'b2b_only' | 'b2c_only'>('all');
+
+  // B2B Corporate Pricing (Manual Only - Default: 0% discount / standard fee, no automatic 15%)
+  const [b2bPricingMode, setB2bPricingMode] = useState<'standard' | 'manual'>('standard');
+  const [priceB2B, setPriceB2B] = useState<number>(3500);
+  const [b2bDiscountPercent, setB2bDiscountPercent] = useState<number>(0);
+
   const [selectedDocs, setSelectedDocs] = useState<string[]>([
     'Passport Copy',
     'Emirates ID Copy',
@@ -124,14 +130,23 @@ export const QuickCreateServiceModal: React.FC<QuickCreateServiceModalProps> = (
     setErrorMsg('');
 
     try {
+      const b2cPrice = Number(defaultPrice) || 0;
+      const isManual = b2bPricingMode === 'manual';
+      const finalPriceB2B = isManual && priceB2B !== undefined && priceB2B >= 0
+        ? Number(priceB2B)
+        : b2cPrice;
+      const finalB2BDisc = isManual
+        ? (b2bDiscountPercent || (b2cPrice > 0 && finalPriceB2B < b2cPrice ? Math.round(((b2cPrice - finalPriceB2B) / b2cPrice) * 100) : 0))
+        : 0;
+
       const newService = addServiceCategory({
         name: name.trim(),
         code,
         category: finalCategory,
-        defaultPrice: Number(defaultPrice) || 0,
-        priceB2C: Number(defaultPrice) || 0,
-        priceB2B: Math.round((Number(defaultPrice) || 0) * 0.85),
-        b2bDiscountPercent: 15,
+        defaultPrice: b2cPrice,
+        priceB2C: b2cPrice,
+        priceB2B: finalPriceB2B,
+        b2bDiscountPercent: finalB2BDisc,
         pricingTierAvailable,
         governmentFees: Number(governmentFees) || 0,
         estimatedDays: Number(estimatedDays) || 5,
@@ -274,7 +289,14 @@ export const QuickCreateServiceModal: React.FC<QuickCreateServiceModalProps> = (
                   step="50"
                   required
                   value={defaultPrice}
-                  onChange={(e) => setDefaultPrice(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setDefaultPrice(val);
+                    if (b2bPricingMode === 'standard') {
+                      setPriceB2B(val);
+                      setB2bDiscountPercent(0);
+                    }
+                  }}
                   className="w-full p-2 bg-white dark:bg-slate-800 rounded-lg text-xs border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-900 dark:text-white"
                 />
               </div>
@@ -306,6 +328,89 @@ export const QuickCreateServiceModal: React.FC<QuickCreateServiceModalProps> = (
                   className="w-full p-2 bg-white dark:bg-slate-800 rounded-lg text-xs border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white"
                 />
               </div>
+            </div>
+
+            {/* B2B Corporate Pricing (Manual Only - Default 0% Discount) */}
+            <div className="pt-2.5 border-t border-slate-200 dark:border-slate-700 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    B2B Corporate Pricing (Manual Only)
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setB2bPricingMode('standard');
+                      setPriceB2B(defaultPrice);
+                      setB2bDiscountPercent(0);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                      b2bPricingMode === 'standard'
+                        ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    Standard Rate (0% Disc)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setB2bPricingMode('manual')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                      b2bPricingMode === 'manual'
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    Custom Manual Rate
+                  </button>
+                </div>
+              </div>
+
+              {b2bPricingMode === 'manual' ? (
+                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/60">
+                  <div>
+                    <label className="block text-[10px] font-bold text-indigo-900 dark:text-indigo-300 mb-0.5">
+                      Manual B2B Fee (AED)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={priceB2B}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setPriceB2B(val);
+                        const disc = defaultPrice > 0 && val < defaultPrice ? Math.round(((defaultPrice - val) / defaultPrice) * 100) : 0;
+                        setB2bDiscountPercent(disc);
+                      }}
+                      className="w-full p-1.5 bg-white dark:bg-slate-800 rounded-lg text-xs border border-indigo-200 dark:border-indigo-800 font-mono font-bold text-indigo-900 dark:text-indigo-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-indigo-900 dark:text-indigo-300 mb-0.5">
+                      Manual Discount (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={b2bDiscountPercent}
+                      onChange={(e) => {
+                        const disc = Math.min(100, Math.max(0, Number(e.target.value)));
+                        setB2bDiscountPercent(disc);
+                        setPriceB2B(Math.round(defaultPrice * (1 - disc / 100)));
+                      }}
+                      className="w-full p-1.5 bg-white dark:bg-slate-800 rounded-lg text-xs border border-indigo-200 dark:border-indigo-800 font-mono font-bold text-indigo-900 dark:text-indigo-200"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Default: Standard rate (<b>AED {defaultPrice.toLocaleString()}</b>) with <b>0% automated discount</b>. B2B discounts are manual only.
+                </p>
+              )}
             </div>
 
             {/* Live Pricing Breakdown & Non-Mandatory VAT */}

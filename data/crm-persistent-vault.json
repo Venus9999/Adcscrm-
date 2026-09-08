@@ -1,6 +1,28 @@
 {
   "auditLogs": [
     {
+      "id": "log-1788796564459-lk",
+      "action": "Client Recovered",
+      "module": "Clients",
+      "details": "Recovered and restored client profile for Lekhraj",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userEmail": "master@adcs.ae",
+      "userRole": "master",
+      "timestamp": "2026-09-07T15:56:04.459Z"
+    },
+    {
+      "id": "log-1788796564459-mp",
+      "action": "Client Recovered",
+      "module": "Clients",
+      "details": "Recovered and restored client profile for Monu Paudel",
+      "userId": "user-master",
+      "userName": "Gurpreet Singh Kataria",
+      "userEmail": "master@adcs.ae",
+      "userRole": "master",
+      "timestamp": "2026-09-07T15:56:04.459Z"
+    },
+    {
       "id": "log-1788508677070-bsbs",
       "userId": "user-master",
       "userName": "Gurpreet Singh Kataria",
@@ -870,9 +892,9 @@
         "swift": "EBILAEADXXX"
       },
       "city": "Dubai",
-      "corporateDiscountPercent": 15,
+      "corporateDiscountPercent": 0,
       "corporateDiscountType": "percentage",
-      "corporateDiscountValue": 15,
+      "corporateDiscountValue": 0,
       "country": "United Arab Emirates",
       "createdAt": "2024-01-01T00:00:00Z",
       "currency": "AED",
@@ -1530,9 +1552,9 @@
       "workingHours": "Mon - Fri 08:30 - 17:30 (UAE GST)"
     }
   ],
-  "hasCustomModifications": false,
+  "hasCustomModifications": true,
   "isColdStart": false,
-  "lastUpdated": "2026-09-04T07:57:57.302Z",
+  "lastUpdated": "2026-09-07T15:56:04.459Z",
   "leadCategories": [
     {
       "id": "cat-golden-visa",
@@ -3051,6 +3073,243 @@
       ],
       "assignedEmployeeId": "user-1788060402768",
       "assignedEmployeeName": "Muhammad Tahir"
+    },
+    {
+      "id": "client-walkin-1788404172019",
+      "refNo": "DXB-2026-4172",
+      "fileNumber": "FILE-GSK-2026",
+      "fullName": "Gurpreet Singh Kataria",
+      "firstName": "Gurpreet",
+      "lastName": "Singh Kataria",
+      "email": "gurpreet.singh369@gmail.com",
+      "mobile": "+971 50 000 0000",
+      "phone": "+971 50 000 0000",
+      "whatsapp": "+971 50 000 0000",
+      "residentialAddress": "Dubai, UAE",
+      "passportNo": "34343",
+      "companyId": "comp-1",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "category": "Direct Client",
+      "type": "Individual",
+      "status": "active",
+      "pricingTier": "b2c",
+      "nationality": "United Arab Emirates",
+      "currentStageId": "stage-1",
+      "currentStageName": "Application Processing",
+      "paymentStatus": "paid",
+      "totalAmount": 4,
+      "paidAmount": 5.15,
+      "outstandingAmount": 0,
+      "services": [
+        {
+          "id": "srv-1788404172019",
+          "clientId": "client-walkin-1788404172019",
+          "serviceName": "Corporate PRO & Legal Clearance Service",
+          "category": "Corporate PRO & Legal Clearance",
+          "price": 4,
+          "governmentFees": 0,
+          "advancePaid": 5.15,
+          "balance": 0,
+          "invoiceId": "inv-1788404172019",
+          "invoiceNumber": "INV-2026-0001",
+          "status": "completed",
+          "currentStageId": "stage-1",
+          "currentStageName": "Application Processing",
+          "referenceNumber": "SRV-INV-2026-0001"
+        }
+      ],
+      "notes": [
+        {
+          "id": "note-1788404515342",
+          "text": "💳 [Payment Settled] AED 5.15 received for Invoice #INV-2026-0001 via Nomod. Receipt Voucher #RCP-2026-1635.",
+          "createdAt": "2026-09-05T08:37:58.451Z",
+          "type": "system"
+        }
+      ],
+      "tags": [
+        "Active",
+        "VIP"
+      ],
+      "createdAt": "2026-09-04T10:00:00.000Z",
+      "updatedAt": "2026-09-07T15:00:29.428Z"
+    },
+    {
+      "id": "client-walkin-1788610272670",
+      "refNo": "DXB-2026-2670",
+      "fileNumber": "FILE-TST-2670",
+      "fullName": "test",
+      "firstName": "test",
+      "lastName": "",
+      "email": "walkin@example.com",
+      "mobile": "+971 50 000 0000",
+      "phone": "+971 50 000 0000",
+      "whatsapp": "+971 50 000 0000",
+      "residentialAddress": "Dubai, UAE",
+      "passportNo": "",
+      "companyId": "comp-1",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "category": "Direct Client",
+      "type": "Individual",
+      "status": "active",
+      "pricingTier": "b2c",
+      "nationality": "United Arab Emirates",
+      "currentStageId": "stage-1",
+      "currentStageName": "Application Processing",
+      "paymentStatus": "unpaid",
+      "totalAmount": 6650,
+      "paidAmount": 0,
+      "outstandingAmount": 6650,
+      "services": [
+        {
+          "id": "srv-1788610272671",
+          "clientId": "client-walkin-1788610272670",
+          "serviceName": "Residence Visa New - Partner / Investor (3-Year)",
+          "category": "Visa & Immigration",
+          "price": 6650,
+          "governmentFees": 0,
+          "advancePaid": 0,
+          "balance": 6650,
+          "invoiceId": "inv-1788610272671",
+          "invoiceNumber": "INV-2026-0005",
+          "status": "active",
+          "currentStageId": "stage-1",
+          "currentStageName": "Application Processing",
+          "referenceNumber": "SRV-INV-2026-0005"
+        }
+      ],
+      "notes": [],
+      "tags": [
+        "Active"
+      ],
+      "createdAt": "2026-09-06T15:00:00.000Z",
+      "updatedAt": "2026-09-07T15:00:29.428Z"
+    },
+    {
+      "id": "client-walkin-1788424171284",
+      "refNo": "DXB-2026-1284",
+      "fileNumber": "FILE-TST-1284",
+      "fullName": "test",
+      "firstName": "test",
+      "lastName": "",
+      "email": "test@example.com",
+      "mobile": "+971 50 000 0000",
+      "phone": "+971 50 000 0000",
+      "whatsapp": "+971 50 000 0000",
+      "residentialAddress": "Dubai, UAE",
+      "passportNo": "",
+      "companyId": "comp-1",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "category": "Direct Client",
+      "type": "Individual",
+      "status": "active",
+      "pricingTier": "b2c",
+      "nationality": "United Arab Emirates",
+      "currentStageId": "stage-1",
+      "currentStageName": "Application Processing",
+      "paymentStatus": "paid",
+      "totalAmount": 108.1,
+      "paidAmount": 108.1,
+      "outstandingAmount": 0,
+      "services": [],
+      "notes": [
+        {
+          "id": "note-1788424188509",
+          "text": "💳 [Payment Settled] AED 108.10 received via Nomod.",
+          "createdAt": "2026-09-05T09:00:00.000Z",
+          "type": "system"
+        }
+      ],
+      "tags": [
+        "Active"
+      ],
+      "createdAt": "2026-09-05T09:00:00.000Z",
+      "updatedAt": "2026-09-07T15:00:29.428Z"
+    },
+    {
+      "id": "client-lekhraj-1788796564459",
+      "refNo": "DXB-2026-LK71",
+      "fileNumber": "FILE-LK-2026",
+      "fullName": "Lekhraj",
+      "firstName": "Lekhraj",
+      "lastName": "",
+      "email": "",
+      "mobile": "",
+      "phone": "",
+      "whatsapp": "",
+      "residentialAddress": "Dubai, UAE",
+      "passportNo": "",
+      "companyId": "comp-1",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "category": "Direct Client",
+      "type": "Individual",
+      "status": "active",
+      "pricingTier": "b2c",
+      "nationality": "India",
+      "currentStageId": "stage-1",
+      "currentStageName": "Application Processing",
+      "paymentStatus": "unpaid",
+      "totalAmount": 0,
+      "paidAmount": 0,
+      "outstandingAmount": 0,
+      "services": [],
+      "notes": [
+        {
+          "id": "note-1788796564459-lk",
+          "text": "Client profile recovered and restored to CRM database.",
+          "createdAt": "2026-09-07T15:56:04.459Z",
+          "type": "system"
+        }
+      ],
+      "tags": [
+        "Recovered",
+        "Active"
+      ],
+      "createdAt": "2026-09-07T15:56:04.459Z",
+      "updatedAt": "2026-09-07T15:56:04.459Z",
+      "emiratesId": ""
+    },
+    {
+      "id": "client-monu-paudel-1788796564460",
+      "refNo": "DXB-2026-MP82",
+      "fileNumber": "FILE-MP-2026",
+      "fullName": "Monu Paudel",
+      "firstName": "Monu",
+      "lastName": "Paudel",
+      "email": "",
+      "mobile": "",
+      "phone": "",
+      "whatsapp": "",
+      "residentialAddress": "Dubai, UAE",
+      "passportNo": "",
+      "companyId": "comp-1",
+      "companyName": "ADCS Document Clearing & Corporate Services LLC",
+      "category": "Direct Client",
+      "type": "Individual",
+      "status": "active",
+      "pricingTier": "b2c",
+      "nationality": "Nepal",
+      "currentStageId": "stage-1",
+      "currentStageName": "Application Processing",
+      "paymentStatus": "unpaid",
+      "totalAmount": 0,
+      "paidAmount": 0,
+      "outstandingAmount": 0,
+      "services": [],
+      "notes": [
+        {
+          "id": "note-1788796564459-mp",
+          "text": "Client profile recovered and restored to CRM database.",
+          "createdAt": "2026-09-07T15:56:04.459Z",
+          "type": "system"
+        }
+      ],
+      "tags": [
+        "Recovered",
+        "Active"
+      ],
+      "createdAt": "2026-09-07T15:56:04.459Z",
+      "updatedAt": "2026-09-07T15:56:04.459Z",
+      "emiratesId": ""
     }
   ],
   "documents": [],
@@ -6790,5 +7049,6 @@
     "createdAt": "2026-09-04T12:30:32.870Z",
     "createdBy": "Gurpreet Singh Kataria (master)",
     "version": "4.0"
-  }
+  },
+  "revision": 21
 }
